@@ -1,0 +1,54 @@
+{
+  "defaultProvider": "claude-bridge",
+  "defaultModel": "claude-opus-4-8",
+  "defaultThinkingLevel": "high",
+  "enabledModels": [
+    "makora/zai-org/GLM-5.2-NVFP4",
+    "makora/zai-org/GLM-5.2-FP8",
+    "umans/umans-glm-5.2",
+    "makora/moonshotai/Kimi-K2.7-Code",
+    "openai-codex/gpt-5.4-mini",
+    "openai-codex/gpt-5.6-sol",
+    "claude-bridge/claude-fable-5",
+    "claude-bridge/claude-sonnet-5",
+    "claude-bridge/claude-opus-4-8",
+    "claude-bridge/claude-haiku-4-5"
+  ],
+  "enableSkillCommands": true,
+  "compaction": {
+    "enabled": true,
+    "reserveTokens": 16384,
+    "keepRecentTokens": 20000
+  },
+  "retry": {
+    "enabled": true,
+    "maxRetries": 3,
+    "baseDelayMs": 2000
+  },
+  "steeringMode": "one-at-a-time",
+  "followUpMode": "one-at-a-time",
+  "extensions": [
+    "extensions/diagnostics.ts",
+    "extensions/guard.ts",
+    "extensions/quality-gate.ts",
+    "extensions/prompt-leverage.ts",
+    "extensions/research-tools.ts",
+    "extensions/session-summary.ts",
+    "extensions/skill-mcp/index.ts",
+    "extensions/tui-bindings.ts"
+  ],
+  "skills": ["skills"],
+  "prompts": [
+    "prompts/audit.md",
+    "prompts/create.md",
+    "prompts/fix.md",
+    "prompts/gc.md",
+    "prompts/init.md",
+    "prompts/plan.md",
+    "prompts/research.md",
+    "prompts/ship.md",
+    "prompts/team.md",
+    "prompts/verify.md"
+  ],
+  "packages": ["npm:@monotykamary/pi-vcc", "npm:pi-fabric", "npm:pi-codex-search@0.1.5"]
+}

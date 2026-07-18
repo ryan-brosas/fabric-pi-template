@@ -1,0 +1,360 @@
+{
+  "profile": {
+    "name": "fabric-pi-opencode-semantic-port",
+    "source": "/home/ryan/repo/new-system/.opencode",
+    "authority": "source-opencode-behavior",
+    "portMap": ".pi/PORT-MAP.md"
+  },
+  "role_routes": {
+    "build": {
+      "model": "claude-bridge/claude-opus-4-8",
+      "thinking": "high",
+      "contract": ".pi/agents/build.md",
+      "mode": "primary",
+      "role_note": "team supervisor + sole integrator + gate (senior engineer); delegates GLM 5.2 implementation to the general route"
+    },
+    "compaction": {
+      "model": "openai-codex/gpt-5.4-mini",
+      "alternate_model": "claude-bridge/claude-haiku-4-5",
+      "thinking": "low",
+      "mode": "support"
+    },
+    "debug": {
+      "model": "openai-codex/gpt-5.6-sol",
+      "alternate_model": "claude-bridge/claude-opus-4-8",
+      "thinking": "medium",
+      "contract": ".pi/agents/debug.md",
+      "tools": ["read", "grep", "find", "ls"],
+      "mode": "subagent"
+    },
+    "explore": {
+      "model": "openai-codex/gpt-5.4-mini",
+      "alternate_model": "claude-bridge/claude-haiku-4-5",
+      "thinking": "low",
+      "contract": ".pi/agents/explore.md",
+      "tools": ["read", "grep", "find", "ls"],
+      "mode": "subagent"
+    },
+    "general": {
+      "model": "makora/zai-org/GLM-5.2-NVFP4",
+      "alternate_model": "umans/umans-glm-5.2",
+      "thinking": "medium",
+      "contract": ".pi/agents/general.md",
+      "tools": ["read", "grep", "find", "ls", "edit", "write", "bash"],
+      "mode": "subagent"
+    },
+    "plan": {
+      "model": "openai-codex/gpt-5.6-sol",
+      "alternate_model": "claude-bridge/claude-opus-4-8",
+      "thinking": "medium",
+      "contract": ".pi/agents/plan.md",
+      "tools": ["read", "grep", "find", "ls"],
+      "mode": "primary-or-advisory"
+    },
+    "review": {
+      "model": "openai-codex/gpt-5.6-sol",
+      "alternate_model": "claude-bridge/claude-opus-4-8",
+      "thinking": "medium",
+      "contract": ".pi/agents/review.md",
+      "tools": ["read", "grep", "find", "ls"],
+      "mode": "subagent"
+    },
+    "scout": {
+      "model": "openai-codex/gpt-5.4-mini",
+      "alternate_model": "claude-bridge/claude-haiku-4-5",
+      "thinking": "low",
+      "contract": ".pi/agents/scout.md",
+      "tools": ["read", "grep", "find", "ls", "context7", "grepsearch", "codex_search"],
+      "mode": "subagent"
+    },
+    "vision": {
+      "model": "makora/moonshotai/Kimi-K2.7-Code",
+      "thinking": "medium",
+      "contract": ".pi/agents/vision.md",
+      "tools": ["read", "grep", "find", "ls"],
+      "mode": "subagent"
+    }
+  },
+  "dispatch": {
+    "default": "direct",
+    "delegate_when": ["specialist knowledge", "isolation", "two or more independent tasks"],
+    "max_parallel_workflow_agents": 12,
+    "worker_distrust": true,
+    "primary_integrates": true,
+    "implementation_route": "general",
+    "reasoning_never_implements": true,
+    "role_tiers": {
+      "supervisor": {
+        "roles": ["build"],
+        "model": "claude-bridge/claude-opus-4-8",
+        "implements": false,
+        "note": "Primary session: orchestrates, gates, integrates; may edit directly for small fixes; delegates implementation to the implementation tier."
+      },
+      "implementation": {
+        "roles": ["general"],
+        "models": ["makora/zai-org/GLM-5.2-NVFP4", "umans/umans-glm-5.2"],
+        "implements": true,
+        "note": "The only tier granted edit/write/bash. All implementation work routes here; never to reasoning roles."
+      },
+      "reasoning": {
+        "roles": ["plan", "review", "debug"],
+        "models": ["openai-codex/gpt-5.6-sol"],
+        "alternates": ["claude-bridge/claude-opus-4-8", "claude-bridge/claude-fable-5"],
+        "implements": false,
+        "tools": ["read", "grep", "find", "ls"],
+        "note": "Read-only. Sol and Fable (and Opus when used here) NEVER receive implementation briefs and cannot edit; they plan, review, and diagnose only."
+      },
+      "fanout": {
+        "roles": ["explore", "scout", "compaction"],
+        "models": ["openai-codex/gpt-5.4-mini", "claude-bridge/claude-haiku-4-5"],
+        "implements": false,
+        "note": "Read-only small-model lanes for search, research, and compaction support."
+      },
+      "multimodal": {
+        "roles": ["vision"],
+        "models": ["makora/moonshotai/Kimi-K2.7-Code"],
+        "implements": false
+      }
+    },
+    "implementation_models": ["makora/zai-org/GLM-5.2-NVFP4", "umans/umans-glm-5.2"],
+    "implementation_pool": {
+      "total_workers": 12,
+      "makora_minimum": 6,
+      "lanes": [
+        {
+          "provider": "makora",
+          "model": "makora/zai-org/GLM-5.2-NVFP4"
+        },
+        {
+          "provider": "umans",
+          "model": "umans/umans-glm-5.2"
+        }
+      ],
+      "note": "Up to 12 concurrent GLM 5.2 implementers split across makora and umans (both GLM 5.2); at least 6 on makora. Verified 2026-07-18: makora+umans GLM children dispatch concurrently with extensions:true."
+    },
+    "small_model_lanes": ["openai-codex/gpt-5.4-mini", "claude-bridge/claude-haiku-4-5"],
+    "leaf_excluded_skills": {
+      "skills": ["grill-me", "grill-with-docs"],
+      "reason": "interactive interrogation skills require operator dialogue; leaf workers cannot ask the operator, so these are never named in worker briefs and are primary-session-only"
+    },
+    "skill_policy": {
+      "required_skills_field": "required_skills",
+      "every_brief_must_carry": true,
+      "allow_empty": true,
+      "empty_means": "no skill loaded; the worker proceeds with role defaults only. Kernel execution-discipline skills are considered first by the primary but are not auto-loaded — when relevant they must still be named in required_skills.",
+      "catalog": ".pi/skills/manifest.json",
+      "resolution": {
+        "by": "primary",
+        "when": "before spawn",
+        "steps": [
+          "primary reads the brief's required_skills (must be present; [] is valid)",
+          "primary resolves each entry against manifest.tiers (kernel | mandatory-on-trigger | specialist | high-context) and manifest.primary_only.interactive",
+          "unknown skill (absent from the catalog) -> reject the brief, name the unknown skill, do not spawn",
+          "primary attaches the resolved skills to the spawned brief"
+        ]
+      },
+      "unknown_skill_action": "reject: do not spawn; return the brief to the originator with the unknown skill named",
+      "leaf_restrictions": {
+        "deny_to_leaves": "union of dispatch.leaf_excluded_skills.skills and manifest.primary_only.interactive",
+        "reason": "leaf workers cannot ask the operator; interactive and primary-session-only skills are rejected from subagent briefs and rerouted to the primary session",
+        "enforced_by": "primary during resolution, before spawn"
+      },
+      "role_defaults": "none — no skill is hard-coded onto any role or loaded by default. Skills attach per-brief from required_skills only, matched by the primary against manifest intent_bundles and tier triggers. Kernel execution-discipline skills are always considered first but still require explicit naming in required_skills when relevant; no skill loads implicitly.",
+      "high_context_routing": "high-context tier skills route to the primary or a large-model lane, never to a bounded leaf worker",
+      "authority": "Skills never authorize commit, push, merge, publish, deploy, destructive, or other externally visible actions. AGENTS safety rules and operator confirmation dominate skill prose in every case; a skill's MUST/SHALL language scopes only the skill's own workflow, not operator-visible side effects.",
+      "enforcement_scope": "Skill policy is enforced by the primary during dispatch resolution only — name validation, primary-only and leaf-exclusion checks before spawn. No skill gate is enforced at runtime inside the worker beyond the role's tool authority; the worker loads named skills into context and follows their prose."
+    },
+    "quality_policy": {
+      "standard": ".pi/agents/general.md#code-quality-standard",
+      "scope": "language-agnostic; applies to every implementation brief regardless of language",
+      "every_brief_must_carry": true,
+      "carried_by": "the general.md contract injected into every implementation spawn — no extra brief field needed",
+      "rules": [
+        "idiomatic to the target language (its formatter/linter defaults); match surrounding style",
+        "apply the language/framework's accepted best practices for correctness, security, error handling, resource cleanup, and clear naming, right-sized to the task (not gold-plated); cover testable new behavior with a test",
+        "simplest thing that works; no speculative abstractions, options, or layers not asked for",
+        "reuse stdlib and existing patterns before adding a dependency or wrapper",
+        "validate only at real boundaries; no defensive code for impossible cases",
+        "no slop tells: comments restating code, over-long docstrings, Manager/Factory/Wrapper scaffolding, swallowed try/catch, dead compatibility shims",
+        "complexity must not exceed the task"
+      ],
+      "enforcement": {
+        "writer": "the general (implementation) tier follows the standard while editing",
+        "gate": "the primary (build) rejects any integrated diff that violates it and re-dispatches for a simpler pass",
+        "review": "the review role flags concrete over-engineering as a maintainability finding (not style)",
+        "envelope": "implementation worker checks_run must include an entry named quality-pack; absence = failed verification"
+      }
+    },
+    "quality_packs": {
+      "canonical_command": "node .pi/tools/quality/run-pack.mjs",
+      "modes": ["--changed", "--staged", "<files...>"],
+      "required_check_name": "quality-pack",
+      "universal": ["merge-marker", "eof-newline", "oversized"],
+      "packs": {
+        "js-ts": {
+          "extensions": [".js", ".jsx", ".ts", ".tsx", ".mjs", ".cjs", ".mts", ".json", ".jsonc"],
+          "tool": "npx --no-install oxfmt --check <file>",
+          "on_missing_tool": "skip with warning"
+        }
+      },
+      "layers": {
+        "L1": "quality-gate.ts annotates edit/write tool results (never blocks)",
+        "L2": "quality-gate.ts blocks git commit while staged files fail packs",
+        "L3": "implementation worker checks_run must include required_check_name; primary rejects otherwise",
+        "L4": "/team verify allowlist carries the canonical command; primary re-runs at ROOT after integrating a wave"
+      }
+    },
+    "token_budgets": {
+      "policy": "unlimited by operator decision; 0 disables token ceilings while wall-clock, cycle, retry, and operator checkpoints remain enforced",
+      "implementation": 0,
+      "review": 0,
+      "research": 0,
+      "compaction": 0
+    },
+    "wave_policy": {
+      "max_wave_size": 12,
+      "path_ownership": "exclusive per task within a wave; overlapping paths force sequential waves",
+      "dependent_waves": "Wave N+1 starts only after every Wave N task reaches verified"
+    },
+    "retry_policy": {
+      "max_retries_per_task": 1,
+      "retry_on": [
+        "instant failure with empty provider environment (see docs/fabric-tuning.md dispatch failure triage)",
+        "timeout, after narrowing scope"
+      ],
+      "fallback_order": "role alternate_model first, then dispatch.implementation_models order"
+    }
+  },
+  "coordination": {
+    "mesh_topic_prefix": "fabric-pi-",
+    "board_key_prefix": "fabric-pi/",
+    "protocol": "primary mechanically gates research -> mesh collaboration -> plan -> implement -> verify -> review -> integrate -> goal; board is an audit projection and primary remains sole writer/integrator",
+    "board_states": ["assigned", "running", "returned", "verified", "failed"],
+    "poll_interval_ms": 60000,
+    "result_schema": ".pi/schemas/worker-result.json"
+  },
+  "actors": {
+    "model": "makora/zai-org/GLM-5.2-NVFP4",
+    "thinking": "medium",
+    "tools": ["read", "grep", "find", "ls"],
+    "default_topics": [],
+    "delivery": "mailbox",
+    "responseMode": "text",
+    "contract": ".pi/agents/actor.md",
+    "scope": "project",
+    "policy": "Persistent read-only mailbox actors receive addressed per-run mesh events. /team reuses a fixed architect+risk roster, performs one bounded cross-review hop, and reads actor messages before planning. Actors never write the run board or integrate; the primary remains sole writer/integrator. No automatic actor deletion."
+  },
+  "artifacts": {
+    "root": ".pi/artifacts",
+    "active": ".pi/artifacts/.active",
+    "memory": ".pi/artifacts/MEMORY.md",
+    "todo": ".pi/artifacts/TODO.md"
+  },
+  "permissions": {
+    "deny_read_patterns": [
+      "*.env",
+      "*.env.*",
+      "*.key",
+      "*.pem",
+      "*credentials*",
+      "*password*",
+      "*secret*",
+      "*token*"
+    ],
+    "allow_read_patterns": ["*.env.example"],
+    "deny_shell_patterns": [
+      "rm *",
+      "rm -rf *",
+      "sudo *",
+      "npm run db:reset*",
+      "git add .",
+      "git add -A",
+      "*--no-verify*"
+    ],
+    "confirm_shell_patterns": [
+      "git checkout *",
+      "git clean *",
+      "git commit *",
+      "git merge *",
+      "git push *",
+      "git rebase *",
+      "git reset *",
+      "npm publish *",
+      "npm run db:push*"
+    ]
+  },
+  "formatter": {
+    "command": ["npx", "oxfmt", "$FILE"],
+    "extensions": [".js", ".jsx", ".ts", ".tsx", ".json", ".jsonc", ".cjs", ".mjs", ".mts"]
+  },
+  "watcher": {
+    "ignore": [
+      "node_modules/**",
+      ".git/**",
+      "dist/**",
+      "build/**",
+      ".fallow/**",
+      "*.log",
+      ".DS_Store"
+    ]
+  },
+  "team_mode": {
+    "enforcement": "executable same-cycle evidence ledger inside /team; every transition validates host run status, structured envelope, and phase-specific evidence before dispatching the next role",
+    "phase_order": [
+      "research",
+      "collaboration",
+      "plan",
+      "implement",
+      "verify",
+      "review",
+      "integrate",
+      "goal"
+    ],
+    "collaboration": {
+      "checkpoints": {
+        "pre_plan": { "actors": ["team-architect", "team-risk"], "hops": 1, "advisory": false },
+        "post_plan": { "actors": ["team-architect", "team-risk"], "hops": 1, "advisory": true },
+        "post_implement": { "actors": ["team-risk"], "hops": 1, "advisory": true }
+      },
+      "board_retention": { "delete_finished": true }
+    },
+    "required_roles": {
+      "research": {
+        "routes": ["explore", "scout"],
+        "minimum": 2,
+        "require_successful_external_tool": true
+      },
+      "collaboration": {
+        "actors": ["team-architect", "team-risk"],
+        "minimum": 2,
+        "max_hops": 1
+      },
+      "plan": {
+        "routes": ["plan"],
+        "minimum": 1
+      },
+      "implement": {
+        "routes": ["general"],
+        "minimum": 1,
+        "maximum": 12,
+        "scale": "one worker per genuinely independent non-overlapping unit"
+      },
+      "verify": {
+        "routes": ["review"],
+        "model": "openai-codex/gpt-5.6-sol",
+        "minimum": 1
+      },
+      "review": {
+        "routes": ["review"],
+        "model": "claude-bridge/claude-opus-4-8",
+        "minimum": 1
+      }
+    },
+    "research_evidence_tools": ["codex_search", "context7", "grepsearch"],
+    "research_min_url_refs": 1,
+    "evidence_source": "host-reported result status plus successful tool_execution_end events from the host-reported child log; worker prose alone never unlocks a phase",
+    "failure_policy": "missing, malformed, stale-cycle, failed-run, failed-tool, wrong-role, or incomplete evidence blocks advancement and is mirrored to the board",
+    "utilization_policy": "use every mandatory role in team mode; treat 12 implementation workers as a capacity ceiling, never a utilization target",
+    "review_payload_limit_chars": 800000
+  }
+}

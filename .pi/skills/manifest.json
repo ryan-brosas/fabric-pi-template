@@ -1,0 +1,199 @@
+{
+  "version": 2,
+  "description": "Operational skill catalog for the fabric-pi Pi profile. Tiers express HOW the primary routes a skill (load model), not just visibility. Every installed SKILL.md directory under .pi/skills/ appears in exactly one tier. The dispatch skill_policy (config.json) resolves briefs against this catalog.",
+  "changelog": [
+    "v2: restructured tiers into operational semantics (kernel | mandatory-on-trigger | specialist | high-context); added per-skill triggers for the mandatory tier, intent bundles, and primary_only identification; reconciled catalog with shipped SKILL.md dirs (was missing 8).",
+    "v1: numeric tiers 1 (Essential) / 2 (On-Demand); incomplete coverage of shipped skills."
+  ],
+  "tier_semantics": {
+    "kernel": "Always-considered execution discipline. The primary considers these first for every task, but a kernel skill is still named in required_skills and loaded by the receiving role when relevant — it is never loaded implicitly.",
+    "mandatory-on-trigger": "Hard-precondition platform/domain skills. When the brief's trigger fires, the primary MUST attach the skill before spawn — skipping it risks correctness, safety, or billing footguns. Non-optional.",
+    "specialist": "Domain and process skills loaded on demand when the brief's domain matches. Discretionary; the primary attaches when relevant, matched against intent_bundles and per-skill triggers.",
+    "high-context": "Whole-codebase or large-context-window analysis. Too heavy for a bounded leaf worker; the primary routes these to the primary session or a large-model lane."
+  },
+  "tiers": {
+    "kernel": {
+      "label": "Kernel",
+      "load": "considered first for every task; named in required_skills when relevant, not loaded implicitly",
+      "description": "Small, general-purpose execution-discipline skills that shape how any role works. The primary considers these first for every task and names the relevant one(s) in required_skills; they are never loaded implicitly.",
+      "skills": [
+        "defense-in-depth",
+        "incremental-implementation",
+        "verification-before-completion"
+      ],
+      "triggers": "no explicit trigger; consider first for every task to shape execution discipline (validate at every layer, make small reversible changes, prove before claiming done)"
+    },
+    "mandatory-on-trigger": {
+      "label": "Mandatory on Trigger",
+      "load": "primary MUST attach when the trigger fires; non-optional",
+      "description": "Skills whose own contract declares a hard precondition (MUST load before X) tied to a specific technology or domain, where skipping risks correctness, safety, or billing footguns. The primary resolves these against the brief and attaches before spawn.",
+      "skills": [
+        "cloudflare",
+        "core-data-expert",
+        "figma",
+        "frontend-design",
+        "pdf-extract",
+        "playwright",
+        "polar",
+        "react-best-practices",
+        "resend",
+        "supabase",
+        "supabase-postgres-best-practices",
+        "webclaw"
+      ],
+      "triggers": {
+        "cloudflare": "any Cloudflare Workers/KV/D1/R2/AI/Tunnel/WAF code or wrangler config",
+        "core-data-expert": "Core Data schema, migrations, merge conflicts, CloudKit sync, or fetch/perf work",
+        "figma": "user shares a Figma URL or references Figma files (requires API token)",
+        "frontend-design": "building any web UI with a React-based framework (base implementation layer)",
+        "pdf-extract": "extracting text/images/tables/metadata from a PDF file",
+        "playwright": "any automated browser testing or end-to-end UX verification",
+        "polar": "checkout, subscriptions, license keys, customer portal, or any Polar billing code",
+        "react-best-practices": "writing, reviewing, or refactoring React/Next.js for performance",
+        "resend": "transactional emails, React Email templates, email webhooks, or inbound handling",
+        "supabase": "Supabase DB ops, edge functions, auth, storage, or project management",
+        "supabase-postgres-best-practices": "Postgres queries, schema, indexes, or RLS policies in Supabase",
+        "webclaw": "webfetch returns 403/bot-protection, or non-trivial crawling/batch page extraction"
+      }
+    },
+    "specialist": {
+      "label": "Specialist",
+      "load": "on-demand when the brief's domain matches; discretionary",
+      "description": "Domain, platform, and process skills. The primary attaches these when the brief matches an intent bundle or per-skill trigger; otherwise the role proceeds with defaults.",
+      "skills": [
+        "accessibility-audit",
+        "agent-code-quality-gate",
+        "api-and-interface-design",
+        "brainstorming",
+        "brave-search",
+        "browser-testing-with-devtools",
+        "browser-tools",
+        "chrome-devtools",
+        "ci-cd-and-automation",
+        "code-cleanup",
+        "code-review-and-quality",
+        "debugging-and-error-recovery",
+        "deprecation-and-migration",
+        "design-system-audit",
+        "design-taste-frontend",
+        "development-lifecycle",
+        "diagnostics",
+        "documentation-and-adrs",
+        "git-workflow-and-versioning",
+        "grill-me",
+        "grill-with-docs",
+        "high-end-visual-design",
+        "industrial-brutalist-ui",
+        "memory",
+        "minimalist-ui",
+        "mockup-to-code",
+        "performance-optimization",
+        "planning-and-task-breakdown",
+        "prototype",
+        "redesign-existing-projects",
+        "root-cause-tracing",
+        "security-and-hardening",
+        "shipping-and-launch",
+        "source-driven-development",
+        "spec-driven-development",
+        "subagent-driven-development",
+        "swift-concurrency",
+        "swiftui-expert-skill",
+        "test-driven-development",
+        "testing-anti-patterns",
+        "typescript-coding-standards",
+        "using-git-worktrees",
+        "vercel-deploy-claimable",
+        "writing-skills",
+        "zoom-out"
+      ],
+      "triggers": "match brief domain to skill via intent_bundles and the skill's own description; attach when relevant. Several specialist skills are tagged primary_only.interactive (brainstorming, grill-me, grill-with-docs) and may not be routed to leaf workers."
+    },
+    "high-context": {
+      "label": "High-Context",
+      "load": "primary or large-model lane only; too heavy for a bounded leaf worker",
+      "description": "Whole-codebase or large-context-window analysis skills. The primary routes these to the primary session or a large-model lane, never to a bounded leaf worker.",
+      "skills": [
+        "deep-module-design",
+        "fallow",
+        "gemini-large-context",
+        "improve-codebase-architecture",
+        "opensrc"
+      ],
+      "triggers": "project-wide pattern analysis, structural review, or investigation exceeding typical leaf context; route to primary/large-model, not a bounded leaf"
+    }
+  },
+  "primary_only": {
+    "description": "Skills requiring operator dialogue or primary-session authority. The dispatch skill_policy denies the union of dispatch.leaf_excluded_skills.skills and primary_only.interactive from any subagent (leaf) brief and reroutes them to the primary session.",
+    "interactive": ["brainstorming", "grill-me", "grill-with-docs"],
+    "reason_by_skill": {
+      "brainstorming": "collaborative questioning and incremental approval require operator dialogue; leaf workers cannot ask the operator",
+      "grill-me": "interrogates an idea/ADR/PRD/spec with the operator until it survives scrutiny",
+      "grill-with-docs": "stress-tests a plan against project language and documented decisions via operator dialogue"
+    },
+    "leaf_excluded_ref": "config.dispatch.leaf_excluded_skills.skills is the operator-curated hard-exclusion subset (grill-me, grill-with-docs) pinned by tests/profile-contracts.test.mjs; this field additionally identifies brainstorming as a primary-only interactive skill surfaced during catalog expansion. The skill_policy unions both for enforcement."
+  },
+  "intent_bundles": {
+    "supabase-backend": {
+      "skills": ["supabase", "supabase-postgres-best-practices"],
+      "when": "DB queries, RLS, edge functions, auth, storage, or Postgres perf in Supabase"
+    },
+    "react-premium-ui": {
+      "skills": ["frontend-design", "react-best-practices", "design-taste-frontend"],
+      "when": "building React/Next.js UI; swap design-taste-frontend for high-end-visual-design, minimalist-ui, or industrial-brutalist-ui per the requested aesthetic"
+    },
+    "aesthetic-overlay": {
+      "skills": [
+        "design-taste-frontend",
+        "high-end-visual-design",
+        "minimalist-ui",
+        "industrial-brutalist-ui"
+      ],
+      "when": "choosing a visual aesthetic; exactly one overlay loads INSTEAD OF the others"
+    },
+    "browser-verify": {
+      "skills": ["playwright", "browser-testing-with-devtools", "chrome-devtools"],
+      "when": "verify DOM/console/network/screenshots or end-to-end flows; playwright is mandatory for automated tests"
+    },
+    "ship-and-verify": {
+      "skills": [
+        "shipping-and-launch",
+        "verification-before-completion",
+        "git-workflow-and-versioning"
+      ],
+      "when": "merge/deploy/release readiness"
+    },
+    "quality-gate": {
+      "skills": [
+        "agent-code-quality-gate",
+        "code-review-and-quality",
+        "verification-before-completion"
+      ],
+      "when": "before claiming implementation complete, or after subagent work, before merge"
+    },
+    "debug-trace": {
+      "skills": ["debugging-and-error-recovery", "root-cause-tracing"],
+      "when": "tests fail, behavior is unexpected, or repeated fix attempts have not worked"
+    },
+    "tdd": {
+      "skills": ["test-driven-development", "testing-anti-patterns"],
+      "when": "implementing a feature or bugfix with testable behavior"
+    },
+    "ios-platform": {
+      "skills": ["swiftui-expert-skill", "swift-concurrency", "core-data-expert"],
+      "when": "SwiftUI, Swift concurrency, or Core Data work on iOS/macOS"
+    },
+    "design-from-source": {
+      "skills": ["figma", "mockup-to-code"],
+      "when": "a Figma URL or mockup/wireframe is being converted to code"
+    },
+    "large-codebase-analysis": {
+      "skills": ["gemini-large-context", "fallow", "improve-codebase-architecture"],
+      "when": "project-wide patterns or structural review exceeding typical context; route to primary/large-model"
+    },
+    "api-contract": {
+      "skills": ["api-and-interface-design", "deprecation-and-migration"],
+      "when": "designing or evolving REST/GraphQL APIs, SDK boundaries, or planning breaking changes"
+    }
+  }
+}

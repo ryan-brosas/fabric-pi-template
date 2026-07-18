@@ -1,0 +1,42 @@
+import { readFileSync, existsSync, readdirSync } from "node:fs";
+import { resolve, join } from "node:path";
+
+const root = resolve(import.meta.dirname, "..");
+const source = "/home/ryan/repo/new-system/.opencode";
+const readJson = (name) => JSON.parse(readFileSync(join(root, name), "utf8"));
+const failures = [];
+const pass = (condition, message) => { if (!condition) failures.push(message); };
+
+const settings = readJson("settings.json");
+const config = readJson("config.json");
+readJson("fabric.json");
+const roles = ["build", "compaction", "explore", "general", "plan", "review", "scout", "vision"];
+const contractRoles = roles.filter((role) => role !== "compaction");
+const commands = ["audit", "create", "fix", "gc", "init", "plan", "research", "ship", "verify"];
+const bridgeModels = ["claude-bridge/claude-fable-5", "claude-bridge/claude-sonnet-5", "claude-bridge/claude-opus-4-8"];
+pass(JSON.stringify(config.profile).includes("new-system/.opencode"), "config source provenance missing");
+pass(roles.every((role) => config.role_routes[role]), "one or more source roles are unmapped");
+pass(contractRoles.every((role) => existsSync(join(root, "agents", `${role}.md`))), "one or more source role contracts are missing");
+pass(commands.every((name) => existsSync(join(root, "prompts", `${name}.md`))), "one or more source commands are missing");
+pass(config.dispatch.default === "direct", "source direct-first routing is not active");
+pass(bridgeModels.every((model) => settings.enabledModels.includes(model)), "one or more requested Claude Bridge models are not enabled");
+for (const route of Object.values(config.role_routes)) {
+  if (route.model) pass(settings.enabledModels.includes(route.model), `route model not enabled: ${route.model}`);
+}
+const activeExtensions = ["diagnostics.ts", "guard.ts", "prompt-leverage.ts", "research-tools.ts", "session-summary.ts", "tui-bindings.ts", "skill-mcp/index.ts"];
+for (const name of activeExtensions) {
+  const text = readFileSync(join(root, "extensions", name), "utf8");
+  pass(!text.includes("@opencode-ai") && !text.includes(".opencode"), `legacy OpenCode runtime reference in ${name}`);
+}
+if (existsSync(join(source, "skill"))) {
+  const walk = (dir) => readdirSync(dir, { withFileTypes: true }).flatMap((entry) => entry.isDirectory() ? walk(join(dir, entry.name)) : [join(dir, entry.name)]);
+  for (const path of walk(join(source, "skill"))) {
+    const rel = path.slice(join(source, "skill").length + 1);
+    pass(existsSync(join(root, "skills", rel)), `missing source skill file: ${rel}`);
+  }
+}
+if (failures.length) {
+  console.error(JSON.stringify({ ok: false, failures }, null, 2));
+  process.exit(1);
+}
+console.log(JSON.stringify({ ok: true, roles: roles.length, commands: commands.length, extensions: activeExtensions.length }));

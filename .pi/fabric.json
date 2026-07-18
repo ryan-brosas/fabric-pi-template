@@ -1,0 +1,55 @@
+{
+  "fullCodeMode": true,
+  "approvals": {
+    "read": "allow",
+    "write": "allow",
+    "execute": "allow",
+    "network": "allow",
+    "agent": "allow"
+  },
+  "executor": {
+    "timeoutMs": 900000,
+    "memoryLimitBytes": 536870912,
+    "maxOutputChars": 1000000,
+    "maxNestedResultChars": 4000000
+  },
+  "subagents": {
+    "enabled": true,
+    "runner": "pi",
+    "transport": "process",
+    "thinking": "medium",
+    "maxConcurrent": 12,
+    "maxPerExecution": 32,
+    "maxDepth": 1,
+    "timeoutMs": 900000,
+    "extensions": true,
+    "defaultTools": ["read", "grep", "find", "ls"],
+    "retainRuns": true,
+    "notifyOnComplete": true,
+    "budgetUsd": 0,
+    "maxTokensPerChild": 0,
+    "model": "makora/zai-org/GLM-5.2-NVFP4"
+  },
+  "mesh": {
+    "enabled": true,
+    "actorScope": "project"
+  },
+  "memory": {
+    "enabled": true
+  },
+  "capture": {
+    "enabled": true,
+    "hideFromModel": true,
+    "keepVisible": ["fabric_exec"],
+    "defaultRisk": "execute"
+  },
+  "mcp": {
+    "enabled": true,
+    "disableOAuth": true,
+    "allowDynamicServers": false,
+    "callTimeoutMs": 120000
+  },
+  "compaction": {
+    "engine": "pi"
+  }
+}

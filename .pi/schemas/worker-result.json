@@ -1,0 +1,133 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Fabric worker completion envelope",
+  "description": "Completion envelope emitted by a one-shot Fabric leaf subagent (worker) at the end of a bounded task. The primary integrator is the SOLE consumer of this envelope and the SOLE authority for integrating worker output. TRUST CONTRACT: an envelope is trusted only when it validates against this schema AND carries every required field; envelopes that are missing required fields, fail this schema, reference changed_paths outside owned_paths, or carry no usable checks_run are UNTRUSTED and are REJECTED by the primary — the worker's changes are held and never integrated. Workers never run integration themselves and never call Fabric state.*. VERSIONED TEAM RUNS add optional routing/audit fields (schema_version, run_id, unit_id, attempt, owned_paths, result_refs, timestamps, unresolved_risks, gate) so a primary can correlate results across many workers without breaking existing single-worker prompts; all new fields are optional and typed.",
+  "type": "object",
+  "required": ["status", "changed_paths", "checks_run", "stop_reason"],
+  "properties": {
+    "schema_version": {
+      "type": "string",
+      "default": "1.0",
+      "minLength": 1,
+      "description": "Envelope schema version, used by the primary to pick a compatible validator. Current version is \"1.0\". Optional for backward compatibility: when omitted, the primary treats the envelope as legacy \"1.0\" but still enforces all required fields. Must be a non-empty string when present."
+    },
+    "run_id": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Stable identifier of the team run this result belongs to. Lets the primary correlate results from many workers dispatched for the same run. Optional; omit for ad-hoc single-worker tasks. Must be non-empty when present."
+    },
+    "unit_id": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Identifier of the work unit / assignment this result fulfills within the run, so the primary can match results back to entries on the coordination board (fabric-pi/<run_id>/board). Optional; must be non-empty when present."
+    },
+    "attempt": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "1-based attempt number for this unit within the run. Increments on retries dispatched by the primary. Optional; must be >= 1 when present."
+    },
+    "owned_paths": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 },
+      "description": "Repository paths the worker was authorized to edit for this unit, as granted by the primary. Every entry in changed_paths MUST be a subset of owned_paths; the primary verifies this before integrating and REJECTS the envelope if a changed_path falls outside owned_paths. Optional; items are POSIX-style path strings. Absence means ownership was not tracked for this run."
+    },
+    "status": {
+      "type": "string",
+      "enum": ["done", "blocked", "partial"],
+      "description": "Worker completion status. \"done\" = task complete and verified; \"blocked\" = could not complete, see stop_reason and unresolved_risks; \"partial\" = some work done but not fully complete or verified."
+    },
+    "changed_paths": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Repository paths the worker created or modified. Must be a subset of owned_paths when owned_paths is present. An empty array is legal (e.g. read-only, no-op, or blocked results)."
+    },
+    "checks_run": {
+      "type": "array",
+      "description": "Verification checks the worker executed. Each entry records a named check and its outcome. An empty array is legal only when the task required no checks; otherwise the primary may treat an empty array as low-confidence and down-trust the envelope.",
+      "items": {
+        "type": "object",
+        "properties": {
+          "name": { "type": "string" },
+          "result": { "type": "string" }
+        },
+        "required": ["name", "result"]
+      }
+    },
+    "result_refs": {
+      "type": "array",
+      "description": "References to artifacts this result produced or depends on (logs, reports, screenshots, build outputs). Used for audit and downstream verification in team runs. Optional. Each ref locates an artifact by uri; kind and description are advisory.",
+      "items": {
+        "type": "object",
+        "description": "A single artifact reference.",
+        "required": ["uri"],
+        "properties": {
+          "uri": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Path or URL locating the artifact (e.g. \"./logs/build.log\" or an https URL). Must be non-empty."
+          },
+          "kind": {
+            "type": "string",
+            "description": "Advisory artifact category, e.g. \"file\", \"url\", \"log\", \"report\", \"screenshot\"."
+          },
+          "description": {
+            "type": "string",
+            "description": "Short human-readable note about the artifact."
+          }
+        },
+        "additionalProperties": true
+      }
+    },
+    "unresolved_risks": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Risks the primary must consider before integrating: deviations applied, assumptions made, incomplete verification, or Rule 4 architectural blockers that require an operator decision. Each entry is a concise risk statement. Optional; absence means no risks were surfaced."
+    },
+    "gate": {
+      "type": "object",
+      "description": "Optional fail-closed verdict for read-only verify/review workers. Completion status describes whether the review ran; gate.pass describes whether the reviewed increment may advance. The primary rejects a missing or malformed gate whenever the assignment required one.",
+      "required": ["pass", "blocking_findings"],
+      "properties": {
+        "pass": { "type": "boolean" },
+        "blocking_findings": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Blocking path:line findings. Must be empty when pass is true."
+        }
+      },
+      "additionalProperties": false
+    },
+    "stop_reason": {
+      "type": "string",
+      "description": "Short machine/human-legible reason the worker stopped. For \"done\" this may summarize completion; for \"blocked\"/\"partial\" it must explain the blocker. Free-form string to preserve backward compatibility with existing prompts."
+    },
+    "notes": {
+      "type": "string",
+      "description": "Optional free-form context for the primary."
+    },
+    "timestamps": {
+      "type": "object",
+      "description": "Optional timing metadata for audit and run analytics. All sub-fields are optional; an empty object means timing was not captured. format keywords are advisory annotations and do not by themselves reject values.",
+      "properties": {
+        "started_at": {
+          "type": "string",
+          "format": "date-time",
+          "description": "RFC 3339 / ISO-8601 timestamp marking when the worker began execution."
+        },
+        "ended_at": {
+          "type": "string",
+          "format": "date-time",
+          "description": "RFC 3339 / ISO-8601 timestamp marking when the worker finished."
+        },
+        "duration_ms": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Wall-clock duration of the worker's execution in milliseconds."
+        }
+      },
+      "additionalProperties": true
+    }
+  },
+  "additionalProperties": true,
+  "$comment": "Backward-compatible v1.0 evolution. The four required fields (status, changed_paths, checks_run, stop_reason) are UNCHANGED so existing single-worker prompts and the profile-contracts test (required == {status, changed_paths, checks_run, stop_reason}) remain valid. Every added field (schema_version, run_id, unit_id, attempt, owned_paths, result_refs, timestamps, unresolved_risks, gate) is OPTIONAL and typed; no constraint on a pre-existing field was tightened, so any envelope that was legal before remains legal. The primary is the sole integrator: any envelope missing a required field, failing this schema, or changing a path outside owned_paths is UNTRUSTED and REJECTED (changes held, not integrated). Workers never integrate and never call Fabric state.*. No runtime code is defined by this schema."
+}
