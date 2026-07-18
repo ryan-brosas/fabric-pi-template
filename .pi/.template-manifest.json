@@ -1,6 +1,6 @@
 {
   "version": "1.1.0",
-  "createdAt": "2026-07-18T21:05:56.021Z",
+  "createdAt": "2026-07-18T21:12:06.921Z",
   "files": {
     ".gitignore": "7191c6a6c8bd4ebf3a063f171d910cad3d9a1c9b408442a581a20bfecec2a536",
     ".version": "73b95f0c09115a1756008135fbc2ddb50630c76654f94ec84a036d8e6612baaa",
@@ -592,7 +592,7 @@
     "tests/fixtures/quality/bad-merge-marker.txt": "7eb9a29dc9872321665e3b6dd28fd15e43a3bdb01ba523a64d5592e490e3cdf8",
     "tests/fixtures/quality/clean.ts": "ad5abda1e1f8bfb618e985a13fbe07068662681d75f2c253244ec898a773c120",
     "tests/fixtures/quality/no-eof.txt": "bb3082b8d80ddb3160a72646a899f922935b32a50c7371550613aece6f6a73e2",
-    "tests/profile-contracts.test.mjs": "d931df392ffafb730f58d29932660399a060691908d3126b30fc5709db757a1f",
+    "tests/profile-contracts.test.mjs": "cc44ce4af09d5137a50064986096d926287f7e3b2aa29718ac449e13190bea68",
     "tests/quality-pack.test.mjs": "64c2757ddd6dadcd0128288516e16f993aa532e3380ea6fdcac88f9d4e4e12ca",
     "tools/quality/run-pack.mjs": "5cb7c99187d385cfcae8db33555bba1578e584e6a756da0e1348bb5548561468",
     "tools/structural-check.sh": "0790297527aa53221812ca8892f74c991dd7568a52b8098af7b9e1c32c1dbee5",

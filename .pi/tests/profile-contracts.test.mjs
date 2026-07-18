@@ -147,7 +147,9 @@ test("Codex search is pinned project-locally and granted only to the scout resea
   const settings = json("settings.json");
   const config = json("config.json");
   assert.ok(settings.packages.includes("npm:pi-codex-search@0.1.5"));
-  assert.ok(existsSync(join(root, "npm", "node_modules", "pi-codex-search", "package.json")));
+  // The npm package cache exists only after Pi loads the project; skip on a pristine clone.
+  if (existsSync(join(root, "npm")))
+    assert.ok(existsSync(join(root, "npm", "node_modules", "pi-codex-search", "package.json")));
   assert.ok(config.role_routes.scout.tools.includes("codex_search"));
   for (const [name, route] of Object.entries(config.role_routes)) {
     if (name !== "scout" && Array.isArray(route.tools))
