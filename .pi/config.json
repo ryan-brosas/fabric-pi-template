@@ -2,8 +2,7 @@
   "profile": {
     "name": "fabric-pi-opencode-semantic-port",
     "source": "/home/ryan/repo/new-system/.opencode",
-    "authority": "source-opencode-behavior",
-    "portMap": ".pi/PORT-MAP.md"
+    "authority": "source-opencode-behavior"
   },
   "role_routes": {
     "build": {

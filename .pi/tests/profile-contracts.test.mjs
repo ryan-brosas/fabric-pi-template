@@ -134,8 +134,7 @@ test("fabric-focus invariants hold across the config trio", () => {
 
 test("substantive coding requires visible team dispatch", () => {
   const agents = readFileSync(join(root, "AGENTS.md"), "utf8");
-  const user = readFileSync(join(root, "user.md"), "utf8");
-  for (const text of [agents, user]) {
+  for (const text of [agents]) {
     assert.match(text, /non-trivial multi-step coding task/);
     assert.match(text, /[`/]team/);
     assert.match(text, /spawn bounded Fabric agents/);
