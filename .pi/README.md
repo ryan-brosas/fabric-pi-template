@@ -9,7 +9,7 @@ semantic port of `/home/ryan/repo/new-system/.opencode`. It does **not** use
 
 ## Source mapping
 
-See `.pi/PORT-MAP.md` for the complete mapping. In short:
+The OpenCode → Pi/Fabric mapping, in short:
 
 - OpenCode agents → seven role contracts in `.pi/agents/`, routed through Fabric by `.pi/config.json`
 - OpenCode commands → nine source Pi prompt templates plus the port-added `/team` lifecycle prompt in `.pi/prompts/`

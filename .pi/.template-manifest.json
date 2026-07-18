@@ -1,12 +1,12 @@
 {
   "version": "1.1.0",
-  "createdAt": "2026-07-18T21:02:50.470Z",
+  "createdAt": "2026-07-18T21:05:56.021Z",
   "files": {
     ".gitignore": "7191c6a6c8bd4ebf3a063f171d910cad3d9a1c9b408442a581a20bfecec2a536",
     ".version": "73b95f0c09115a1756008135fbc2ddb50630c76654f94ec84a036d8e6612baaa",
     "AGENTS.md": "f24735a211d7d6acc5d77751036b9441e1408773a1c04ce43e2c538460a72d96",
     "APPEND_SYSTEM.md": "dfc66d50f9845e57562335b42fb92deb9f974fc2c17493271d1f83049b5ea300",
-    "README.md": "3d2b9c410597852c2a5c4eabb8196aad6769942a8941fcf85c684e41e0197834",
+    "README.md": "8155150fee8cd32e20619e26b7704c359fb1a2661c5aecb1e61cedefd6af210d",
     "agents/actor.md": "33827699e84ccf3ba2dce849830ac3549e32fe853c860274e76382cc35e16671",
     "agents/build.md": "6b5db8fe52e5f0f5700812165f1a4575862ca8b383b01d14b824ffbafe0523d3",
     "agents/debug.md": "8b618dabeef94dc7ab7166f1545ee25bba46b0bd83512e4bb680687700d7983c",
