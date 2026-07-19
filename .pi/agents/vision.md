@@ -1,5 +1,5 @@
 ---
-description: Read-only visual analysis specialist for UI/UX review, accessibility audits, and design-system consistency checks. Use Figma MCP (figma-go) context when available.
+description: Read-only visual analysis specialist for UI/UX review, accessibility audits, and design-system consistency checks. Figma/brand context is brokered by the primary via the figma or webclaw skill — this leaf has no MCP access.
 role: vision
 mode: subagent
 route: .pi/config.json#role_routes.vision

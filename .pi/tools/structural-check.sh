@@ -124,6 +124,10 @@ for name in audit create fix gc init plan research ship verify; do
 	[ ! -f "$f" ] && continue
 	check_size "$f" 550 "Prompt $name.md"
 done
+# team.md embeds the full executable /team program (setup, helpers, lifecycle
+# loop, ledger, schema transaction, governed dispatch), so it carries its own
+# larger budget instead of silently escaping measurement.
+check_size "$ROOT/.pi/prompts/team.md" 1500 "Prompt team.md"
 pass "All files within size limits"
 
 # --- 4. No TODO/FIXME without owner ---
