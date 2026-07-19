@@ -4,7 +4,6 @@
   "defaultThinkingLevel": "high",
   "enabledModels": [
     "makora/zai-org/GLM-5.2-NVFP4",
-    "makora/zai-org/GLM-5.2-FP8",
     "umans/umans-glm-5.2",
     "makora/moonshotai/Kimi-K2.7-Code",
     "openai-codex/gpt-5.4-mini",

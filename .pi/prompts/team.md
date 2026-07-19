@@ -840,8 +840,7 @@ async function gateWorker(d) {
     const envOk = !!wr && wr.status === 'done' && Array.isArray(wr.checks_run) && typeof wr.stop_reason === 'string';
     if (!envOk) throw new Error('worker envelope invalid (status/checks_run/stop_reason)');
     // L3 deterministic gate: implementation envelopes MUST carry a quality-pack
-    // check (config.json quality_policy.enforcement.envelope). Absence = failed
-    // verification; the envelope is rejected before any integration.
+    // check. Absence fails verification before any integration.
     if (!wr.checks_run.some((c) => c && c.name === 'quality-pack')) throw new Error('worker envelope missing required quality-pack entry in checks_run');
     if (laneBudget.implementation > 0 && usageTokens(d.result) > laneBudget.implementation) throw new Error('lane budget exceeded');
     // The worker's reported changed_paths (normalized) MUST equal Git's actual

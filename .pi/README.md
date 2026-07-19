@@ -51,7 +51,7 @@ Brownfield: `/init` auto-detects existing code and stack. When the area is unfam
 
 ## Active work lifecycle
 
-`.pi/artifacts/.active` holds the current work slug (see `config.json` `artifacts.active`). Resume: read `.active`, then the artifact directory it names. Switch: update `.active` to another slug — never delete or overwrite existing artifact directories.
+`.pi/artifacts/.active` holds the current work slug. Resume: read `.active`, then the artifact directory it names. Switch: update `.active` to another slug — never delete or overwrite existing artifact directories.
 
 ## Nine role routes
 

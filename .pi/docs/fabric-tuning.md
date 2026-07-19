@@ -106,8 +106,8 @@ async function govern(handles, laneBudget) {
 ```
 
 Poll `govern` on `coordination.poll_interval_ms`; lane budgets come from
-`dispatch.token_budgets`; retries follow `dispatch.retry_policy` (at most one,
-fallback per `fallback_order`). The completion envelope is advisory input —
+`dispatch.token_budgets`. Retry at most once, using the role alternate before
+the implementation-model order. The completion envelope is advisory input —
 the primary still reads diffs and verifies before marking `verified`.
 `/team` applies this pattern: its implementation wave is `agents.spawn`ed and
 status-polled with a deadline steer ("wrap up now"); the budget clauses stay
@@ -172,9 +172,8 @@ the split is about provider rate-limit headroom, not capability. A full 12-wide
 wave lands 6 on makora and 6 on umans, satisfying the ≥6 makora floor exactly. Verified 2026-07-18: makora + umans GLM children dispatch concurrently
 (4-wide test, 2 makora + 2 umans, all completed) with `extensions: true`.
 Reaching a full 12-wide wave depends on makora/umans provider rate limits, which
-are not yet validated at 12 concurrent — the retry/fallback in
-`dispatch.retry_policy` covers a lane that rate-limits (one retry, then
-`fallback_order`).
+are not yet validated at 12 concurrent. A rate-limited lane gets one retry,
+then falls back to the role alternate and implementation-model order.
 
 ## Small-model lanes
 
@@ -286,9 +285,9 @@ Board task states follow `coordination.board_states` in `config.json` (assigned 
   orphan detection: on supervisor resume, the primary reads the retained runs
   plus board state, detects non-completion via `agents.wait` (which returns the
   error/timeout) or `agents.status`, CAS-writes the entry to `failed`, and
-  re-dispatches per `dispatch.retry_policy` (at most one retry, then
-  `fallback_order`: role `alternate_model`, then `implementation_models`
-  order). Do not delete a dead run's worktree branch, or invoke any branch
+  re-dispatches at most once, using the role `alternate_model` before the
+  `implementation_models` order. Do not delete a dead run's worktree branch,
+  or invoke any branch
   deletion, without explicit operator permission — the retained run record is
   the evidence used for manual recovery.
 - **Orphaned persistent actors.** Actors restore across sessions via the
@@ -415,9 +414,9 @@ Fast diagnosis for child failures, in observed-signature order:
   `dispatch.max_parallel_workflow_agents` in `config.json`), `maxDepth: 1`,
   executor and subagent timeouts, output and token ceilings, and the default
   `subagents.model` used when a dispatch names no role.
-- `.pi/config.json` owns role routes, models, and dispatch policy
-  (`dispatch.default` stays `direct`; `delegate_when` governs when the brain
-  loop engages).
+- `.pi/config.json` owns role routes, models, and the direct-by-default
+  dispatch policy. Delegate only for specialist knowledge, isolation, or two or
+  more genuinely independent tasks.
 
 ## Fabric surface coverage
 

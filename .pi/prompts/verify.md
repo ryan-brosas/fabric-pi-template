@@ -165,7 +165,7 @@ Follow the [Verification Protocol](../skills/verification-before-completion/refe
 
 1. **Parallel**: typecheck + lint (simultaneously)
 2. **Sequential** (after parallel passes): test, then build (ship only)
-3. **Quality pack (always)**: `node .pi/tools/quality/run-pack.mjs <changed files>` — deterministic universal + language checks (`config.json` `quality_packs`). Exclude intentionally-defective test fixtures; findings in artifact docs that merely *depict* defects (e.g. conflict-marker examples in fenced blocks) are reportable caveats, not blockers.
+3. **Quality pack (always)**: `node .pi/tools/quality/run-pack.mjs <changed files>` — the runner is the source of truth for deterministic universal and language checks. Exclude intentionally-defective test fixtures; findings in artifact docs that merely *depict* defects (e.g. conflict-marker examples in fenced blocks) are reportable caveats, not blockers.
 
 For browser/manual local-web requirements, use stable URLs as verification evidence. A reachable URL supplements, but never replaces, typecheck/lint/test/build evidence.
 
