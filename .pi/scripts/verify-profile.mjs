@@ -54,11 +54,8 @@ for (const route of Object.values(config.role_routes)) {
 const activeExtensions = [
   "diagnostics.ts",
   "guard.ts",
-  "prompt-leverage.ts",
   "quality-gate.ts",
   "research-tools.ts",
-  "session-summary.ts",
-  "tui-bindings.ts",
   "skill-mcp/index.ts",
 ];
 for (const name of activeExtensions) {

@@ -89,13 +89,10 @@ models live in `.pi/config.json`. See `.pi/docs/fabric-tuning.md` for tuning. Al
 ## Native extensions
 
 - `guard.ts` — permission policy, secret-path protection, destructive command gates, pipe-to-shell blocking, and Conventional Commits.
-- `prompt-leverage.ts` — transforms substantive user prompts through the seven-block framing.
-- `session-summary.ts` — persistent intent, artifact trail, decisions, next steps, context injection, and compaction persistence.
 - `diagnostics.ts` — installed-only TypeScript/Rust/Go/Python checks, full/changed Fallow analysis, aislop formatting, oxfmt behavior, and globally debounced post-edit diagnostics; missing tools are skipped without downloads.
 - `research-tools.ts` — native `context7` and `grepsearch` tools with Pi output truncation.
 - `pi-codex-search` — pinned project package adding `codex_search` through the existing OpenAI Codex login; standalone webpage actions remain disabled by default.
 - `skill-mcp/` — skill-scoped MCP discovery, includeTools filtering, calls, status, disconnect, and shutdown cleanup.
-- `tui-bindings.ts` — Ctrl+K compaction behavior.
 
 ## Setup
 

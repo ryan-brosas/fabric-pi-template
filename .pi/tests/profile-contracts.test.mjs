@@ -241,10 +241,7 @@ test("active extensions use Pi APIs, not legacy runtime imports", () => {
     "diagnostics/types.ts",
     "guard.ts",
     "quality-gate.ts",
-    "prompt-leverage.ts",
     "research-tools.ts",
-    "session-summary.ts",
-    "tui-bindings.ts",
     "skill-mcp/index.ts",
   ]) {
     const text = readFileSync(join(root, "extensions", name), "utf8");

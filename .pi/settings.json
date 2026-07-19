@@ -30,11 +30,8 @@
     "extensions/diagnostics.ts",
     "extensions/guard.ts",
     "extensions/quality-gate.ts",
-    "extensions/prompt-leverage.ts",
     "extensions/research-tools.ts",
-    "extensions/session-summary.ts",
-    "extensions/skill-mcp/index.ts",
-    "extensions/tui-bindings.ts"
+    "extensions/skill-mcp/index.ts"
   ],
   "skills": ["skills"],
   "prompts": [
