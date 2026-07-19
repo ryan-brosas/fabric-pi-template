@@ -4,7 +4,7 @@ argument-hint: "<description>"
 agent: build
 ---
 
-> **Pi execution binding:** The TypeScript blocks below run inside `fabric_exec` as real governed dispatch — `task()` spawns bounded Fabric subagents by role route from `.pi/config.json` (implementation is `general`-only on the GLM 12 pool at medium thinking; reasoning roles like `review`/`plan`/`debug` run `openai-codex/gpt-5.6-sol` read-only and never edit; custom-provider children spawn with `extensions: true`). See `.pi/docs/fabric-tuning.md` (kernel in `.pi/APPEND_SYSTEM.md`) for the full dispatch doctrine — GLM pool sizing, role routes, `required_skills`, board states, worker-distrust, and primary-as-sole-integrator.
+> **Pi execution binding:** Dispatch doctrine (GLM pool sizing, role routes, board states, worker-distrust, primary-as-sole-integrator) lives in `.pi/docs/fabric-tuning.md`.
 
 # Create: $ARGUMENTS
 
@@ -237,8 +237,9 @@ skill({ name: "using-git-worktrees" });
 Convert the validated PRD markdown to the executable JSON that `/ship` parses.
 The primary supplies the final values to the `fabric_exec` invocation as named
 strings: `π.slug` (validated kebab-case), `π.spec` (complete PRD markdown),
-and `π.tasks` (valid JSON). Never paste raw `$ARGUMENTS` into code or a
-shell command.
+`π.tasks` (valid JSON), and `π.research` (consolidated Phase-4 worker/research
+reports markdown; empty string when research was Skipped). Never paste raw
+`$ARGUMENTS` into code or a shell command.
 
 ```typescript
 // fabric_exec — light /create persistence: write each lifecycle artifact, then
@@ -247,6 +248,7 @@ const ROOT = (await pi.bash({ cmd: 'pwd', timeoutMs: 30000 })).output.trim();
 const slug = typeof π.slug === 'string' ? π.slug.trim() : '';
 const spec = typeof π.spec === 'string' ? π.spec : '';
 const rawTasks = typeof π.tasks === 'string' ? π.tasks : '';
+const research = typeof π.research === 'string' ? π.research : '';
 if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(slug)) throw new Error('π.slug must be nonempty kebab-case');
 if (!spec.trim() || !spec.includes('Verify:')) throw new Error('π.spec must be complete and include Verify: commands');
 let parsedTasks;
@@ -278,11 +280,19 @@ async function writeArtifact(path, content, phase) {
 await writeArtifact(ROOT + '/.pi/artifacts/.active', slug + '\n', 'active-write');
 await writeArtifact(artifactDir + '/spec.md', spec.endsWith('\n') ? spec : spec + '\n', 'spec-write');
 await writeArtifact(artifactDir + '/tasks.json', tasks, 'tasks-write');
+// research.md is ALWAYS persisted so /plan's Phase-0 read is reliable. When
+// research was Skipped (π.research empty), write a minimal stub instead of
+// omitting the file.
+const researchContent = research.trim()
+  ? (research.endsWith('\n') ? research : research + '\n')
+  : '# Research\n\n(skipped: no research performed for this feature)\n';
+await writeArtifact(artifactDir + '/research.md', researchContent, 'research-write');
 ```
 
-The write is successful only after all three ledger receipts return. If a write
-or receipt fails, stop and report the exact artifact; do not claim `/create`
-completed.
+The write is successful only after all four ledger receipts return
+(`active-write`, `spec-write`, `tasks-write`, and `research-write` — the last
+always persists, stub or real). If a write or receipt fails, stop and report
+the exact artifact; do not claim `/create` completed.
 
 ## Phase 11: Report
 

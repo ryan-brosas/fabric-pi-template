@@ -4,7 +4,7 @@ argument-hint: "[path|all] [--quick] [--full] [--fix] [--no-cache]"
 agent: review
 ---
 
-> **Pi execution binding:** The TypeScript block(s) below run inside `fabric_exec` as real governed Fabric dispatch — GLM 12 pool, role routes, `required_skills`, mesh board states, worker-distrust / primary-sole-integrator — with the full doctrine in `.pi/docs/fabric-tuning.md` (kernel in `APPEND_SYSTEM.md`); reasoning roles run on `openai-codex/gpt-5.6-sol` at `medium thinking`, custom-provider children spawn with `extensions: true`, and the read-only clause holds: this `review` agent reports `file:line` evidence and never edits (the `general` route alone may write/bash).
+> **Pi execution binding:** See `.pi/docs/fabric-tuning.md` for the full Fabric dispatch doctrine; this `review` agent is read-only — reports `file:line` evidence and never edits (the `general` route alone may write/bash).
 
 # Verify: $ARGUMENTS
 
@@ -46,9 +46,10 @@ Before running any gates, check if a recent verification is still valid:
 
 ```bash
 # Compute current state fingerprint (commit hash + diff)
-CURRENT_STAMP=$(printf '%s\n%s' \
+CURRENT_STAMP=$(printf '%s\n%s\n%s' \
   "$(git rev-parse HEAD)" \
   "$(git diff HEAD -- '*.ts' '*.tsx' '*.js' '*.jsx')" \
+  "$(git ls-files --others --exclude-standard -- '*.ts' '*.tsx' '*.js' '*.jsx' | xargs cat 2>/dev/null)" \
   | shasum -a 256 | cut -d' ' -f1)
 LAST_STAMP=$(tail -1 .pi/artifacts/verify.log 2>/dev/null | awk '{print $1}')
 ```
@@ -152,35 +153,11 @@ Extract all requirements/tasks from the PRD and verify each is implemented:
 
 ## Phase 3: Correctness
 
-Follow the [Verification Protocol](../skills/verification-before-completion/references/VERIFICATION_PROTOCOL.md):
-
-**Default: incremental mode** (changed files only, parallel gates).
-
-| Mode        | When                                      | Behavior                         |
-| ----------- | ----------------------------------------- | -------------------------------- |
-| Incremental | Default, <20 changed files                | Lint changed files, test changed |
-| Full        | `--full` flag, >20 changed files, or ship | Lint all, test all               |
-
-**Execution order:**
-
-1. **Parallel**: typecheck + lint (simultaneously)
-2. **Sequential** (after parallel passes): test, then build (ship only)
-3. **Quality pack (always)**: `node .pi/tools/quality/run-pack.mjs <changed files>` — the runner is the source of truth for deterministic universal and language checks. Exclude intentionally-defective test fixtures; findings in artifact docs that merely *depict* defects (e.g. conflict-marker examples in fenced blocks) are reportable caveats, not blockers.
+Follow the [Verification Protocol](../skills/verification-before-completion/references/VERIFICATION_PROTOCOL.md) — the single canonical gate spec. It owns the mode table (incremental vs full), gate execution order (parallel typecheck+lint → sequential test/build), the quality pack, the results format, and the cache protocol. Run the gates per the protocol.
 
 For browser/manual local-web requirements, use stable URLs as verification evidence. A reachable URL supplements, but never replaces, typecheck/lint/test/build evidence.
 
-Report results with mode column:
-
-```text
-| Gate      | Status | Mode        | Time   |
-|-----------|--------|-------------|--------|
-| Typecheck | PASS   | full        | 2.1s   |
-| Lint      | PASS   | incremental | 0.3s   |
-| Test      | PASS   | incremental | 1.2s   |
-| Build     | SKIP   | —           | —      |
-```
-
-**After all gates pass**, record to verification cache:
+**After all gates pass**, record to verification cache (fingerprint computed in Phase 0):
 
 ```bash
 echo "$CURRENT_STAMP $(date -u +%Y-%m-%dT%H:%M:%SZ) PASS" >> .pi/artifacts/verify.log

@@ -4,53 +4,42 @@
   },
   "role_routes": {
     "build": {
-      "model": "claude-bridge/claude-opus-4-8",
+      "model": "makora/zai-org/GLM-5.2-NVFP4",
       "thinking": "high",
       "contract": ".pi/agents/build.md"
     },
-    "compaction": {
-      "model": "openai-codex/gpt-5.4-mini",
-      "alternate_model": "claude-bridge/claude-haiku-4-5",
-      "thinking": "low"
-    },
     "debug": {
-      "model": "openai-codex/gpt-5.6-sol",
-      "alternate_model": "claude-bridge/claude-opus-4-8",
+      "model": "makora/zai-org/GLM-5.2-NVFP4",
       "thinking": "medium",
       "contract": ".pi/agents/debug.md",
       "tools": ["read", "grep", "find", "ls"]
     },
     "explore": {
-      "model": "openai-codex/gpt-5.4-mini",
-      "alternate_model": "claude-bridge/claude-haiku-4-5",
+      "model": "makora/zai-org/GLM-5.2-NVFP4",
       "thinking": "low",
       "contract": ".pi/agents/explore.md",
       "tools": ["read", "grep", "find", "ls"]
     },
     "general": {
       "model": "makora/zai-org/GLM-5.2-NVFP4",
-      "alternate_model": "umans/umans-glm-5.2",
       "thinking": "medium",
       "contract": ".pi/agents/general.md",
       "tools": ["read", "grep", "find", "ls", "edit", "write", "bash"]
     },
     "plan": {
-      "model": "openai-codex/gpt-5.6-sol",
-      "alternate_model": "claude-bridge/claude-opus-4-8",
+      "model": "claude-bridge/claude-opus-4-8",
       "thinking": "medium",
       "contract": ".pi/agents/plan.md",
       "tools": ["read", "grep", "find", "ls"]
     },
     "review": {
-      "model": "openai-codex/gpt-5.6-sol",
-      "alternate_model": "claude-bridge/claude-opus-4-8",
+      "model": "makora/zai-org/GLM-5.2-NVFP4",
       "thinking": "medium",
       "contract": ".pi/agents/review.md",
       "tools": ["read", "grep", "find", "ls"]
     },
     "scout": {
-      "model": "openai-codex/gpt-5.4-mini",
-      "alternate_model": "claude-bridge/claude-haiku-4-5",
+      "model": "makora/zai-org/GLM-5.2-NVFP4",
       "thinking": "low",
       "contract": ".pi/agents/scout.md",
       "tools": ["read", "grep", "find", "ls", "context7", "grepsearch", "codex_search"]
@@ -63,18 +52,16 @@
     }
   },
   "dispatch": {
-    "default": "direct",
-    "max_parallel_workflow_agents": 12,
-    "worker_distrust": true,
+    "default": "delegated",
+    "max_parallel_workflow_agents": 8,
     "primary_integrates": true,
     "implementation_route": "general",
     "reasoning_never_implements": true,
     "implementation_models": ["makora/zai-org/GLM-5.2-NVFP4", "umans/umans-glm-5.2"],
     "implementation_pool": {
-      "total_workers": 12,
-      "makora_minimum": 6
+      "makora": 6,
+      "umans": 2
     },
-    "small_model_lanes": ["openai-codex/gpt-5.4-mini", "claude-bridge/claude-haiku-4-5"],
     "leaf_excluded_skills": {
       "skills": ["grill-me", "grill-with-docs"]
     },
@@ -89,11 +76,7 @@
       "policy": "unlimited; 0 disables token ceilings",
       "implementation": 0,
       "review": 0,
-      "research": 0,
-      "compaction": 0
-    },
-    "wave_policy": {
-      "max_wave_size": 12
+      "research": 0
     },
     "retry_policy": {
       "max_retries_per_task": 1
@@ -118,22 +101,8 @@
     "commit_message_format": "Conventional Commits: type(scope): subject"
   },
   "team_mode": {
-    "phase_order": [
-      "research",
-      "collaboration",
-      "plan",
-      "implement",
-      "verify",
-      "review",
-      "integrate",
-      "goal"
-    ],
+    "phase_order": ["research", "plan", "implement", "verify", "review", "integrate", "goal"],
     "collaboration": {
-      "checkpoints": {
-        "pre_plan": { "actors": ["team-architect", "team-risk"], "hops": 1, "advisory": false },
-        "post_plan": { "actors": ["team-architect", "team-risk"], "hops": 1, "advisory": true },
-        "post_implement": { "actors": ["team-risk"], "hops": 1, "advisory": true }
-      },
       "board_retention": { "delete_finished": true }
     },
     "required_roles": {
@@ -142,11 +111,6 @@
         "minimum": 2,
         "require_successful_external_tool": true
       },
-      "collaboration": {
-        "actors": ["team-architect", "team-risk"],
-        "minimum": 2,
-        "max_hops": 1
-      },
       "plan": {
         "routes": ["plan"],
         "minimum": 1
@@ -154,16 +118,14 @@
       "implement": {
         "routes": ["general"],
         "minimum": 1,
-        "maximum": 12
+        "maximum": 8
       },
       "verify": {
         "routes": ["review"],
-        "model": "openai-codex/gpt-5.6-sol",
         "minimum": 1
       },
       "review": {
         "routes": ["review"],
-        "model": "claude-bridge/claude-opus-4-8",
         "minimum": 1
       }
     },

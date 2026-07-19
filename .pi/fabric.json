@@ -9,16 +9,17 @@
   },
   "executor": {
     "timeoutMs": 900000,
-    "memoryLimitBytes": 536870912,
-    "maxOutputChars": 1000000,
-    "maxNestedResultChars": 4000000
+    "memoryLimitBytes": 4294967295,
+    "maxOutputChars": 200000,
+    "maxNestedResultChars": 500000,
+    "resultFormat": "json"
   },
   "subagents": {
     "enabled": true,
     "runner": "pi",
     "transport": "auto",
     "thinking": "medium",
-    "maxConcurrent": 12,
+    "maxConcurrent": 8,
     "maxPerExecution": 32,
     "maxDepth": 1,
     "timeoutMs": 900000,
@@ -28,7 +29,10 @@
     "notifyOnComplete": true,
     "budgetUsd": 0,
     "maxTokensPerChild": 0,
-    "model": "makora/zai-org/GLM-5.2-NVFP4"
+    "model": "makora/zai-org/GLM-5.2-NVFP4",
+    "claude": {
+      "model": "claude-bridge/claude-sonnet-5"
+    }
   },
   "mesh": {
     "enabled": true,

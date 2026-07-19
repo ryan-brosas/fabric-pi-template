@@ -36,7 +36,7 @@ const contract = String(await pi.read(ROOT + '/' + route.contract));
 await tools.call({ ref: 'mesh.put', args: { key: 'fabric-pi/<slug>/board',
   value: { tasks: { 'unit-1': 'assigned' } }, ifVersion: 0 } });
 
-// spawn a bounded leaf worker (general route -> GLM 12 pool)
+// spawn a bounded leaf worker (general route -> GLM 8 pool)
 const h = await tools.call({ ref: 'agents.spawn', args: {
   name: 'unit-1',
   task: contract + '\n\n---\n\n' +
@@ -131,22 +131,25 @@ allow-list is the hard capability boundary; `required_skills` is the softer
 
 ## Role routes
 
-The nine role routes are defined in `.pi/config.json` and are the single source
+The eight role routes are defined in `.pi/config.json` and are the single source
 of truth for per-role models and tool sets, organized by tier:
 
-- **Supervisor (Opus 4.8):** `build` (primary — orchestrates, gates, integrates;
-  delegates implementation to `general`; may edit directly for small fixes).
+- **Supervisor:** `build` (orchestrates, gates, integrates; delegates
+  implementation to `general`; may edit directly for small fixes) runs
+  `makora/zai-org/GLM-5.2-NVFP4`. Opus is the Main/primary model driving the
+  brain loop, not a routed seat; `build` is the routed dispatch lane.
 - **Implementation (GLM 5.2):** `general` (bounded implementation — the only role
-  granted `edit`/`write`/`bash`) — Makora `zai-org/GLM-5.2-NVFP4`, alternate
-  `umans/umans-glm-5.2`.
-- **Reasoning (gpt-5.6-sol medium + Claude Opus/Fable):** `plan` (primary when
-  driving the loop, or read-only advisory), `review` (read-only correctness/security),
-  `debug` (read-only root-cause diagnosis). All read-only (`read`/`grep`/`find`/`ls`);
-  they NEVER receive implementation briefs and cannot edit. Sol is the route model;
-  Opus 4.8 is the per-route `alternate_model` and Fable 5 is an explicit-dispatch
-  reasoning alternate — both read-only here. (Opus 4.8 is also the primary supervisor model.)
-- **Small/read-only fan-out (gpt-5.4-mini + Haiku):** `explore` (local code search),
-  `scout` (external research), `compaction` (support, context reduction).
+  granted `edit`/`write`/`bash`) — the two GLM lanes
+  `makora/zai-org/GLM-5.2-NVFP4` (cap 6) and `umans/umans-glm-5.2` (cap 2);
+  see Pi execution binding below.
+- **Reasoning (read-only):** `plan` (primary when driving the loop, or read-only
+  advisory) runs `claude-bridge/claude-opus-4-8` at medium thinking with
+  `claude-bridge/claude-fable-5` as the per-route `alternate_model`; `review`
+  (read-only correctness/security) and `debug` (read-only root-cause diagnosis)
+  run the GLM lanes. All read-only (`read`/`grep`/`find`/`ls`); they NEVER
+  receive implementation briefs and cannot edit.
+- **Read-only fan-out (GLM lanes):** `explore` (local code search) and `scout`
+  (external research) run the GLM lanes.
 - **Multimodal:** `vision` — `makora/moonshotai/Kimi-K2.7-Code`.
 
 Do not duplicate the model table here; consult `config.json` for the exact keys
@@ -157,37 +160,52 @@ dispatcher never names them in a leaf brief. Each route also names a `contract` 
 `.pi/agents/`; the dispatcher reads it and prepends it to every worker task
 (see the loop example above) so role behavior travels with the spawn.
 
-## Implementation pool (GLM 12)
+## Pi execution binding (canonical)
 
-Implementation work runs GLM 5.2 across two lanes: `makora/zai-org/GLM-5.2-NVFP4`
-and `umans/umans-glm-5.2` (both GLM 5.2), listed in `config.json`
-`dispatch.implementation_models`; the ceiling and split live in
-`dispatch.implementation_pool` (`total_workers: 12`, `makora_minimum: 6`). The
-pool is "GLM 12": up to 12 concurrent GLM 5.2 workers, with **at least 6 on
-makora** and the balance on umans. The balancing rule (from the `/team`
-`implementWave` helper) is: fill the first six slots on makora, then fill the
-remaining slots on umans (`i < 6 ? makora : umans`) — a true
-6-makora-then-6-umans split, not round-robin. Both lanes are the same model, so
-the split is about provider rate-limit headroom, not capability. A full 12-wide
-wave lands 6 on makora and 6 on umans, satisfying the ≥6 makora floor exactly. Verified 2026-07-18: makora + umans GLM children dispatch concurrently
-(4-wide test, 2 makora + 2 umans, all completed) with `extensions: true`.
-Reaching a full 12-wide wave depends on makora/umans provider rate limits, which
-are not yet validated at 12 concurrent. A rate-limited lane gets one retry,
-then falls back to the role alternate and implementation-model order.
+This section is the canonical binding for how Pi dispatches implementation
+work; the lifecycle prompts point here, so do not duplicate this doctrine
+elsewhere.
 
-## Small-model lanes
+**Lanes and caps.** Implementation runs on two GLM 5.2 lanes only:
+`makora/zai-org/GLM-5.2-NVFP4` (cap 6) and `umans/umans-glm-5.2` (cap 2),
+8 seats total. Never 12, never a 6+6 split, never "up to 12". The `general`
+route (the only role granted `edit`/`write`/`bash`) is pinned to these lanes.
 
-Read-only fan-out (explore, scout, compaction support) uses small, cheap
-models: `openai-codex/gpt-5.4-mini` and `claude-bridge/claude-haiku-4-5`.
-`gpt-5.4-mini` is the default route for these roles; the Haiku lane is declared
-per-route as `alternate_model` on `explore` and `scout` in `config.json`.
-Review is not a small-model lane. The reasoning tier — `plan`, `review`, and
-`debug` — runs on `openai-codex/gpt-5.6-sol` at medium thinking, with Claude
-alternates `claude-bridge/claude-opus-4-8` and `claude-bridge/claude-fable-5`
-(Opus 4.8 is the per-route `alternate_model`; Fable 5 is an explicit-dispatch
-reasoning alternate). Both are read-only when used in the reasoning tier.
-Claude models are reached only through the Claude Bridge provider — there is no
-native Claude runner in this profile.
+**Provider pinning.** makora and umans are package-based providers loaded at
+Pi startup; any child running them needs `extensions: true`. Dispatch fills
+makora first up to its cap of 6, then umans up to its cap of 2 — not
+round-robin, not interchangeable.
+
+**Per-lane circuit breaker.** A lane that rate-limits or errors gets at most
+one retry on the same lane, then falls back to the role `alternate_model`
+before the implementation-model order; a persistently failing lane is parked,
+not retried in a tight loop. Token budgets are disabled (`0` = unlimited) by
+operator decision — manage a runaway child manually with `agents.compact`,
+`agents.steer`, or `agents.stop`.
+
+**Worker-output distrust.** Worker output is untrusted until the primary
+reads the diff and runs verification. The worker's self-reported envelope
+guides harvest but never substitutes for the host-derived Git diff (see
+Worker distrust and integration).
+
+**Mesh convention.** Each work slug uses two durable surfaces: topic
+`fabric-pi-<slug>` for assignment/status events, and a compare-and-swap
+board at mesh key `fabric-pi/<slug>/board`. Only the primary writes the
+board; workers report, the primary verifies and integrates (see Mesh
+coordination).
+
+## Support and reasoning lanes
+
+The `openai-codex` provider is not provisioned in this environment (no API
+key), so no route uses it. Read-only fan-out (`explore`, `scout`) and the
+reasoning routes `review` and `debug` run the GLM lanes
+(`makora/zai-org/GLM-5.2-NVFP4`, alternate `umans/umans-glm-5.2`). `plan` runs
+`claude-bridge/claude-opus-4-8` at medium thinking with
+`claude-bridge/claude-fable-5` as its `alternate_model` — both read-only in
+the reasoning tier. `compaction` is `fabric.json` runtime plumbing (context
+reduction via `claude-bridge/claude-haiku-4-5` with a GLM alternate), not a
+role route. Claude models are reached only through the Claude Bridge provider
+— there is no native Claude runner in this profile.
 
 ## External research (Context7, Exa, and more)
 
@@ -229,7 +247,7 @@ registered at pi startup by `pi-makora-provider`, `pi-umans-provider`, and
 They are absent from the `~/.pi/agent/models-store.json` cache. A Fabric child
 spawned with `extensions: false` does not load those packages, so any
 makora/umans/claude-bridge model fails to resolve with `No models match pattern`
-(openai-codex still works — it is built-in/OAuth and needs no package). Spawning
+(openai-codex models resolve without packages, but that provider is not provisioned here — no API key — so no route uses it). Spawning
 with `extensions: true` loads the packages and the models resolve (verified
 2026-07-18: makora GLM, umans GLM, claude-bridge Opus all dispatch as children
 with `extensions: true`, all fail with `extensions: false`).
@@ -238,8 +256,7 @@ with `extensions: true`, all fail with `extensions: false`).
 persistent actors resolve custom providers correctly. RULE: never set
 `extensions: false` on a child (subagent or actor) that runs a
 makora/umans/claude-bridge model — restrict tools with the `tools` allow-list
-instead if you want a lean child. openai-codex-only children may use
-`extensions: false` for a lighter, faster launch.
+instead if you want a lean child.
 
 ## LocalTerm-first subagent transport
 
@@ -247,7 +264,7 @@ instead if you want a lean child. openai-codex-only children may use
 `auto` in this order: **LocalTerm → tmux → screen → process**. LocalTerm is
 available only when the `localterm` executable is on the Pi host's `PATH`
 and `localterm session ls --json` succeeds; otherwise dispatch falls through
-without reducing the configured 12-child ceiling. A call may still override the
+without reducing the configured 8-child ceiling. A call may still override the
 profile with `transport: "process"` or another explicit transport.
 
 LocalTerm is an operator-managed host prerequisite, not a Pi extension. Install
@@ -270,7 +287,7 @@ LocalTerm adds persistent, attachable PTYs (Fabric reports an
 
 Coordination uses two durable surfaces per work slug:
 
-- **Topic** `fabric-pi-<slug>` — carries assignments and addressed actor requests. The fixed `team-architect` and `team-risk` crew actors answer addressed requests at bounded checkpoints: one analysis + one cross-review hop before planning (gating input), plus one advisory post-plan plan-review turn and one advisory post-implement risk pass. One addressed turn per actor per checkpoint; no standing subscription.
+- **Topic** `fabric-pi-<slug>` — carries assignments and addressed actor requests. Conversing actors (see below) exchange addressed messages on it; there is no fixed standing crew and no gating checkpoint actors.
 - **Board** at mesh key `fabric-pi/<slug>/board` — a primary-owned compare-and-swap audit projection. Only the primary writes it; host run records, event logs, structured envelopes, Git evidence, and the in-memory phase ledger authorize transitions.
 
 Board task states follow `coordination.board_states` in `config.json` (assigned -> running -> returned -> verified | failed): "returned" means the host run returned; "verified" only after the primary read the diff and ran checks. The board's `evidence` mirror is observable but never an authorization source. The mesh is project-scoped.
@@ -319,7 +336,7 @@ Primitives (pi-fabric 0.21.5, verified against `dist/`):
 - `agents.steer` / `followUp` — reach a peer cross-process over the mesh ("any Fabric-equipped agent can steer any other").
 - `ActorManager.haltAll()` — stop-the-world if a conversation runs away.
 
-Authority preserved: actors collaborate and converse, but the **primary remains the sole board writer and integrator**. `/team` reuses a fixed read-only roster (`team-architect`, `team-risk`) and sends addressed events on the dynamic run topic; actors have no default subscriptions, which avoids ambient feedback loops. Each run permits bounded addressed checkpoints — one analysis turn and one cross-review hop before planning (gating), then one advisory post-plan turn and one advisory post-implement turn — always addressed, never an ambient subscription. Actors are never automatically removed because removal deletes retained actor state. Outside explicit `/team`, direct-first still applies.
+Authority preserved: actors collaborate and converse, but the **primary remains the sole board writer and integrator**. `/team` has no fixed standing crew; actors have no default subscriptions, which avoids ambient feedback loops. Actors are never automatically removed because removal deletes retained actor state. Outside explicit `/team`, direct-first still applies.
 
 ## Steering and follow-up
 
@@ -368,14 +385,13 @@ The primary gates every phase of the brain loop; no phase advances on a
 worker's say-so:
 
 1. **Research gate** — every cycle runs `explore` and `scout`. The scout must finish with a host-validated worker envelope, at least one HTTPS result reference, and a successful `tool_execution_end` for a configured evidence tool in its host-reported event log. Missing, empty, failed, or prose-only research stops before planning.
-2. **Collaboration gate** — fixed read-only `team-architect` and `team-risk` crew actors receive addressed run-topic messages: one analysis + one cross-review response before planning (gating), plus advisory post-plan (plan-review) and post-implement (risk pass) turns whose message IDs are recorded to the board's advisory mirror. Advisory turns never gate — only host run receipts do. No default topic subscription or automatic actor deletion is used.
-3. **Plan/command gate** — a completed Sol planner run consumes the research/actor digest and returns schema-valid units. `π.verifyAllowlist` remains a nonempty exact command set; paths, ownership, explicit `required_skills`, and unit overlap are validated mechanically.
-4. **Implement gate** — `general` workers scale one-for-one with genuinely independent units (1–12), edit isolated worktrees, and must have completed host runs plus schema-valid envelopes. Git supplies the authoritative paths and diff; the primary reruns exact checks.
-5. **Verify gate** — Sol receives captured diffs and primary command evidence. Host status, the complete envelope, and `gate.pass` must all succeed. Opus is not dispatched until this receipt exists.
-6. **Review gate** — Opus independently checks the same evidence. Host status, complete envelope, and `gate.pass` must succeed before integration.
-7. **Integration/goal gate** — only after same-cycle research, collaboration, plan, implement, verify, and review receipts pass does the primary write reviewed bytes to ROOT and rerun checks. A failed ROOT recheck stops on `integration-failed`; it never replans from stale HEAD. `state.checkGoal` is the only success signal, and a false goal stops at `checkpoint-required`.
+2. **Plan/command gate** — a completed planner run consumes the research digest and returns schema-valid units. `π.verifyAllowlist` remains a nonempty exact command set; paths, ownership, explicit `required_skills`, and unit overlap are validated mechanically.
+3. **Implement gate** — `general` workers scale one-for-one with genuinely independent units (1–8), edit isolated worktrees, and must have completed host runs plus schema-valid envelopes. Git supplies the authoritative paths and diff; the primary reruns exact checks.
+4. **Verify gate** — the verify reviewer receives captured diffs and primary command evidence. Host status, the complete envelope, and `gate.pass` must all succeed. The review role is not dispatched until this receipt exists.
+5. **Review gate** — cross-review is a GLM 6+2 wave (the `review` route across the makora/umans GLM lanes), not a Sol/Opus reasoning gate. Host status, the complete envelope, and `gate.pass` must succeed before integration.
+6. **Integration/goal gate** — only after same-cycle research, plan, implement, verify, and review receipts pass does the primary write reviewed bytes to ROOT and rerun checks. A failed ROOT recheck stops on `integration-failed`; it never replans from stale HEAD. `state.checkGoal` is the only success signal, and a false goal stops at `checkpoint-required`.
 
-The in-memory ledger authorizes transitions and is reset each cycle. The CAS board mirrors normalized receipts for observability but cannot authorize a phase by itself. Child JSONL events are parsed structurally, not matched by serializer key order. Aggregate inline review evidence is capped by `team_mode.review_payload_limit_chars`; an oversized wave replans with explicit narrowing feedback before Sol dispatch. This is executable enforcement inside the canonical `/team` program; it is stronger than prompting but is not a pi-fabric-core ACL. A caller that does not execute `/team` is outside this lifecycle.
+The in-memory ledger authorizes transitions and is reset each cycle. The CAS board mirrors normalized receipts for observability but cannot authorize a phase by itself. Child JSONL events are parsed structurally, not matched by serializer key order. Aggregate inline review evidence is capped by `team_mode.review_payload_limit_chars`; an oversized wave replans with explicit narrowing feedback before planner dispatch. This is executable enforcement inside the canonical `/team` program; it is stronger than prompting but is not a pi-fabric-core ACL. A caller that does not execute `/team` is outside this lifecycle.
 
 ## Dispatch failure triage
 
@@ -410,7 +426,7 @@ Fast diagnosis for child failures, in observed-signature order:
 ## Limits and ownership
 
 - `.pi/fabric.json` owns runtime limits and untyped-dispatch defaults: workflow
-  fan-out of 12 (`subagents.maxConcurrent`; mirrored as
+  fan-out of 8 (`subagents.maxConcurrent`; mirrored as
   `dispatch.max_parallel_workflow_agents` in `config.json`), `maxDepth: 1`,
   executor and subagent timeouts, output and token ceilings, and the default
   `subagents.model` used when a dispatch names no role.

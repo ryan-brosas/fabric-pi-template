@@ -53,21 +53,20 @@ Brownfield: `/init` auto-detects existing code and stack. When the area is unfam
 
 `.pi/artifacts/.active` holds the current work slug. Resume: read `.active`, then the artifact directory it names. Switch: update `.active` to another slug — never delete or overwrite existing artifact directories.
 
-## Nine role routes
+## Eight role routes
 
 | Role | Route | Authority |
 |---|---|---|
-| build | Claude Opus 4.8 high | Primary supervisor, sole integrator, gate (senior engineer) |
-| compaction | OpenAI mini (alt Haiku) | Support model intent; pi-vcc/Pi owns compaction runtime |
-| debug | OpenAI Sol medium (alt Claude Opus/Fable) | Read-only root-cause diagnosis |
-| explore | OpenAI mini (alt Haiku) | Read-only local code search |
+| build | Makora GLM 5.2 (alt Umans GLM 5.2) | Bounded implementation lane (senior engineer) |
+| debug | GLM lanes | Read-only root-cause diagnosis |
+| explore | GLM lanes | Read-only local code search |
 | general | Makora GLM 5.2 (alt Umans GLM 5.2) | Small bounded implementation |
-| plan | OpenAI Sol medium (alt Claude Opus/Fable) | Primary/advisory architecture and decomposition |
-| review | OpenAI Sol medium (alt Claude Opus/Fable) | Read-only correctness/security review |
-| scout | OpenAI mini (alt Haiku) | Read-only external research with Context7, grep.app, and Codex web search |
+| plan | claude-bridge/claude-opus-4-8 (medium thinking) | Primary/advisory architecture and decomposition |
+| review | GLM lanes | Read-only correctness/security review |
+| scout | GLM lanes | Read-only external research with Context7 and grep.app |
 | vision | Makora Kimi | Read-only multimodal/UI review |
 
-Fabric subagent dispatch defaults to `makora/zai-org/GLM-5.2-NVFP4` (`fabric.json` `subagents.model`). Implementation runs GLM 5.2 on the Makora pool with alternate lane `umans/umans-glm-5.2` (both in `config.json` `dispatch.implementation_models`). Reasoning roles (plan, review, debug) run on `openai-codex/gpt-5.6-sol` at medium thinking with Claude alternates `claude-bridge/claude-opus-4-8` and `claude-bridge/claude-fable-5`. Read-only fan-out (explore, scout, compaction support) uses small-model lanes `openai-codex/gpt-5.4-mini` and `claude-bridge/claude-haiku-4-5` (Claude models are reached only through the Claude Bridge provider).
+Fabric subagent dispatch defaults to `makora/zai-org/GLM-5.2-NVFP4` (`fabric.json` `subagents.model`). Implementation runs GLM 5.2 on the Makora pool with alternate lane `umans/umans-glm-5.2` (both in `config.json` `dispatch.implementation_models`). The reasoning role `plan` runs `claude-bridge/claude-opus-4-8` at medium thinking (alternate `claude-bridge/claude-fable-5`); `review` and `debug` run the GLM lanes. Read-only fan-out (explore, scout) uses the same GLM lanes; compaction support runs `claude-bridge/claude-haiku-4-5` (Claude models are reached only through the Claude Bridge provider).
 
 ## Fabric orchestration
 
@@ -75,15 +74,15 @@ The brain loop is Fabric: the primary session plans a turn, routes each unit of
 work to a role contract, dispatches bounded subagents, steers drift with
 `agents.steer`, queues post-completion messages with `agents.followUp`, and reads
 plus verifies worker diffs before integrating (workers are leaves at `maxDepth`
-1). The implementation pool is "GLM 12" — up to 12 concurrent GLM 5.2 workers
-split across `makora/zai-org/GLM-5.2-NVFP4` and `umans/umans-glm-5.2` (both GLM 5.2),
-with at least 6 on makora.
-The reasoning tier — plan, review, debug — runs on `openai-codex/gpt-5.6-sol` at
-medium thinking with Claude alternates `claude-bridge/claude-opus-4-8` and
-`claude-bridge/claude-fable-5`. Small-model lanes handle read-only fan-out
-(explore, scout, compaction support): `openai-codex/gpt-5.4-mini` and
-`claude-bridge/claude-haiku-4-5`, reached only through the Claude Bridge provider.
-In `/team`, every cycle is mechanically gated through research, addressed mesh actor cross-review, plan, implementation, Sol verification, Opus review, integration, and goal check. Mesh uses durable topic `fabric-pi-<slug>` plus a primary-owned compare-and-swap audit board at `fabric-pi/<slug>/board`; host run records and event logs—not worker claims—authorize transitions. Phase receipts also chain a durable CAS-guarded `state.transition` ledger (auditable via `state.history`, re-runnable via `state.verify`); ROOT integration runs as an atomic `schema.hypothesize → verify → commit` file transaction with pre-image guards and rollback; and implementation children are spawned governed (status-polled, deadline-steered via `agents.steer`). Runtime limits live in `.pi/fabric.json`; routes and
+1). The implementation pool is the GLM pool — up to 8 concurrent GLM 5.2 workers
+split across `makora/zai-org/GLM-5.2-NVFP4` (cap 6) and `umans/umans-glm-5.2`
+(cap 2).
+The reasoning tier is read-only: plan runs `claude-bridge/claude-opus-4-8` at
+medium thinking (alternate `claude-bridge/claude-fable-5`, reached only through
+the Claude Bridge provider); review and debug run the GLM lanes, which also
+handle read-only fan-out (explore, scout). Compaction support runs
+`claude-bridge/claude-haiku-4-5`.
+In `/team`, every cycle is mechanically gated through research, addressed mesh actor cross-review, plan, implementation, verification, review, integration, and goal check. Mesh uses durable topic `fabric-pi-<slug>` plus a primary-owned compare-and-swap audit board at `fabric-pi/<slug>/board`; host run records and event logs—not worker claims—authorize transitions. Phase receipts also chain a durable CAS-guarded `state.transition` ledger (auditable via `state.history`, re-runnable via `state.verify`); ROOT integration runs as an atomic `schema.hypothesize → verify → commit` file transaction with pre-image guards and rollback; and implementation children are spawned governed (status-polled, deadline-steered via `agents.steer`). Runtime limits live in `.pi/fabric.json`; routes and
 models live in `.pi/config.json`. See `.pi/docs/fabric-tuning.md` for tuning. Alongside one-shot workers, the primary can create persistent conversing mailbox actors (`agents.create`/`ask`/`tell`) that collaborate and converse over mesh topics; the primary remains sole integrator.
 
 ## Native extensions
@@ -97,9 +96,9 @@ models live in `.pi/config.json`. See `.pi/docs/fabric-tuning.md` for tuning. Al
 ## Setup
 
 1. Start Pi in the repository and trust the project.
-2. Ensure Makora, Umans, OpenAI Codex, and Claude Bridge resolve the models in `.pi/settings.json`. The enabled Bridge set is Fable 5, Sonnet 5, Opus 4.8 (the newest installed Opus catalog entry), and Haiku 4.5 (`claude-bridge/claude-haiku-4-5`).
+2. Ensure Makora, Umans, and Claude Bridge resolve the models in `.pi/settings.json`. The enabled Bridge set is Fable 5, Sonnet 5, Opus 4.8 (the newest installed Opus catalog entry), and Haiku 4.5 (`claude-bridge/claude-haiku-4-5`).
 3. Project settings declare `npm:@monotykamary/pi-vcc`, `npm:pi-fabric`, and pinned `npm:pi-codex-search@0.1.5` as Pi packages (matching the `.pi/npm` cache). Do not additionally npm-install Fabric locally. `codex_search` reuses `/login openai-codex`; it needs no separate token.
-4. pi-vcc has no project-local config surface: compaction thresholds live in the user-global `~/.pi/agent/pi-vcc-config.json`. Keep entries there for the enabled model set (makora/umans GLM 5.2, openai-codex, claude-bridge).
+4. pi-vcc has no project-local config surface: compaction thresholds live in the user-global `~/.pi/agent/pi-vcc-config.json`. Keep entries there for the enabled model set (makora/umans GLM 5.2, claude-bridge).
 5. Run:
 
 ```bash

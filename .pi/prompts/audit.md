@@ -4,7 +4,7 @@ argument-hint: "<pattern>"
 agent: build
 ---
 
-> **Pi execution binding:** The TypeScript block runs inside `fabric_exec` as real governed dispatch (`agents.spawn` + status poll + deadline steer), not described pseudocode; implementation dispatches the GLM 12 pool (`general`-only, custom-provider children spawn with `extensions: true`), read-only fan-out (`explore`/`scout`) uses the small-model lanes, and `review`/`plan`/`debug` run on `openai-codex/gpt-5.6-sol` at medium thinking as read-only reasoning. The primary is the sole integrator and worker output is untrusted — see `.pi/docs/fabric-tuning.md` (kernel in `APPEND_SYSTEM.md`) for the full dispatch doctrine (GLM pool, role routes, required_skills, board states, worker-distrust / primary-sole-integrator).
+> **Pi execution binding:** Read-only fan-out audit: the primary spawns governed `explore`/`review` leaves and synthesizes reports itself. Full dispatch doctrine in `.pi/docs/fabric-tuning.md`.
 
 # Audit: $ARGUMENTS
 
@@ -32,7 +32,7 @@ This command invokes the `audit-pattern` workflow for multi-agent parallel execu
 
 Read `.pi/workflows/audit-pattern.md` for phase semantics, then execute the
 fan-out as a real Fabric program. Size Phase 2 to the discovered occurrence
-clusters — never the 12-worker ceiling. The primary supplies the parsed argument
+clusters — never the 8-worker ceiling. The primary supplies the parsed argument
 as the named string `π.pattern`; raw `$ARGUMENTS` is never pasted into code. Final
 synthesis is performed directly by the main agent from the returned reports; no
 @general worker is spawned.

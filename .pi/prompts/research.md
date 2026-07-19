@@ -4,8 +4,7 @@ argument-hint: "<topic> [--quick|--thorough]"
 agent: scout
 ---
 
-> **Pi execution binding:** The TypeScript block(s) below run inside `fabric_exec` as real governed dispatch (`agents.spawn` + status poll + deadline steer), not described; this prompt's agent (`scout`) is **read-only research** — it gathers and reports evidence and never edits.
-> Full dispatch doctrine — GLM 12 pool, role routes, `required_skills`, CAS board states, worker-distrust / primary-sole-integrator (incl. `openai-codex/gpt-5.6-sol` at medium thinking, `extensions: true`) — lives in `.pi/docs/fabric-tuning.md` (kernel in `APPEND_SYSTEM.md`).
+> **Pi execution binding:** Read-only research — gathers and reports evidence, never edits; the TypeScript block runs real governed `fabric_exec` dispatch. Full dispatch doctrine in `.pi/docs/fabric-tuning.md`.
 
 # Research: $ARGUMENTS
 
@@ -47,7 +46,7 @@ If complexity is detected as complex:
 
 Read `.pi/workflows/deep-research.md` for phase semantics, then execute the
 fan-out as a real Fabric program. Size Phase 1 to the distinct research angles —
-never the 12-worker ceiling. The primary supplies the parsed topic as `π.question`
+never the 8-worker ceiling. The primary supplies the parsed topic as `π.question`
 and a JSON string array of 2–5 distinct angles as `π.angles`; raw `$ARGUMENTS` is
 never pasted into code. Final synthesis is performed directly by the main agent
 from the returned reports; no @general worker is spawned.

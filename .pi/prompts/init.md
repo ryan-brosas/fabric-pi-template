@@ -4,7 +4,7 @@ argument-hint: "[--deep] [--context|--user|--all]"
 agent: build
 ---
 
-> **Pi execution binding:** The pseudocode here is semantic, not executable; the TypeScript blocks run inside `fabric_exec` as real governed dispatch — `general`-only implementation on the GLM 12 pool at medium thinking (custom-provider children spawn with `extensions: true`), and read-only reasoning (`review`/`plan`/`debug`) on `openai-codex/gpt-5.6-sol`. The full dispatch doctrine — GLM pool, role routes, `required_skills`, board states, worker-distrust / primary-sole-integrator — lives in `.pi/docs/fabric-tuning.md` (kernel in `APPEND_SYSTEM.md`).
+> **Pi execution binding:** TypeScript blocks here run inside `fabric_exec` as governed dispatch for project initialization. Full dispatch doctrine in `.pi/docs/fabric-tuning.md`.
 
 # Init: $ARGUMENTS
 
@@ -130,7 +130,7 @@ Initialize project planning context with roadmap and state files.
 If the project has existing code (brownfield — see auto-detection above), run parallel codebase analysis:
 
 ```typescript
-// fabric_exec — parallel explore dispatches (small-model lane, read-only)
+// fabric_exec — parallel explore dispatches (read-only explore route)
 const ROOT = (await pi.bash({ cmd: 'pwd', timeoutMs: 30000 })).output.trim();
 const cfg = JSON.parse(String(await pi.read(ROOT + '/.pi/config.json')));
 const route = cfg.role_routes.explore;                              // resolve role from config
@@ -143,10 +143,10 @@ const spawn = (name, finding) => tools.call({
       '\n\nrequired_skills: [] (load no skill)' +
       '\n\nEnd your report with a JSON object matching .pi/schemas/worker-result.json ' +
       '(status, changed_paths, checks_run, stop_reason).',
-    model: route.model,            // openai-codex/gpt-5.4-mini (alternate claude-bridge/claude-haiku-4-5)
+    model: route.model,            // makora/zai-org/GLM-5.2-NVFP4 (alternate umans/umans-glm-5.2)
     thinking: route.thinking,      // low
     tools: route.tools,            // read, grep, find, ls
-    extensions: true,             // alternate claude-bridge custom provider needs this
+    extensions: true,             // makora/umans custom providers need this
   }
 });
 

@@ -3,7 +3,7 @@ description: Create detailed implementation plan with TDD steps
 agent: plan
 ---
 
-> **Pi execution binding:** The pseudocode in this prompt is semantic, not executable — the TypeScript blocks run inside `fabric_exec` as real governed dispatch (GLM 12 pool, `general`-only at medium thinking, `openai-codex/gpt-5.6-sol` reasoning, `extensions:true` children). The full dispatch doctrine — GLM pool split, role routes, `required_skills`, board states, worker-distrust / primary-sole-integrator — lives in `.pi/docs/fabric-tuning.md` (kernel in `APPEND_SYSTEM.md`); direct execution remains the default when delegation adds no leverage.
+> **Pi execution binding:** Dispatch doctrine (GLM pool sizing, role routes, board states, worker-distrust, primary-as-sole-integrator) lives in `.pi/docs/fabric-tuning.md`.
 
 # Plan
 
@@ -26,72 +26,35 @@ Create a detailed implementation plan with TDD steps. Optional deep-planning bet
 - **Budget context**: Target ~50% context per execution
 - **Vertical slices**: Each task should cover one feature end-to-end
 
-## Phase 0: Institutional Research (Mandatory)
+## Phase 0: Consume Prior Research (Tolerant)
 
-Before touching the PRD or planning anything, load what the codebase already knows.
+Resolve the active feature slug from `.pi/artifacts/.active` first (fail with
+"run `/create` first" if that file is absent or empty). All artifact paths below
+use that resolved slug in place of `<slug>`.
 
-**This step is not optional.** Skipping it means planning in the dark.
+Read `.pi/artifacts/<slug>/spec.md` (required — fail if absent). Then read
+`.pi/artifacts/<slug>/research.md` tolerantly:
 
-### Step 1: Search project context
+- `/create` always persists `research.md`. When research depth was Skip, the file
+  contains a stub (`# Research\n\n(skipped: no research performed for this
+  feature)`). Treat that stub as "research was skipped" and proceed to
+  decomposition without re-running research.
+- When `research.md` is absent entirely (legacy or hand-created spec), note that
+  research was skipped and proceed; do not block on it.
 
-Search `.pi/artifacts/MEMORY.md` for: bugfixes, existing plans, prior decisions.
+Consume whatever context exists before planning. Do not re-run research that
+`/create` already captured — no MEMORY.md search, no git-history mining, no
+learnings-researcher spawn.
 
-```bash
-rg -n "topic" .pi/artifacts/MEMORY.md
-```
+This resolves the prior Phase-0 "mandatory read" vs Phase-2 Level-0 "Skip
+research" contradiction: the read is mandatory *when present*, but a Skip depth
+legitimately produces a stub that planning must treat as skipped (and proceed),
+not as missing research to block on. Phase 2's Level-0 "Skip" annotates the
+plan header; Phase 0 handles the actual (tolerant) file read.
 
-If relevant context found: incorporate it directly into the plan. Don't re-solve solved problems.
-
-### Step 2: Mine git history
-
-```bash
-# What has changed recently in affected areas?
-git log --oneline -20
-
-# Who wrote the relevant code and when?
-git log --oneline --follow -- <relevant-file-path>
-
-# What patterns appear in recent commits?
-git log --oneline --all | head -30
-```
-
-Look for:
-
-- Commit conventions (how this team names things)
-- Recent changes to files you'll touch (merge conflict risk)
-- How similar features were implemented before
-- Any "fix:", "revert:", "hotfix:" commits near your scope (footgun zones)
-
-### Step 3: Spawn learnings-researcher (if Level 2-3 work)
-
-```typescript
-// fabric_exec — explore route (small-model lane, read-only)
-const ROOT = (await pi.bash({ cmd: 'pwd', timeoutMs: 30000 })).output.trim();
-const cfg = JSON.parse(String(await pi.read(ROOT + '/.pi/config.json')));
-const route = cfg.role_routes.explore;                              // resolve role from config
-const contract = String(await pi.read(ROOT + '/' + route.contract)); // inject role contract (.pi/agents/explore.md)
-const h = await tools.call({
-  ref: 'agents.spawn',
-  args: {
-    name: 'plan-learnings',
-    task: contract + '\n\n---\n\n' +
-      'Search the codebase for patterns, conventions, and existing implementations related to: [FEATURE]. Grep relevant function names and patterns; find similar existing features; check test patterns for this domain; look for TODO/FIXME in relevant files. Return: existing patterns to follow, files to be aware of, and any gotchas, with file:line evidence.' +
-      '\n\nrequired_skills: [] (load no skill)' +
-      '\n\nEnd your report with a JSON object matching .pi/schemas/worker-result.json ' +
-      '(status, changed_paths, checks_run, stop_reason).',
-    model: route.model,            // openai-codex/gpt-5.4-mini (alternate claude-bridge/claude-haiku-4-5)
-    thinking: route.thinking,      // low
-    tools: route.tools,            // read, grep, find, ls
-    extensions: true,             // alternate claude-bridge custom provider needs this
-  }
-});
-const report = await tools.call({
-  ref: 'agents.wait',
-  args: { id: h.id }
-});
-```
-
-**Only after completing Phase 0** do you proceed to planning. The research phases must use this context.
+Any residual codebase exploration needed during planning must route to GLM
+Makora/Umans workers (`makora/zai-org/GLM-5.2-NVFP4` or
+`umans/umans-glm-5.2`). See `.pi/docs/fabric-tuning.md` for role routes.
 
 ## Phase 1: Guards
 
@@ -108,49 +71,19 @@ Before research, determine discovery level based on PRD:
 | ----- | -------------------- | ----------------------------------------------------------------- | ------------------------------------------- |
 | **0** | Skip                 | Pure internal work, existing patterns only (grep confirms)        | Skip research, proceed to decomposition     |
 | **1** | Quick (2-5 min)      | Single known library, confirming syntax/version                   | `context7 resolve-library-id + query-docs`  |
-| **2** | Standard (15-30 min) | Choosing between 2-3 options, new external integration            | Spawn `@scout` for research                 |
-| **3** | Deep (1+ hour)       | Architectural decision, novel problem, multiple external services | Full research with parallel `@scout` agents |
+| **2** | Standard (15-30 min) | Choosing between 2-3 options, new external integration            | Consume `research.md` (captured by `/create`) |
+| **3** | Deep (1+ hour)       | Architectural decision, novel problem, multiple external services | Consume `research.md` (captured by `/create`) |
 
 **Depth indicators:**
 
 - Level 2+: New library not in package.json, external API, "choose/select/evaluate"
 - Level 3: "architecture/design/system", data modeling, auth design
 
-**Decision:** Ask user to confirm or adjust:
+**Note:** `/create`'s research is already consumed from `research.md` in Phase 0;
+do not re-spawn explore/scout here. The discovery level above only annotates the
+plan header.
 
-```typescript
-question({
-  questions: [
-    {
-      header: "Discovery Level",
-      question: "Suggested discovery level based on PRD complexity. Proceed?",
-      options: [
-        {
-          label: "Deep (Recommended for complex work)",
-          description: "Level 2-3: spawn scout + explore agents",
-        },
-        { label: "Standard", description: "Level 1: quick doc lookup" },
-        { label: "Skip research", description: "Level 0: I know the codebase" },
-      ],
-    },
-  ],
-});
-```
-
-Determine level from PRD content: Level 2+ if new library, external API, or "choose/evaluate" language. Level 3 if "architecture/design/system".
-
-## Phase 3: Research (if Level 1-3)
-
-Read the PRD and extract tasks, success criteria, affected files, scope.
-
-Spawn parallel agents to gather implementation context:
-
-| Agent     | Purpose                                                              |
-| --------- | -------------------------------------------------------------------- |
-| `explore` | Codebase patterns, affected file structure, test patterns, conflicts |
-| `scout`   | Best practices, common patterns, pitfalls                            |
-
-## Phase 4: Goal-Backward Analysis
+## Phase 3: Goal-Backward Analysis
 
 **Forward planning:** "What should we build?" → produces tasks
 **Goal-backward:** "What must be TRUE for the goal to be achieved?" → produces requirements
@@ -215,7 +148,7 @@ For each truth: "What must EXIST for this to be true?"
 | Async action       | Loading/recovery   | Button state, toast, banner  | User double-submits or hits a dead end   |
 | Filtered data      | Empty/no-results   | Query state + empty copy     | User thinks data is missing or corrupted |
 
-## Phase 5: Decompose with Context Budget
+## Phase 4: Decompose with Context Budget
 
 **Quality Degradation Rule:** Target ~50% context per execution. More plans, smaller scope = consistent quality.
 
@@ -241,7 +174,7 @@ Assess size to determine plan structure:
 | M (3-8 files) | 5-8 tasks | 2-3 phases                               |
 | L (8+ files)  | 9+ tasks  | Split into separate plans for each subsystem |
 
-## Phase 6: Dependency Graph & Wave Assignment
+## Phase 5: Dependency Graph & Wave Assignment
 
 **For each task, record:**
 
@@ -266,7 +199,7 @@ Wave 3: C (depends on B)
 **Vertical slices preferred:** Each plan covers one feature end-to-end (model + API + UI)
 **Avoid horizontal layers:** Don't create "all models" then "all APIs" then "all UI"
 
-## Phase 7: Write Plan
+## Phase 6: Write Plan
 
 Write `.pi/artifacts/$(cat .pi/artifacts/.active)/plan.md`:
 
@@ -335,7 +268,7 @@ Wave 3: C
 - **UX recovery path** — async/destructive/form tasks include retry/undo/confirm/error handling
 - **Accessibility wiring** — form and interactive tasks include labels, focus behavior, keyboard path, and semantic HTML
 
-## Phase 8: Constitutional Compliance Gate
+## Phase 7: Constitutional Compliance Gate
 
 Before executing, scan the plan against AGENTS.md hard constraints. This catches violations before they become implementation bugs.
 
@@ -399,7 +332,7 @@ If violations found:
 Violations resolved. Plan is compliant.
 ```
 
-## Phase 9: Report
+## Phase 8: Report
 
 Output:
 

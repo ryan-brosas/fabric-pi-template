@@ -1,5 +1,5 @@
 
-> **Pi execution binding:** The TypeScript block(s) run inside `fabric_exec` as real governed dispatch: implementation is `general`-only on the GLM 12 pool (`makora/zai-org/GLM-5.2-NVFP4` + `umans/umans-glm-5.2`), read-only fan-out (`explore`/`scout`) uses `openai-codex/gpt-5.4-mini` and `claude-bridge/claude-haiku-4-5`, reasoning (`plan`/`review`/`debug`) runs `openai-codex/gpt-5.6-sol`, the board tracks `assigned -> running -> returned -> verified | failed`, and workers take no externally visible action without operator confirmation. The full dispatch doctrine — GLM pool, role routes, `required_skills`, board states, worker-distrust / primary-sole-integrator — lives in `.pi/docs/fabric-tuning.md` (kernel in `APPEND_SYSTEM.md`).
+> **Pi execution binding:** The TypeScript block(s) run inside `fabric_exec` as real governed dispatch: implementation is `general`-only on the GLM pool (`makora/zai-org/GLM-5.2-NVFP4` cap 6 + `umans/umans-glm-5.2` cap 2), read-only fan-out (`explore`/`scout`) and reasoning routes `review`/`debug` run the same GLM lanes, `plan` runs `claude-bridge/claude-opus-4-8`, the board tracks `assigned -> running -> returned -> verified | failed`, and workers take no externally visible action without operator confirmation. The full dispatch doctrine — GLM pool, role routes, `required_skills`, board states, worker-distrust / primary-sole-integrator — lives in `.pi/docs/fabric-tuning.md` (kernel in `APPEND_SYSTEM.md`).
 # development-lifecycle-workflow
 
 Multi-agent workflow that chains the development lifecycle phases with parallelism. Uses specialized agents (scouts, reviewers, planners) and composes with the batch-implement workflow for parallel implementation.
@@ -93,7 +93,7 @@ Keep each task description under 100 words.
 
 Execute the batch-implement workflow with the implementation plan from Phase 3. This will:
 1. Review the plan for task independence (enforce exclusive path ownership — no two workers edit the same file)
-2. Implement tasks in parallel (general-only, GLM 12 pool)
+2. Implement tasks in parallel (general-only, GLM pool)
 3. Verify each implementation (read-only reasoning; one bounded retry per worker)
 4. Integrate the results (primary reads actual changed paths/files or the repository diff when Git exists and verifies; worker summaries are reports, not merged code; review agents are read-only and do not run lint/tests)
 

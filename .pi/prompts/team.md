@@ -4,16 +4,13 @@ argument-hint: "<goal>"
 agent: build
 ---
 
-> **Pi execution binding:** The TypeScript blocks below run inside `fabric_exec`.
-> `pi.*` are core tools; `tools.call({ ref, args })` invokes Fabric providers
-> (`agents.*`, `mesh.*`, `state.*`, `schema.*`). This prompt drives a real team: the primary
-> session (Opus 4.8 high, the supervisor + sole integrator) plans, dispatches
-> teammates, steers drift, gates every phase, and integrates only after reading
-> diffs and verifying. Implementation teammates run GLM 5.2 (the `general` route:
-> `makora/zai-org/GLM-5.2-NVFP4` + `umans/umans-glm-5.2`, up to 12 concurrent);
-> reasoning teammates (plan/verify) run `openai-codex/gpt-5.6-sol`; the reviewer
-> runs `claude-bridge/claude-opus-4-8`. Any child on a custom provider MUST use
-> `extensions: true` (the default). See `.pi/docs/fabric-tuning.md`.
+> **Pi execution binding:** TypeScript below runs in `fabric_exec`; see
+> `.pi/docs/fabric-tuning.md` for the full doctrine. Main is the sole planner and
+> integrator. Implementation is a provider-pinned pool of 6 Makora
+> (`makora/zai-org/GLM-5.2-NVFP4`) + 2 Umans (`umans/umans-glm-5.2`) = 8 writable
+> seats; surplus seats are read-only review. Verify/review is a GLM cross-review
+> wave (no Sol/Opus/Claude gate). Any child on a custom provider MUST use
+> `extensions: true` (the default).
 
 # Team
 
@@ -34,7 +31,7 @@ it with a placeholder.
 Stand up a supervised team and run the whole lifecycle over and over until the
 operator goal is met. `/team "<goal or idea>"`.
 
-> **Workflow:** `/team "<goal>"` (self-contained: research -> mesh collaboration -> plan -> implement -> verify -> review -> loop)
+> **Workflow:** `/team "<goal>"` (self-contained: research -> plan -> implement -> verify -> review -> loop)
 
 ## Guardrails (non-negotiable)
 
@@ -62,7 +59,14 @@ operator goal is met. `/team "<goal or idea>"`.
    allowlist must include the canonical quality-pack commands (`node
    .pi/tools/quality/run-pack.mjs --staged` and the explicit-paths ROOT
    re-run) so unit verifies can reference them as exact members.
-7. **Mandatory role and research gate.** Every cycle MUST run one local `explore` researcher and one external `scout`, then the two fixed read-only mesh crew actors (`team-architect`, `team-risk`). The crew participates at bounded, addressed checkpoints: one analysis turn plus one cross-review hop before planning (the gating pre-plan collaboration), one advisory post-plan plan-review turn before dispatch, and one advisory post-implement risk pass on the captured diffs. Each is a single addressed turn per actor over the run topic (no standing topic subscription, so no ambient feedback loop); the post-plan and post-implement turns are ADVISORY only — they inform the primary and the Opus reviewer but never authorize a phase transition, which still requires same-cycle host run receipts. The scout must have a host-observed successful `tool_execution_end` for an approved external research tool (`codex_search`, `context7`, or `grepsearch`) and at least one URL result reference. Worker prose cannot satisfy this gate. Every later phase requires same-cycle host receipts; Sol must pass before Opus is dispatched. Twelve implementers are capacity, not a target: dispatch exactly one per genuinely independent owned unit.
+7. **Mandatory research gate.** Every cycle MUST run one local `explore`
+   researcher and one external `scout`. The scout must have a host-observed
+   successful `tool_execution_end` for an approved external research tool
+   (`codex_search`, `context7`, or `grepsearch`) and at least one URL result
+   reference. Worker prose cannot satisfy this gate. Every later phase requires
+   same-cycle host receipts. Eight implementers (6 Makora + 2 Umans) are
+   capacity, not a target: dispatch exactly one per genuinely independent owned
+   unit; surplus seats take read-only review duties, never invented edits.
 8. **Clean Git target, fail closed.** Before any `state.*` / `agents.*` / `mesh.*`
    call, ROOT must be a Git work tree with a clean working tree (no tracked or
    untracked changes) and a recorded `HEAD`. Not Git, or dirty -> refuse to
@@ -95,7 +99,7 @@ const teamPolicy = cfg.team_mode;
 const workerSchema = JSON.parse(String(await pi.read(ROOT + '/.pi/schemas/worker-result.json')));
 const manifest = JSON.parse(String(await pi.read(ROOT + '/.pi/skills/manifest.json')));
 const DIFF_LIMIT = 200_000;                                // per-unit unified diff ceiling
-const REVIEW_PAYLOAD_LIMIT = teamPolicy.review_payload_limit_chars; // aggregate inline evidence ceiling per Sol/Opus pass
+const REVIEW_PAYLOAD_LIMIT = teamPolicy.review_payload_limit_chars; // aggregate inline evidence ceiling per cross-review pass
 
 // CLEAN-GIT STARTUP GATE — fail closed before any state/agents/mesh call. The
 // operator must hand over a clean Git target; workers later edit isolated
@@ -157,6 +161,19 @@ function mustAllow(cmd, label) {
 }
 mustAllow(GOAL_CHECK, 'GOAL_CHECK');
 
+// Stable, goal-derived plan/research artifact location. The plan Main authors
+// DEPENDS on the discover reports produced mid-run, so it cannot be a named
+// string (Main cannot set π mid-run). Main WRITES the plan to plan.json and the
+// implement phase READS it. The path must be STABLE across the discover run
+// (which writes research.json) and the implement run (which reads plan.json),
+// so it is derived from the goal — NOT from the per-run timestamp `slug`
+// (which keys the board/topic and changes every invocation).
+function goalHash(s) { let h = 5381; for (let i = 0; i < s.length; i++) h = ((h << 5) + h + s.charCodeAt(i)) >>> 0; return h.toString(36); }
+const PLAN_SLUG = 'team-' + goalHash(GOAL);
+const PLAN_DIR = ROOT + '/.pi/artifacts/' + PLAN_SLUG;
+const PLAN_FILE = PLAN_DIR + '/plan.json';
+const RESEARCH_FILE = PLAN_DIR + '/research.json';
+
 await tools.call({ ref: 'state.goal', args: {
   description: GOAL,
   check: GOAL_CHECK,
@@ -169,7 +186,7 @@ await tools.call({ ref: 'mesh.put', args: {
 } });
 
 await stageArtifact('create', 0, 'Create — run contract',
-  '## Run contract (operator /create)\n\n```\ngoal: ' + GOAL + '\npredicate: ' + GOAL_CHECK + '\nverify_allowlist: ' + JSON.stringify([...ALLOW]) + '\n```');
+  '## Run contract (operator /create)\n\n```\ngoal: ' + GOAL + '\npredicate: ' + GOAL_CHECK + '\nverify_allowlist: ' + JSON.stringify([...ALLOW]) + '\nplan_file: ' + PLAN_FILE + '\nresearch_file: ' + RESEARCH_FILE + '\n```\n\nMain is the sole planner: author plan.json (units [{id, brief, paths, verify, required_skills}]) from the discover reports before the implement phase reads it.');
 ```
 
 ## Phase helpers - dispatch and gate
@@ -273,9 +290,9 @@ function trailingJson(text) {
 // across cycles and runs (state.history / state.verify).
 let phaseEvidence = { cycle: 0, receipts: {} };
 const PHASE_DEPS = {
-  plan: ['research', 'collaboration'],
-  implement: ['research', 'collaboration', 'plan'],
-  verify: ['research', 'collaboration', 'plan', 'implement'],
+  plan: ['research'],
+  implement: ['research', 'plan'],
+  verify: ['research', 'plan', 'implement'],
   review: ['verify'],
   integrate: ['verify', 'review'],
   goal: ['integrate'],
@@ -416,113 +433,15 @@ async function runResearchWave(cycle) {
     external_run_id: pair[1].id,
     successful_tools: usedTools,
     urls,
+    local_report: String(pair[0].text || ''),
+    external_report: String(pair[1].text || ''),
+    local_notes: localEnv.notes || localEnv.checks_run,
+    external_notes: externalEnv.notes || externalEnv.checks_run,
     digest: JSON.stringify({ local: localEnv.notes || localEnv.checks_run, external: externalEnv.notes || externalEnv.checks_run, urls }).slice(0, 60000),
   };
 }
 
-async function ensureTeamActors() {
-  const actorCfg = cfg.actors;
-  const actorContract = String(await pi.read(ROOT + '/' + actorCfg.contract));
-  const roles = [
-    { name: 'team-architect', note: 'Analyze architecture, dependencies, and the smallest coherent design.' },
-    { name: 'team-risk', note: 'Challenge assumptions, identify bypasses and edge cases, and propose fail-closed mitigations.' },
-  ];
-  const listed = await tools.call({ ref: 'agents.actors', args: {} });
-  const out = [];
-  for (const role of roles) {
-    let actor = (Array.isArray(listed) ? listed : []).find(a => a.name === role.name);
-    if (actor) {
-      if (actor.status === 'stopped') throw new Error('required actor is stopped; do not auto-delete/recreate: ' + role.name);
-      if (actor.runner !== 'pi' || actor.delivery !== 'mailbox' || actor.triggerTurn !== false) throw new Error('required actor has unsafe configuration: ' + role.name);
-      if ((actor.tools || []).some(t => t === 'edit' || t === 'write' || t === 'bash')) throw new Error('required actor has mutation tools: ' + role.name);
-      if ((actor.topics || []).includes('fabric.actor.output')) throw new Error('required actor subscribes to feedback-loop topic: ' + role.name);
-    } else {
-      actor = await tools.call({ ref: 'agents.create', args: {
-        name: role.name,
-        instructions: actorContract + '\n\nTeam-specific role: ' + role.note + '\nReply only to the addressed run request. Never write mesh state, never publish follow-on events, and never integrate.',
-        events: [], topics: [], delivery: 'mailbox', responseMode: 'text', triggerTurn: false, coalesce: true,
-        runner: 'pi', model: actorCfg.model, thinking: actorCfg.thinking, tools: actorCfg.tools, timeoutMs: 180000,
-      } });
-    }
-    out.push(actor);
-  }
-  return out;
-}
 
-async function addressedActorTurn(actor, kind, data) {
-  const before = await tools.call({ ref: 'agents.messages', args: { id: actor.id, limit: 100 } });
-  const seen = new Set((Array.isArray(before) ? before : []).map(m => m.id));
-  const event = await tools.call({ ref: 'mesh.publish', args: { topic, to: actor.id, kind, data } });
-  const deadline = Date.now() + 180000;
-  while (Date.now() < deadline) {
-    const messages = await tools.call({ ref: 'agents.messages', args: { id: actor.id, limit: 100 } });
-    const reply = (Array.isArray(messages) ? messages : []).find(m => m.direction === 'out' && m.source === 'mesh:' + topic && !seen.has(m.id) && m.createdAt >= event.createdAt);
-    if (reply) {
-      if (reply.error || !reply.text) throw new Error('actor failed to answer: ' + actor.name);
-      return { actor_id: actor.id, actor_name: actor.name, message_id: reply.id, text: String(reply.text).slice(0, 30000) };
-    }
-    await new Promise(resolve => setTimeout(resolve, 500));
-  }
-  throw new Error('actor response timeout: ' + actor.name);
-}
-
-async function runMeshCollaboration(cycle, research) {
-  const actors = await ensureTeamActors();
-  const first = await Promise.all(actors.map(actor => addressedActorTurn(actor, 'team.analysis', {
-    run_id: slug, cycle, hop: 0, goal: GOAL, research: research.digest,
-  })));
-  const second = await Promise.all(actors.map((actor, i) => addressedActorTurn(actor, 'team.cross-review', {
-    run_id: slug, cycle, hop: 1, goal: GOAL, peer: first[1 - i].text,
-    instruction: 'Cross-review the peer once. Return actionable agreements, disagreements, and blockers; do not send another message.',
-  })));
-  return {
-    pass: true,
-    actors: actors.map(a => a.id),
-    message_ids: [...first, ...second].map(m => m.message_id),
-    digest: JSON.stringify({ first, cross_review: second }).slice(0, 80000),
-  };
-}
-
-// --- Standing crew: bounded advisory checkpoints (NEVER gate). ---
-// The crew (team-architect, team-risk) already persists across runs; these
-// helpers let it participate at post-plan and post-implement via ONE addressed
-// turn each, writing only the board's advisory mirror. They MUST NOT call
-// recordEvidence/requireEvidence — only host run receipts gate phase transitions,
-// and they use bounded addressed turns (no standing topic subscription).
-async function crewPlanCheck(cycle, units, collaborationDigest) {
-  const cp = ((cfg.team_mode.collaboration || {}).checkpoints || {}).post_plan;
-  if (!cp || cp.advisory !== true) return '';
-  const actors = (await ensureTeamActors()).filter(a => cp.actors.includes(a.name));
-  if (actors.length === 0) return '';
-  const turns = await Promise.all(actors.map(actor => addressedActorTurn(actor, 'team.plan-review', {
-    run_id: slug, cycle, hop: 0, goal: GOAL,
-    units: JSON.stringify(units).slice(0, 60000),
-    prior: collaborationDigest,
-    instruction: 'ADVISORY sanity-check of the planned units before dispatch. Flag path overlap, missing/weak verifies, risky ownership, or gaps. One reply; do not send another message.',
-  })));
-  const digest = JSON.stringify(turns.map(t => ({ actor: t.actor_name, text: t.text }))).slice(0, 60000);
-  const cur = await tools.call({ ref: 'mesh.get', args: { key: board } });
-  await tools.call({ ref: 'mesh.put', args: { key: board, ifVersion: cur.version,
-    value: { ...cur.value, advisory: { ...(cur.value.advisory || {}), plan_review: { cycle, message_ids: turns.map(t => t.message_id) } } } } });
-  return digest;
-}
-
-async function crewDiffCheck(cycle, diffsPayload) {
-  const cp = ((cfg.team_mode.collaboration || {}).checkpoints || {}).post_implement;
-  if (!cp || cp.advisory !== true) return '';
-  const actors = (await ensureTeamActors()).filter(a => cp.actors.includes(a.name));
-  if (actors.length === 0) return '';
-  const turns = await Promise.all(actors.map(actor => addressedActorTurn(actor, 'team.diff-review', {
-    run_id: slug, cycle, hop: 0, goal: GOAL,
-    diffs: String(diffsPayload).slice(0, 60000),
-    instruction: 'ADVISORY risk pass on the integrated-candidate diffs: name concrete correctness/security/edge-case concerns with path:line. One reply; do not send another message.',
-  })));
-  const digest = JSON.stringify(turns.map(t => ({ actor: t.actor_name, text: t.text }))).slice(0, 40000);
-  const cur = await tools.call({ ref: 'mesh.get', args: { key: board } });
-  await tools.call({ ref: 'mesh.put', args: { key: board, ifVersion: cur.version,
-    value: { ...cur.value, advisory: { ...(cur.value.advisory || {}), diff_review: { cycle, message_ids: turns.map(t => t.message_id) } } } } });
-  return digest;
-}
 
 // Retire finished AUTO-generated /team run boards from prior runs. Never touches
 // the active board, hand-authored initiative boards, or a live/non-terminal board.
@@ -657,8 +576,8 @@ async function readWorktreeFile(worktree, rel) {
 // intent-to-added (`git add -N -- <path>`) so `git diff HEAD` shows them as new
 // file additions; then `git diff HEAD -- <individual paths>` produces the unified
 // diff. Binary files (numstat shows `-\t-`) and overlarge/unreviewable diffs
-// (over DIFF_LIMIT chars) are rejected. This diff is the evidence Sol and Opus
-// gate — they receive it in their briefs, never raw worktree paths.
+// (over DIFF_LIMIT chars) are rejected. This diff is the evidence the GLM
+// cross-review wave gates — it receives it inline, never raw worktree paths.
 async function captureDiff(worktree, actual, untracked) {
   const wt = safeWorktree(worktree);
   for (const p of untracked) {
@@ -691,7 +610,7 @@ async function execInWorktree(worktree, verifyCmd) {
   return await pi.bash({ cmd, timeoutMs: 180000 });
 }
 
-// Parse + validate a Sol/Opus gate from a report's trailing JSON. The gate MUST
+// Parse + validate a review gate from a report's trailing JSON. The gate MUST
 // be an object { pass: boolean, blocking_findings: string[] }. Returns
 // { ok, pass, blocking_findings }; ok=false means missing/malformed (treated as
 // a failed gate — updates board, replans, skips state.checkGoal).
@@ -707,14 +626,15 @@ function parseGate(text, label) {
 }
 
 // Deterministic plan extraction + validation (replaces manual parsing). The
-// planner MUST return ONE final JSON object whose `units` array entries are
-// { id, paths, deliverable, verify, required_skills, brief }. required_skills
-// is a string[] (empty allowed; names resolved against the skill catalog before
-// spawn, not here). Owned paths are strict-normalized. Each verify string MUST
-// be an EXACT allowlist member or the whole plan is rejected (re-plan). Rejects:
-// missing units[], count outside 1-12, missing/duplicate ids, missing or
-// overlapping owned paths, missing deliverable or verify command, required_skills
-// present but not a string[].
+// planner (Main, sole planner) authors a JSON file whose `units` array entries
+// are { id, brief, paths, verify, required_skills } (a legacy `deliverable` is
+// also accepted as a fallback for `brief`). required_skills is a string[]
+// (empty allowed; names resolved against the skill catalog before spawn, not
+// here). Owned paths are strict-normalized. Each verify string MUST be an EXACT
+// allowlist member or the whole plan is rejected. Rejects: missing units[],
+// count outside 1-12, missing/duplicate ids, missing or overlapping owned
+// paths, missing brief or verify command, required_skills present but not a
+// string[].
 function extractUnits(planText) {
   const parsed = trailingJson(planText);
   const units = parsed && Array.isArray(parsed.units) ? parsed.units : null;
@@ -739,7 +659,7 @@ function extractUnits(planText) {
       }
       claimed.push(ps);
     }
-    if (!u.deliverable) throw new Error('unit ' + id + ' missing deliverable');
+    if (!u.brief && !u.deliverable) throw new Error('unit ' + id + ' missing brief');
     if (!u.verify) throw new Error('unit ' + id + ' missing verify command');
     mustAllow(String(u.verify), 'unit ' + id + ' verify');   // exact member or reject plan
     if (!Object.prototype.hasOwnProperty.call(u, 'required_skills')) throw new Error('unit ' + id + ' missing required_skills (must be present; [] is valid)');
@@ -750,7 +670,7 @@ function extractUnits(planText) {
   return units.map(u => ({
     id: String(u.id),
     paths: (u.paths || u.owned).map(p => normalizeRepoPath(String(p))),
-    deliverable: String(u.deliverable),
+    deliverable: String(u.deliverable || u.brief),
     verify: String(u.verify),
     required_skills: Array.isArray(u.required_skills) ? u.required_skills.map(String) : [],
     brief: String(u.brief || u.deliverable),
@@ -789,15 +709,43 @@ function resolveSkills(unitId, requested) {
   return resolved;
 }
 
-// Fan out GLM implementers (up to 12; first 6 makora, then umans balance). Each
-// runs in its OWN fresh Fabric worktree (worktree:true); result.worktree is the
-// authoritative change-set root. Skills are resolved against the catalog before
-// spawn and the resolved names are folded into each implementation brief.
+// Fan out GLM implementers across a provider-pinned pool: 6 Makora
+// (makora/zai-org/GLM-5.2-NVFP4) + 2 Umans (umans/umans-glm-5.2) = 8 writable
+// seats. Each unit is pinned to a provider at assignment (u.provider) and KEEPS
+// that pin across retries (never re-indexed from 0, which could move a umans
+// unit onto makora). Units beyond the 8 writable seats (the planner allows
+// 1-12) are marked 'review' surplus seats: read-only deletion/scope/test-design/
+// risk review duties, never invented edits. Per-provider circuit breaker: a
+// provider outage stops/rejects THAT lane for the wave; the run never silently
+// spills to the other provider or exceeds its cap (makora 6, umans 2). Each
+// implementer runs in its OWN fresh Fabric worktree (worktree:true);
+// result.worktree is the authoritative change-set root.
+const PROVIDER_LANES = { makora: 'makora/zai-org/GLM-5.2-NVFP4', umans: 'umans/umans-glm-5.2' };
+const PROVIDER_CAP = { makora: 6, umans: 2 };
+const providerOutage = { makora: false, umans: false };
+function pinProvider(units) {
+  let m = 0, n = 0;
+  for (const u of units) {
+    if (u.provider) continue;                 // preserve an existing pin across retries
+    if (m < PROVIDER_CAP.makora && !providerOutage.makora) { u.provider = 'makora'; m++; }
+    else if (n < PROVIDER_CAP.umans && !providerOutage.umans) { u.provider = 'umans'; n++; }
+    else u.provider = 'review';                // surplus seat: read-only review duty
+  }
+  return units;
+}
 async function implementWave(units, attempt = 1) {
-  const lanes = ['makora/zai-org/GLM-5.2-NVFP4', 'umans/umans-glm-5.2'];
+  pinProvider(units);
   const handles = [];
-  units.slice(0, 12).forEach((u, i) => {
-    const model = i < 6 ? lanes[0] : lanes[1];   // true 6-makora-then-umans balance
+  units.forEach((u, i) => {
+    if (u.provider === 'review') return;      // surplus: read-only review, no write dispatch
+    if (providerOutage[u.provider]) {
+      // Outaged lane: record a skipped result (no dispatch), never spill to the
+      // other provider or exceed its cap. Do NOT throw — let the run complete so
+      // these units are reported failed for next-cycle replan.
+      handles.push({ u, model: PROVIDER_LANES[u.provider], attempt, result: { status: 'lane-outage', error: u.provider + ' lane in outage; skipped, not spilled' } });
+      return;
+    }
+    const model = PROVIDER_LANES[u.provider];
     const skills = resolveSkills(u.id, u.required_skills);
     const skillInstruction = skills.length
       ? '\n\nrequired_skills: ' + JSON.stringify(skills) +
@@ -806,13 +754,26 @@ async function implementWave(units, attempt = 1) {
     const brief = u.brief + skillInstruction +
       '\nRun metadata for the final envelope: run_id=' + slug +
       ', unit_id=' + u.id + ', attempt=' + attempt +
+      ', provider=' + u.provider +
       ', owned_paths=' + JSON.stringify(u.paths) +
       '\nYou run inside an isolated Git worktree (your cwd). Edit only your owned paths; do not commit, push, branch, delete, or run destructive ops.';
-    handles.push({ u, model, attempt, p: runGoverned('general', brief, model, 'impl-' + (i + 1)) });
+    handles.push({ u, model, attempt, p: runGoverned('general', brief, model, 'impl-' + u.provider + '-' + (i + 1)) });
   });
-  return await Promise.all(handles.map(async h => ({
-    unit: h.u, model: h.model, attempt: h.attempt, result: await h.p,
-  })));
+  return await Promise.all(handles.map(async h => {
+    if (h.result) return { unit: h.u, model: h.model, provider: h.u.provider, attempt: h.attempt, result: h.result };
+    let result;
+    try { result = await h.p; }
+    catch (e) {
+      // A thrown runGoverned is a genuine transport/provider error: open THIS
+      // lane's breaker. Do NOT rethrow — record a failed result so the wave
+      // finishes and the unit flows into the normal failed->retry/replan path.
+      providerOutage[h.u.provider] = true;
+      return { unit: h.u, model: h.model, provider: h.u.provider, attempt: h.attempt, result: { status: 'error', error: String(e) } };
+    }
+    // A non-completed run is a TASK-level failure, NOT a provider outage: leave
+    // the unit captured as a failed result (eligible for the one bounded retry).
+    return { unit: h.u, model: h.model, provider: h.u.provider, attempt: h.attempt, result };
+  }));
 }
 
 // Gate one returned worker: derive the authoritative change set from its
@@ -859,7 +820,7 @@ async function gateWorker(d) {
     g.mismatch = [];
     // Read every actual changed file from the worktree (primary-confirmed).
     for (const rel of actual) g.files.push({ path: rel, content: await readWorktreeFile(wt, rel) });
-    // Capture the bounded unified diff (the evidence Sol/Opus gate).
+    // Capture the bounded unified diff (the evidence the GLM cross-review gates).
     g.diff = await captureDiff(wt, actual, untracked);
     // Run only the allowlisted verify check inside the worktree.
     const v = await execInWorktree(wt, u.verify);
@@ -889,6 +850,24 @@ async function overBudget() {
 }
 ```
 
+## Plan authoring — Main is the sole planner
+
+The discover/research phase runs first and writes the full local + external
+reports to `RESEARCH_FILE` (`.pi/artifacts/<PLAN_SLUG>/research.json`, a
+goal-derived stable path). Main (the operator/primary) is the SOLE planner: no
+planner child is dispatched, and there is no `π.plan` named string (Main cannot
+set π mid-run, and the plan depends on discover output produced mid-run).
+
+From the discover reports, author the implementation plan as a JSON array of
+units `[{id, brief, paths, verify, required_skills}]` and write it to
+`.pi/artifacts/<PLAN_SLUG>/plan.json` (the exact `plan_file` path printed in the
+run-contract artifact and in any fail-closed message) before running the
+implement program. Each `verify` MUST be an EXACT member of `π.verifyAllowlist`
+or the plan is rejected; `paths` are strict repo-relative (no absolute, no `..`).
+The implement phase READS and parses `plan.json`; if it is absent or invalid
+the run fails closed with a clear "author plan.json first" message naming the
+exact path — it does NOT re-plan or loop, because Main cannot author mid-run.
+
 ## The lifecycle loop
 
 ```typescript
@@ -901,67 +880,52 @@ while (cycle < MAX_CYCLES && !met) {
   cycle++;
   startCycleEvidence(cycle);
 
-  // 1. RESEARCH + MESH COLLABORATION — hard prerequisites for planning.
-  // Missing/failed retrieval, URL evidence, actor response, or cross-review
-  // blocks the run; no planner or implementation child is dispatched.
-  let researchReceipt; let collaborationReceipt;
+  // 1. RESEARCH — hard prerequisite for planning.
+  // Missing/failed retrieval or URL evidence blocks the run; no plan or
+  // implementation child is dispatched.
+  let researchReceipt;
   try {
     researchReceipt = await runResearchWave(cycle);
     await recordEvidence('research', researchReceipt);
-    collaborationReceipt = await runMeshCollaboration(cycle, researchReceipt);
-    await recordEvidence('collaboration', collaborationReceipt);
     await stageArtifact('research', cycle, 'Research — cycle ' + cycle,
-      '## Local + external research and peer cross-review\n\n### Verified sources\n' + (researchReceipt.urls || []).map(u => '- ' + u).join('\n') + '\n\n### Research digest\n```json\n' + researchReceipt.digest + '\n```\n\n### Mesh collaboration (architect + risk)\n```json\n' + collaborationReceipt.digest + '\n```');
+      '## Local + external research\n\n### Verified sources\n' + (researchReceipt.urls || []).map(u => '- ' + u).join('\n') + '\n\n### Research digest\n```json\n' + researchReceipt.digest + '\n```');
+    // RETURN the discover reports to Main (sole planner): write the full local +
+    // external reports to a stable file so Main can reason over them and author
+    // plan.json before the implement phase reads it. Best-effort surfacing; never
+    // gate a phase on it.
+    try {
+      await pi.bash({ cmd: 'mkdir -p ' + shellQuote(PLAN_DIR), timeoutMs: 30000 });
+      await pi.write({ path: RESEARCH_FILE, text: JSON.stringify({ cycle, goal: GOAL, urls: researchReceipt.urls || [], successful_tools: researchReceipt.successful_tools || [], local_report: researchReceipt.local_report || '', external_report: researchReceipt.external_report || '', local_notes: researchReceipt.local_notes, external_notes: researchReceipt.external_notes }, null, 2) });
+    } catch (_) { /* best-effort surfacing to Main; never gate */ }
     requireEvidence('plan');
   } catch (e) {
-    await markBlocked(phaseEvidence.receipts.research ? 'collaboration' : 'research', e);
+    await markBlocked('research', e);
     break;
   }
 
-  // 2. PLAN (gpt-5.6-sol) - decompose the goal into owned, non-overlapping units.
-  const plan = await run('plan',
-    'required_skills: ["planning-and-task-breakdown"]\n' +
-    'Before planning, read .pi/skills/planning-and-task-breakdown/SKILL.md.\n' +
-    'Cycle ' + cycle + '. Goal: ' + GOAL + '. Board: ' + board + '. Mandatory research and peer cross-review already passed. Use this evidence: ' +
-    JSON.stringify({ research: researchReceipt.digest, collaboration: collaborationReceipt.digest, prior_blocker: replanContext }).slice(0, 120000) + '\nDecompose the next\n' +
-    'increment into 1-12 independent implementation units. Each unit MUST be a JSON\n' +
-    'object: { id (unique string), paths (string[], owned, non-overlapping),\n' +
-    'deliverable (string), verify (shell command, exit 0 == done),\n' +
-    'required_skills (string[], empty allowed; skill names from .pi/skills/manifest.json),\n' +
-    'brief (string) }.\n' +
-    'CRITICAL — verify allowlist: each unit verify command MUST be an EXACT string\n' +
-    'from this primary-approved allowlist (no other command is ever executed, never\n' +
-    'sanitized): ' + JSON.stringify([...ALLOW]) + '. Choose verify commands only from\n' +
-    'this list; a nonmember verify causes the whole plan to be rejected and re-planned.\n' +
-    'End your report with ONE final JSON object as the LAST thing that contains BOTH\n' +
-    'the worker-result fields (status, changed_paths, checks_run, stop_reason) AND a\n' +
-    'top-level "units": [...] array. The primary parses the last JSON object even if\n' +
-    'it is fenced, so the generic worker-envelope instruction does not conflict with\n' +
-    'this. Malformed, duplicate-id, overlapping-path, unknown-skill, or non-allowlisted-\n' +
-    'verify plans are rejected by the primary.');
-
-  // Primary (you) extracts + validates units deterministically (strict path
-  // normalize + verify allowlist membership), then records on the board. A
-  // malformed/rejected plan updates the board and re-plans (does not crash).
+  // 2. PLAN — Main is the sole planner. Main authors the unit decomposition from
+  //    the discover reports (written to RESEARCH_FILE) and WRITES it to PLAN_FILE
+  //    (.pi/artifacts/<PLAN_SLUG>/plan.json); no planner child is dispatched and
+  //    there is no π.plan named string (Main cannot set π mid-run, and the plan
+  //    depends on discover output from the same run). The implement phase READS
+  //    and parses PLAN_FILE deterministically (strict path normalize + verify
+  //    allowlist membership). If PLAN_FILE is absent or invalid, the run fails
+  //    closed with a clear 'author plan.json first' message for Main — it does
+  //    NOT re-plan or loop, because Main cannot author mid-run.
   let units;
   try {
-    const planEnv = requireCompletedRun(plan, 'planner', cfg.role_routes.plan.model, true);
-    units = extractUnits(plan.text);
-    await recordEvidence('plan', { pass: true, run_id: plan.id, unit_ids: units.map(u => u.id), checks: planEnv.checks_run.length });
-    await stageArtifact('plan', cycle, 'Plan — cycle ' + cycle,
-      '## Plan units\n\n' + units.map(u => '### ' + u.id + '\n- paths: ' + JSON.stringify(u.paths) + '\n- verify: `' + u.verify + '`\n- required_skills: ' + JSON.stringify(u.required_skills) + '\n\n' + (u.deliverable || '') + '\n\n' + (u.brief || '')).join('\n\n'));
-    requireEvidence('implement');
+    let PLAN_RAW = '';
+    try { const pf = await pi.read({ path: PLAN_FILE }); PLAN_RAW = typeof pf === 'string' ? pf : String(pf || ''); } catch (_) {}
+    if (!PLAN_RAW.trim()) throw new Error('no plan.json at ' + PLAN_FILE);
+    units = extractUnits(PLAN_RAW);
+  } catch (e) {
+    await markBlocked('plan', e);
+    throw new Error('author plan.json first: ' + String(e && e.message || e) + ' — from the discover reports (' + RESEARCH_FILE + '), author a JSON array of units [{id, brief, paths, verify, required_skills}] and write it to ' + PLAN_FILE + ' before running the implement program');
   }
-  catch (e) {
-    const curR = await tools.call({ ref: 'mesh.get', args: { key: board } });
-    await tools.call({ ref: 'mesh.put', args: { key: board, ifVersion: curR.version,
-      value: { ...curR.value, cycle, phase: 're-plan', status: 'plan-rejected: ' + String(e.message || e) } } });
-    if (await overBudget()) break;
-    continue;
-  }
-  // Post-plan crew check (advisory; never gates). Fold guidance into implementation briefs.
-  const planReviewDigest = await crewPlanCheck(cycle, units, collaborationReceipt.digest);
-  if (planReviewDigest) for (const u of units) u.brief = (u.brief || '') + '\n\nAdvisory crew plan-review (guidance, not a gate): ' + planReviewDigest;
+  await recordEvidence('plan', { pass: true, unit_ids: units.map(u => u.id), checks: ['main-authored-plan'] });
+  await stageArtifact('plan', cycle, 'Plan — cycle ' + cycle,
+    '## Plan units (Main-authored from ' + PLAN_FILE + ')\n\n' + units.map(u => '### ' + u.id + '\n- paths: ' + JSON.stringify(u.paths) + '\n- verify: `' + u.verify + '`\n- required_skills: ' + JSON.stringify(u.required_skills) + '\n\n' + (u.deliverable || '') + '\n\n' + (u.brief || '')).join('\n\n'));
+  requireEvidence('implement');
   const curP = await tools.call({ ref: 'mesh.get', args: { key: board } });
   const tasksP = {};
   for (const u of units) tasksP[u.id] = {
@@ -973,7 +937,7 @@ while (cycle < MAX_CYCLES && !met) {
     value: { ...curP.value, cycle, phase: 'implement', tasks: tasksP, status: 'running' },
   } });
 
-  // 2. IMPLEMENT (GLM 12, worktree:true) - one owned path-set per teammate, no overlap.
+  // 2. IMPLEMENT (GLM 6+2, worktree:true) - one owned path-set per teammate, no overlap.
   await tools.call({ ref: 'mesh.publish', args: { topic, kind: 'assignment',
     text: 'cycle ' + cycle + ': dispatching ' + units.length + ' units' } });
   const curRun = await tools.call({ ref: 'mesh.get', args: { key: board } });
@@ -1052,12 +1016,12 @@ while (cycle < MAX_CYCLES && !met) {
   requireEvidence('verify');   // do not advance to verify/review/goal; re-plan next cycle
 
   // Captured, primary-confirmed change set per unit (files read from the worktree
-  // + the bounded unified diff + the worktree verify output) — the evidence Sol
-  // and Opus review as supplied diffs (never worktree paths) and the exact bytes
+  // + the bounded unified diff + the worktree verify output) — the evidence the
+  // GLM cross-review wave reviews as supplied diffs (never worktree paths) and the exact bytes
   // the primary integrates after both gates pass.
   const captured = gate.map(g => ({ unit: { id: g.id, paths: g.paths, verify: (units.find(u => u.id === g.id) || {}).verify || '' }, worktree: g.worktree, files: g.files, diff: g.diff, verifyOut: g.out, mismatch: g.mismatch || [] }));
-  // Sol and Opus receive the supplied unified diffs (not inaccessible worktree
-  // absolute paths) and gate those diffs.
+  // Cross-review seats receive the supplied unified diffs (not inaccessible
+  // worktree absolute paths) and gate those diffs.
   const diffsPayload = JSON.stringify(captured.map(c => ({
     id: c.unit.id, paths: c.unit.paths, diff: c.diff, verify_out: c.verifyOut,
   })));
@@ -1069,88 +1033,66 @@ while (cycle < MAX_CYCLES && !met) {
     continue;
   }
 
-  // Post-implement crew check (advisory; never gates). Feeds the Opus reviewer context.
-  const diffReviewDigest = await crewDiffCheck(cycle, diffsPayload);
-
-  // 4. VERIFY (Sol) - independent read-only verification pass (review route on
-  //    gpt-5.6-sol; no dedicated verify route). Read-only in main; it gates the
-  //    supplied unified diffs and the primary-captured gate evidence (unit verify
-  //    outputs already run by the primary inside each worktree). Its final JSON
-  //    MUST include gate:{pass:boolean, blocking_findings:string[]}; a
-  //    failed/malformed Sol gate updates the board/replans and MUST skip
-  //    state.checkGoal. ROOT is still clean (no integration yet).
-  const verify = await run('review',
-    'required_skills: []\n' +
-    'Cycle ' + cycle + '. Independent verification: gate the supplied unified diffs\n' +
-    'and the primary-captured gate evidence (unit verify outputs already run by the\n' +
-    'primary inside each worktree). You are read-only and receive the diffs inline\n' +
-    'below — do NOT access worktree absolute paths (they are not reachable from your\n' +
-    'read-only main session); review the diffs you are given. Do NOT claim to execute\n' +
-    'shell checks yourself; name the exact diff hunks and primary evidence you relied\n' +
-    'on. This is the verify pass, distinct from the Opus review that follows.\n' +
-    'Your ONE final JSON object MUST contain all worker-result fields AND a top-level\n' +
-    '"gate": { "pass": boolean, "blocking_findings": [string] }. Set pass=false\n' +
-    'and list path:line findings if\n' +
-    'any verified unit is incorrect, incomplete, or unsafe; pass=true only if the\n' +
-    'whole increment is verified. A missing/malformed gate is treated as a failure.\n' +
-    'Supplied unified diffs + primary verify outputs (one object per unit): ' + diffsPayload,
-    undefined, 'verify');
-  let solGate;
-  try {
-    requireCompletedRun(verify, 'Sol verifier', cfg.team_mode.required_roles.verify.model, true);
-    solGate = parseGate(verify.text, 'Sol verify');
-  } catch (e) { solGate = { ok: false, pass: false, blocking_findings: [String(e.message || e)], reason: 'Sol verify host/envelope failure' }; }
-  if (!solGate.ok || !solGate.pass) {
+  // 4-5. VERIFY + REVIEW — a single GLM 6+2 cross-review wave routed through the
+  //    canonical /verify recipe (.pi/prompts/verify.md) instead of a duplicated
+  //    legacy GLM-only gate. Makora seats review Umans-implemented units; Umans seats
+  //    review Makora-implemented units; plus read-only behavior/safety/contract/
+  //    bloat seats over the whole increment. Each reviewer loads
+  //    verification-before-completion (via the /verify recipe), runs the gates,
+  //    reports file:line evidence, and ends with gate:{pass,blocking_findings}.
+  //    The wave passes only if every seat passes; otherwise the board
+  //    updates/replans and MUST skip state.checkGoal. ROOT is still clean.
+  const verifyRecipe = String(await pi.read(ROOT + '/.pi/prompts/verify.md'));
+  async function verifySeat(model, tag, seatDiffs) {
+    const task = verifyRecipe + '\n\n---\n\n' +
+      'Cycle ' + cycle + '. Cross-review seat (' + tag + '). Gate the supplied unified\n' +
+      'diffs (delivered inline below — do NOT access worktree absolute paths, they\n' +
+      'are not reachable from your read-only main session). Run the gates, report\n' +
+      'file:line evidence, and end with ONE final JSON object containing the\n' +
+      'worker-result fields AND a top-level\n' +
+      '"gate": { "pass": boolean, "blocking_findings": [string] }. pass=false with\n' +
+      'path:line findings if the increment is incorrect, incomplete, or unsafe;\n' +
+      'pass=true only if verified. Supplied diffs + primary verify outputs: ' + seatDiffs;
+    const res = await run('review', task, model, 'verify-' + tag);
+    let gate;
+    try { requireCompletedRun(res, tag + ' verifier', model, true); gate = parseGate(res.text, tag); }
+    catch (e) { gate = { ok: false, pass: false, blocking_findings: [String(e.message || e)], reason: tag + ' host/envelope failure' }; }
+    return { tag, gate, text: String(res.text || '') };
+  }
+  const providerOf = id => (units.find(u => u.id === id) || {}).provider || 'makora';
+  const makoraCaptured = captured.filter(c => providerOf(c.unit.id) === 'makora');
+  const umansCaptured = captured.filter(c => providerOf(c.unit.id) === 'umans');
+  const seats = [
+    ...umansCaptured.map(c => [PROVIDER_LANES.makora, 'makora-x-' + c.unit.id]),
+    ...makoraCaptured.map(c => [PROVIDER_LANES.umans, 'umans-x-' + c.unit.id]),
+    [PROVIDER_LANES.makora, 'behavior'],
+    [PROVIDER_LANES.umans, 'safety'],
+    [PROVIDER_LANES.makora, 'contract'],
+    [PROVIDER_LANES.umans, 'bloat'],
+  ];
+  // Cap cross-review fan-out: never dispatch more than 8 review seats
+  // concurrently (batch the seats; maxConcurrent=8).
+  const MAX_REVIEW_CONCURRENCY = 8;
+  const reviewResults = [];
+  for (let i = 0; i < seats.length; i += MAX_REVIEW_CONCURRENCY) {
+    const batch = seats.slice(i, i + MAX_REVIEW_CONCURRENCY);
+    const out = await Promise.all(batch.map(([m, t]) => verifySeat(m, t, diffsPayload)));
+    for (const r of out) reviewResults.push(r);
+  }
+  const verifyOk = reviewResults.every(r => r.gate.ok && r.gate.pass);
+  if (!verifyOk) {
     const curV = await tools.call({ ref: 'mesh.get', args: { key: board } });
     await tools.call({ ref: 'mesh.put', args: { key: board, ifVersion: curV.version,
-      value: { ...curV.value, cycle, phase: 're-plan', status: 'verify-failed', sol_blocking_findings: solGate.blocking_findings } } });
+      value: { ...curV.value, cycle, phase: 're-plan', status: 'verify-failed',
+        review_blocking_findings: reviewResults.flatMap(r => r.gate.blocking_findings) } } });
     if (await overBudget()) break;
     continue;
   }
-  await recordEvidence('verify', { pass: true, run_id: verify.id, blocking_findings: [] });
-  requireEvidence('review');
-
-  // 5. REVIEW (Opus) - unreachable until the Sol receipt passes. Read-only
-  //    in main; same gate contract. A failed/malformed Opus gate updates the
-  //    board/replans and MUST skip state.checkGoal.
-  const review = await run('review',
-    'required_skills: ["code-review-and-quality"]\n' +
-    'Before review, read .pi/skills/code-review-and-quality/SKILL.md.\n' +
-    'Cycle ' + cycle + '. Review the increment for correctness and security. Gate the\n' +
-    'supplied unified diffs (delivered inline below — do NOT access worktree absolute\n' +
-    'paths, they are not reachable from your read-only main session). Score 1-5 and\n' +
-    'list blocking findings with path:line. Changed paths: ' +
-    JSON.stringify(gate.flatMap(g => g.changed)) + '\nIndependent Sol verify report: ' +
-    String(verify.text || '') + '\nYour ONE final JSON object MUST contain all worker-result fields AND a top-level\n' +
-    '"gate": { "pass": boolean, "blocking_findings": [string] }. Set pass=false with\n' +
-    'path:line blocking findings if the increment is not shippable; pass=true only\n' +
-    'if it is correct and safe. A missing/malformed gate is treated as a failure.\n' +
-    'Supplied unified diffs + primary verify outputs (one object per unit): ' + diffsPayload +
-    (diffReviewDigest ? '\nAdvisory crew risk pass (not a gate; verify independently): ' + diffReviewDigest : ''),
-    'claude-bridge/claude-opus-4-8');
-  let opusGate;
-  try {
-    requireCompletedRun(review, 'Opus reviewer', cfg.team_mode.required_roles.review.model, true);
-    opusGate = parseGate(review.text, 'Opus review');
-  } catch (e) { opusGate = { ok: false, pass: false, blocking_findings: [String(e.message || e)], reason: 'Opus review host/envelope failure' }; }
-
-  // A failed or malformed Sol/Opus gate updates the board/replans and MUST skip
-  // state.checkGoal. Do not integrate: ROOT stays clean.
-  if (!solGate.ok || !solGate.pass || !opusGate.ok || !opusGate.pass) {
-    const curB = await tools.call({ ref: 'mesh.get', args: { key: board } });
-    await tools.call({ ref: 'mesh.put', args: { key: board, ifVersion: curB.version,
-      value: { ...curB.value, cycle, phase: 're-plan',
-        status: 'gate-failed: sol=' + (solGate.ok ? (solGate.pass ? 'pass' : 'fail') : 'malformed') +
-          ' opus=' + (opusGate.ok ? (opusGate.pass ? 'pass' : 'fail') : 'malformed'),
-        sol_blocking_findings: solGate.blocking_findings, opus_blocking_findings: opusGate.blocking_findings } } });
-    if (await overBudget()) break;
-    continue;
-  }
-
-  await recordEvidence('review', { pass: true, run_id: review.id, blocking_findings: [] });
+  await recordEvidence('verify', { pass: true, blocking_findings: [] });
+  await recordEvidence('review', { pass: true, blocking_findings: [] });
   requireEvidence('integrate');
 
-  // BOTH GATES PASS — primary integrates the EXACT worktree files into ROOT
+  // WAVE PASSES — primary integrates the EXACT worktree files into ROOT
   // (primary is sole integrator) through the Fabric schema transaction:
   // schema.hypothesize binds per-file pre-image evidence, schema.verify mints a
   // short-lived single-use certificate (commit must follow immediately), and
@@ -1251,13 +1193,13 @@ while (cycle < MAX_CYCLES && !met) {
   requireEvidence('goal');
 
   // 6. GOAL CHECK - the ONLY real success stop. Called only after the whole wave
-  //    passes (primary gate + Sol gate + Opus gate) AND the ROOT re-check passes.
+  //    passes (primary gate + GLM cross-review wave) AND the ROOT re-check passes.
   //    It remains sole success stop.
   const g = await tools.call({ ref: 'state.checkGoal', args: {} });
   met = !!(g && (g.met ?? g.passed ?? g.ok));
   await recordEvidence('goal', { pass: met, predicate_result: met }, [GOAL_CHECK]);
   await stageArtifact('verify', cycle, 'Verify — cycle ' + cycle,
-    '## Independent verification + review\n\n- goal predicate met: ' + met + '\n- Sol verify gate: ' + (solGate && solGate.pass ? 'pass' : 'fail') + '\n- Opus review gate: ' + (opusGate && opusGate.pass ? 'pass' : 'fail') + '\n\n### Sol verify report\n' + String(verify.text || '').slice(0, 8000) + '\n\n### Opus review report\n' + String(review.text || '').slice(0, 8000));
+    '## Independent verification + review\n\n- goal predicate met: ' + met + '\n- GLM cross-review wave: ' + (verifyOk ? 'pass' : 'fail') + '\n\n### Cross-review seat reports\n' + reviewResults.map(r => '#### ' + r.tag + '\n' + String(r.text || '').slice(0, 4000)).join('\n\n'));
 
   // After a mutating integration, fresh worktrees branch from committed HEAD and
   // cannot safely see this uncommitted integration. If the goal is not yet met,
@@ -1303,7 +1245,7 @@ while (cycle < MAX_CYCLES && !met) {
 
 ## Notes
 
-- `/team` is supervisor-driven but no longer mesh-passive: the fixed architect and risk actors receive addressed run-topic requests and perform exactly one cross-review hop. `triggerTurn` remains disabled; the primary reads every response and drives transitions.
+- `/team` is supervisor-driven: Main is the sole planner; implementation is a provider-pinned GLM pool (6 Makora + 2 Umans) with per-provider circuit breakers and provider pins preserved across retries, and verification is a GLM cross-review wave routed through the /verify recipe. No persistent crew actors.
 - Three Fabric mechanisms carry the run's integrity. (1) The durable phase
   ledger: every receipt chains a CAS-guarded `state.transition` (from = observed
   head), so `state.history` shows the full phase trail and `state.verify` can
@@ -1330,7 +1272,8 @@ while (cycle < MAX_CYCLES && !met) {
   transaction (pre-image-guarded writes to ROOT; rollback on failure). The
   primary captures a bounded unified `git diff` per unit (untracked files via
   `git add -N -- <path>` then `git diff HEAD -- <paths>`; binary or overlarge
-  diffs are rejected) and supplies those diffs to Sol/Opus, who gate the diffs
+  diffs are rejected) and supplies those diffs to the GLM cross-review wave,
+  which gates the diffs
   rather than unreachable worktree paths. The verify allowlist gates only the
   verify/goal-check commands; primary-controlled git plumbing (`status`,
   `rev-parse`, `diff`, `add -N`, `cd`) is not allowlisted because it is

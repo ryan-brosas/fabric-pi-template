@@ -6,20 +6,24 @@ import { resolve, join } from "node:path";
 const root = resolve(import.meta.dirname, "..");
 const json = (name) => JSON.parse(readFileSync(join(root, name), "utf8"));
 const esc = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+// Extract ```typescript code blocks, strip JS comments, and join — the executable
+// Fabric program surface of a prompt (prose like "no agents.spawn" is excluded).
+const codeBlocks = (text) => [...text.matchAll(/```typescript\n([\s\S]*?)\n```/g)].map((m) => m[1]);
+const stripComments = (code) => code.replace(/^\s*\/\/.*$/gm, "").replace(/\/\*[\s\S]*?\*\//g, "");
+const programCode = (text) => codeBlocks(text).map(stripComments).join("\n");
 
 test("configuration parses with the fabric-first profile", () => {
   const config = json("config.json");
   json("settings.json");
   json("fabric.json");
   assert.equal(config.profile.authority, "fabric-first");
-  assert.equal(config.dispatch.default, "direct");
+  assert.equal(config.dispatch.default, "delegated");
 });
 
 test("all configured roles and their contracts are mapped", () => {
   const roles = json("config.json").role_routes;
   assert.deepEqual(Object.keys(roles).sort(), [
     "build",
-    "compaction",
     "debug",
     "explore",
     "general",
@@ -28,8 +32,10 @@ test("all configured roles and their contracts are mapped", () => {
     "scout",
     "vision",
   ]);
-  for (const name of ["build", "debug", "explore", "general", "plan", "review", "scout", "vision"])
+  for (const name of ["debug", "explore", "general", "plan", "review", "scout", "vision"])
     assert.ok(existsSync(join(root, "agents", `${name}.md`)));
+  // Conversing-actor mechanism: actor.md contract exists independently of the
+  // dead team-architect/team-risk standing crew.
   assert.ok(existsSync(join(root, "agents", "actor.md")));
 });
 
@@ -44,21 +50,21 @@ test("fabric-focus invariants hold across the config trio", () => {
   const config = json("config.json");
   const fabric = json("fabric.json");
   const settings = json("settings.json");
-  assert.equal(config.role_routes.review.model, "openai-codex/gpt-5.6-sol");
+  assert.equal(config.role_routes.review.model, "makora/zai-org/GLM-5.2-NVFP4");
   assert.equal(config.role_routes.review.thinking, "medium");
-  assert.deepEqual(config.dispatch.small_model_lanes, [
-    "openai-codex/gpt-5.4-mini",
-    "claude-bridge/claude-haiku-4-5",
+  // No small-model lanes: explore/scout/review/debug route to GLM.
+  assert.equal(config.dispatch.small_model_lanes, undefined);
+  assert.deepEqual(config.dispatch.implementation_models, [
+    "makora/zai-org/GLM-5.2-NVFP4",
+    "umans/umans-glm-5.2",
   ]);
-  assert.equal(config.role_routes.explore.alternate_model, "claude-bridge/claude-haiku-4-5");
-  assert.equal(config.role_routes.scout.alternate_model, "claude-bridge/claude-haiku-4-5");
-  // GLM implementation pool: 12 total, at least 6 on makora; Fabric ceiling matches.
+  // GLM implementation pool: 6 Makora + 2 Umans = 8 writable seats; Fabric ceiling matches.
   const pool = config.dispatch.implementation_pool;
-  assert.equal(pool.total_workers, 12);
-  assert.equal(pool.makora_minimum, 6);
+  assert.equal(pool.makora, 6);
+  assert.equal(pool.umans, 2);
   assert.equal(config.dispatch.max_parallel_workflow_agents, fabric.subagents.maxConcurrent);
-  assert.equal(config.dispatch.max_parallel_workflow_agents, pool.total_workers);
-  assert.equal(fabric.subagents.maxConcurrent, 12);
+  assert.equal(config.dispatch.max_parallel_workflow_agents, pool.makora + pool.umans);
+  assert.equal(fabric.subagents.maxConcurrent, 8);
   assert.equal(fabric.subagents.extensions, true);
   assert.equal(fabric.subagents.maxDepth, 1);
   assert.equal(
@@ -70,7 +76,6 @@ test("fabric-focus invariants hold across the config trio", () => {
   assert.equal(config.coordination.board_key_prefix, "fabric-pi/");
   assert.deepEqual(config.team_mode.phase_order, [
     "research",
-    "collaboration",
     "plan",
     "implement",
     "verify",
@@ -79,21 +84,18 @@ test("fabric-focus invariants hold across the config trio", () => {
     "goal",
   ]);
   assert.deepEqual(config.team_mode.required_roles.research.routes, ["explore", "scout"]);
-  assert.deepEqual(config.team_mode.required_roles.collaboration.actors, [
-    "team-architect",
-    "team-risk",
-  ]);
-  assert.equal(config.team_mode.required_roles.implement.maximum, 12);
+  assert.equal(config.team_mode.required_roles.implement.maximum, 8);
   assert.equal(config.team_mode.review_payload_limit_chars, 800000);
   assert.deepEqual(config.team_mode.research_evidence_tools, [
     "codex_search",
     "context7",
     "grepsearch",
   ]);
+  // Conversing-actor mechanism config block (live capability; crew checkpoints stay dead).
   assert.deepEqual(config.actors.default_topics, []);
   assert.ok(settings.enabledModels.includes("claude-bridge/claude-haiku-4-5"));
   const budgets = config.dispatch.token_budgets;
-  const lanes = ["implementation", "review", "research", "compaction"];
+  const lanes = ["implementation", "review", "research"];
   for (const lane of lanes) assert.equal(budgets[lane], 0, `${lane}: 0 means unlimited`);
   assert.match(budgets.policy, /unlimited/);
   const backstop = fabric.subagents.maxTokensPerChild;
@@ -104,14 +106,10 @@ test("fabric-focus invariants hold across the config trio", () => {
   const referenced = new Set([
     fabric.subagents.model,
     ...config.dispatch.implementation_models,
-    ...config.dispatch.small_model_lanes,
-    ...Object.values(config.role_routes).flatMap((route) =>
-      [route.model, route.alternate_model].filter(Boolean),
-    ),
+    ...Object.values(config.role_routes).map((route) => route.model),
   ]);
   for (const model of referenced)
     assert.ok(settings.enabledModels.includes(model), `referenced model must be enabled: ${model}`);
-  assert.equal(config.dispatch.wave_policy.max_wave_size, fabric.subagents.maxConcurrent);
   assert.deepEqual(config.coordination.board_states, [
     "assigned",
     "running",
@@ -129,7 +127,8 @@ test("substantive coding requires visible team dispatch", () => {
     assert.match(text, /[`/]team/);
     assert.match(text, /spawn bounded Fabric agents/);
     assert.match(text, /announce/);
-    assert.match(text, /direct-first/);
+    assert.match(text, /read-only analysis .{0,40}stays direct/);
+    assert.match(text, /edits delegate to the GLM pool/);
   }
 });
 
@@ -286,23 +285,22 @@ test("reasoning roles never implement (Sol/Fable/Opus-when-reasoning are read-on
   const writeTools = new Set(["edit", "write", "bash"]);
   for (const [name, route] of Object.entries(routes)) {
     const tools = route.tools;
-    if (!tools) continue; // build (primary) and compaction carry no explicit tool list
+    if (!tools) continue; // build carries no explicit tool list (primary role)
     const hasWrite = tools.some((t) => writeTools.has(t));
     if (name === "general") assert.ok(hasWrite, "general must retain edit/write/bash");
     else assert.ok(!hasWrite, name + " must not hold write tools (read-only tier)");
   }
-  for (const name of ["plan", "review", "debug"]) {
+  // plan runs Claude Opus; review and debug route to GLM (openai-codex is unprovisioned here).
+  assert.deepEqual(routes.plan.tools, ["read", "grep", "find", "ls"], "plan");
+  assert.equal(routes.plan.model, "claude-bridge/claude-opus-4-8", "plan");
+  for (const name of ["review", "debug"]) {
     assert.deepEqual(routes[name].tools, ["read", "grep", "find", "ls"], name);
-    assert.equal(routes[name].model, "openai-codex/gpt-5.6-sol", name);
+    assert.equal(routes[name].model, "makora/zai-org/GLM-5.2-NVFP4", name + " routes to GLM");
   }
   assert.equal(config.dispatch.implementation_route, "general");
   assert.equal(config.dispatch.reasoning_never_implements, true);
   const implModels = config.dispatch.implementation_models;
-  for (const m of [
-    "openai-codex/gpt-5.6-sol",
-    "claude-bridge/claude-fable-5",
-    "claude-bridge/claude-opus-4-8",
-  ])
+  for (const m of ["claude-bridge/claude-fable-5", "claude-bridge/claude-opus-4-8"])
     assert.ok(
       !implModels.includes(m),
       "reasoning model " + m + " must not be in implementation_models",
@@ -312,8 +310,8 @@ test("reasoning roles never implement (Sol/Fable/Opus-when-reasoning are read-on
 
 test("agent route contracts restate model, thinking, and tool authority from config", () => {
   const config = json("config.json");
+  // Every route contract restates the config model (config stays authoritative).
   for (const [name, route] of Object.entries(config.role_routes)) {
-    if (!route.contract) continue; // compaction: support role, no contract
     const text = readFileSync(join(root, route.contract.replace(/^\.pi\//, "")), "utf8");
     assert.match(
       text,
@@ -438,8 +436,14 @@ test("/team prompt binds the operator goal safely and dispatches a 6-makora-then
   assert.match(team, /required_skills/, "team resolves required_skills before dispatch");
   // shell checks use object-form pi.bash (no raw string interpolation)
   assert.match(team, /pi\.bash\(\s*\{/, "team uses object-form pi.bash");
-  // 6-makora-then-umans balance for the GLM wave
-  assert.match(team, /i < 6 \? lanes\[0\] : lanes\[1\]/, "first six workers makora, balance umans");
+  // 6-makora-then-umans balance for the GLM wave (provider-pinned pool)
+  assert.match(
+    team,
+    /PROVIDER_CAP = \{ makora: 6, umans: 2 \}/,
+    "provider caps: 6 makora + 2 umans",
+  );
+  assert.match(team, /m < PROVIDER_CAP[.]makora/, "first six workers makora");
+  assert.match(team, /n < PROVIDER_CAP[.]umans/, "balance umans");
 });
 
 test("/team mechanically requires research, addressed mesh peers, and same-cycle role receipts", () => {
@@ -451,12 +455,12 @@ test("/team mechanically requires research, addressed mesh peers, and same-cycle
     /tool_execution_end/,
     /isError.*false/,
     /safeRunLog/,
-    /team-architect/,
-    /team-risk/,
-    /to: actor[.]id/,
-    /team[.]cross-review/,
-    /hop: 1/,
-    /agents[.]messages/,
+    /verifySeat/,
+    /reviewResults/,
+    /mesh[.]publish/,
+    /cross-review/,
+    /PROVIDER_LANES/,
+    /agents[.]run/,
     /PHASE_DEPS/,
     /recordEvidence/,
     /requireEvidence/,
@@ -484,17 +488,23 @@ test("/team mechanically requires research, addressed mesh peers, and same-cycle
   ])
     assert.match(team, pattern);
 
+  // Lifecycle order: research -> Main-authored plan -> implement -> primary gate ->
+  // GLM 6+2 cross-review wave -> schema integration -> goal check (no Sol/Opus gate).
   const research = team.indexOf("researchReceipt = await runResearchWave(cycle)");
-  const plan = team.indexOf("const plan = await run('plan'");
+  // Main authors the plan from the discover-wave reports and writes it to
+  // .pi/artifacts/<slug>/plan.json; the implement phase reads that file (no π.plan).
+  const plan = team.indexOf("units = extractUnits(");
   const implement = team.indexOf("const done = await implementWave(units)");
-  const verify = team.indexOf("const verify = await run('review'");
-  const solBlock = team.indexOf("if (!solGate.ok || !solGate.pass)");
-  const review = team.indexOf("const review = await run('review'");
-  const integrate = team.indexOf("BOTH GATES PASS");
+  const gate = team.indexOf("gate.push(await gateWorker(d))");
+  const review = team.indexOf("const reviewResults = []");
+  const integrate = team.indexOf("await recordEvidence('integrate'");
   const goal = team.indexOf("const g = await tools.call({ ref: 'state.checkGoal'");
-  assert.ok(research >= 0 && plan > research && implement > plan && verify > implement);
-  assert.ok(solBlock > verify && review > solBlock, "Opus is not dispatched until Sol passes");
-  assert.ok(integrate > review && goal > integrate);
+  assert.ok(research >= 0 && plan > research && implement > plan && gate > implement);
+  assert.ok(review > gate, "GLM cross-review wave runs after the primary gate");
+  assert.ok(
+    integrate > review && goal > integrate,
+    "integration and goal follow the cross-review wave",
+  );
   assert.match(team, /integration-failed[\s\S]{0,300}break/);
   assert.match(team, /const TOTAL_BUDGET = 0/);
   assert.doesNotMatch(team, /TOTAL_BUDGET = 4_000_000/);
@@ -511,14 +521,19 @@ test("/team fails closed across command, path, diff, peer-review, and goal bound
     /normalizeRepoPath/,
     /rejected change type/,
     /changed_paths size mismatch/,
-    /parseGate[(]verify[.]text/,
-    /parseGate[(]review[.]text/,
+    /parseGate[(]res[.]text/,
   ])
     assert.match(team, pattern);
-  const peerGate = team.indexOf("if (!solGate.ok");
-  const integration = team.indexOf("BOTH GATES PASS");
+  // GLM cross-review wave gates before integration (no Sol/Opus peer gate).
+  const reviewWave = team.indexOf("const reviewResults = []");
+  const verifyOk = team.indexOf("const verifyOk = reviewResults.every");
+  const integrate = team.indexOf("await recordEvidence('integrate'");
   const goalCheck = team.indexOf("const g = await tools.call({ ref: 'state.checkGoal'");
-  assert.ok(peerGate >= 0 && integration > peerGate && goalCheck > integration);
+  assert.ok(reviewWave >= 0 && verifyOk > reviewWave, "cross-review wave produces a verify gate");
+  assert.ok(
+    integrate > verifyOk && goalCheck > integrate,
+    "integration follows a passing cross-review wave",
+  );
   assert.match(team, /checkpoint-required/);
 });
 
@@ -526,12 +541,31 @@ test("all lifecycle prompts use current routes and safe dispatch/action bindings
   const names = ["audit", "create", "fix", "gc", "init", "plan", "research", "ship", "verify"];
   for (const name of names) {
     const text = readFileSync(join(root, "prompts", name + ".md"), "utf8");
-    assert.match(text, /GLM 12/, name + ": GLM 12");
-    assert.match(text, /gpt-5[.]6-sol/, name + ": Sol route");
-    assert.match(text, /medium thinking/, name + ": Sol medium");
-    assert.match(text, /extensions:true|extensions: true/, name + ": extensions enabled");
+    // No prompt carries the obsolete 6-pool sizing.
     assert.doesNotMatch(text, /Makora 6 pool|at most 6 concurrent/, name + ": no old pool");
   }
+  // The GLM 6+2 topology (8 seats) is stated by the prompts that own dispatch.
+  for (const name of ["gc", "ship", "team"]) {
+    const text = readFileSync(join(root, "prompts", name + ".md"), "utf8");
+    assert.match(text, /6 Makora \+ 2 Umans/, name + ": states the 6 Makora + 2 Umans topology");
+  }
+  // Prompts that resolve role routes from config reference route.contract, load
+  // no skill implicitly, and spawn custom-provider children with extensions.
+  for (const name of ["audit", "init", "research", "team", "verify"]) {
+    const text = readFileSync(join(root, "prompts", name + ".md"), "utf8");
+    assert.match(text, /route[.]contract/, name + ": resolves route contract from config");
+    assert.match(
+      text,
+      /required_skills: \[\] [(]load no skill[)]/,
+      name + ": loads no skill implicitly",
+    );
+    assert.match(
+      text,
+      /extensions:\s*true/,
+      name + ": custom-provider children spawn with extensions",
+    );
+  }
+  // gc scans the canonical profile surfaces.
   const gc = readFileSync(join(root, "prompts", "gc.md"), "utf8");
   for (const path of [".pi/extensions", ".pi/prompts", ".pi/skills"])
     assert.match(gc, new RegExp(esc(path)));
@@ -540,11 +574,7 @@ test("all lifecycle prompts use current routes and safe dispatch/action bindings
     /required_skills:\s*\[\],\s*\/\//,
     "required_skills belongs in the task, not FabricAgentRequest",
   );
-  for (const name of ["gc", "init", "plan"]) {
-    const text = readFileSync(join(root, "prompts", name + ".md"), "utf8");
-    assert.match(text, /route[.]contract/);
-    assert.match(text, /required_skills: \[\] [(]load no skill[)]/);
-  }
+  // ship gates every external action on operator authorization.
   const ship = readFileSync(join(root, "prompts", "ship.md"), "utf8");
   assert.match(ship, /No automatic commits/);
   assert.match(ship, /explicit operator authorization naming the exact action/);
@@ -552,22 +582,21 @@ test("all lifecycle prompts use current routes and safe dispatch/action bindings
   assert.doesNotMatch(ship, /Per-task commits required|Commit — per-task commit/);
 });
 
-test("ship, audit, and research run Fabric natively (governed dispatch; ship transacts and ledgers)", () => {
+test("audit and research run governed read-only fan-out; ship is a thin router that delegates and ledgers", () => {
+  // ship is a thin router: delegates execution to /team and verification to /verify,
+  // records durable ledger receipts, but performs no dispatch/transaction itself.
   const ship = readFileSync(join(root, "prompts", "ship.md"), "utf8");
-  for (const pattern of [
-    /agents[.]spawn/,
-    /agents[.]status/,
-    /agents[.]steer/,
-    /agents[.]wait/,
-    /worktree: true/,
-    /waitGoverned/,
-    /schema[.]hypothesize/,
-    /schema[.]verify/,
-    /schema[.]commit/,
-    /state[.]transition/,
-    /ledgerReceipt/,
-  ])
-    assert.match(ship, pattern, "ship: " + pattern);
+  const shipCode = programCode(ship);
+  assert.match(ship, /\/team/, "ship: delegates execution to /team");
+  assert.match(ship, /\/verify/, "ship: delegates verification to /verify");
+  assert.match(shipCode, /state[.]transition/, "ship: records durable ledger transitions");
+  assert.match(shipCode, /ledgerReceipt/, "ship: ledger receipts");
+  assert.doesNotMatch(
+    shipCode,
+    /agents[.]spawn|agents[.]status|agents[.]steer|agents[.]wait|waitGoverned|worktree: true|schema[.]hypothesize|schema[.]verify|schema[.]commit|runGoverned|implementWave/,
+    "ship: thin router — no wave engine / no direct execution in code",
+  );
+  // audit and research run governed read-only fan-out (agents.spawn + status poll + steer).
   for (const name of ["audit", "research"]) {
     const text = readFileSync(join(root, "prompts", name + ".md"), "utf8");
     for (const pattern of [
@@ -607,24 +636,15 @@ test("audit and research bind real named inputs and return nonempty fan-out evid
     assert.ok(!research.includes(placeholder), "research placeholder removed: " + placeholder);
 });
 
-test("all ten lifecycle prompts contain executable Fabric programs", () => {
-  const names = [
-    "audit",
-    "create",
-    "fix",
-    "gc",
-    "init",
-    "plan",
-    "research",
-    "ship",
-    "team",
-    "verify",
-  ];
+test("lifecycle prompts that dispatch contain executable Fabric programs", () => {
+  // plan.md is a pure planning prompt (no fabric_exec program); the other nine
+  // lifecycle prompts each contain an executable Fabric program.
+  const names = ["audit", "create", "fix", "gc", "init", "research", "ship", "team", "verify"];
   for (const name of names) {
     const text = readFileSync(join(root, "prompts", name + ".md"), "utf8");
     assert.match(text, /fabric_exec/, name + ": names the Fabric execution surface");
     const blocks = [...text.matchAll(/```typescript\n([\s\S]*?)\n```/g)].map((m) => m[1]);
-    const programs = blocks.filter((code) => /(?:pi[.]|tools[.]call)/.test(code));
+    const programs = blocks.filter((code) => /(?:pi[.]|tools[.]call|π[.])/.test(code));
     assert.ok(programs.length > 0, name + ": contains a Pi/Fabric TypeScript program");
     for (const [index, code] of programs.entries())
       assert.doesNotThrow(
@@ -643,50 +663,63 @@ test("all ten lifecycle prompts contain executable Fabric programs", () => {
   }
 });
 
-test("fix runs a governed transactional fix-and-verify loop with durable receipts", () => {
+test("fix is a thin router that delegates repair to /team with a verified command", () => {
   const fix = readFileSync(join(root, "prompts", "fix.md"), "utf8");
+  const fixCode = programCode(fix);
+  // Delegates repair to /team with a verify command.
+  assert.match(fix, /Thin router/, "fix: thin router into /team");
+  assert.match(fixCode, /route: '\/team'/, "fix: routes repair to /team");
+  assert.match(fixCode, /verifyCommand/, "fix: carries a verify command");
+  // Uses π named strings (no raw argument interpolation into a shell string).
+  assert.match(fixCode, /π[.]/, "fix: reads named strings");
+  assert.match(
+    fix,
+    /shell control operators are not allowed/,
+    "fix: rejects shell control operators in the verify command",
+  );
+  // Thin router: no wave engine, no transaction, no dispatch in code.
+  assert.doesNotMatch(
+    fixCode,
+    /agents[.]spawn|agents[.]status|agents[.]steer|agents[.]wait|waitGoverned|worktree: true|schema[.]hypothesize|schema[.]verify|schema[.]commit|state[.]transition|ledgerReceipt|runGoverned|implementWave|spawnLeaf/,
+    "fix: thin router — no engine/dispatch/transaction in code",
+  );
+});
+
+test("verify runs governed read-only fan-out; gc is non-mutating and proposes cleanup units", () => {
+  // verify: governed read-only fan-out (agents.spawn + status poll + steer); primary synthesizes.
+  const verify = readFileSync(join(root, "prompts", "verify.md"), "utf8");
   for (const pattern of [
     /agents[.]spawn/,
     /agents[.]status/,
     /agents[.]steer/,
     /agents[.]wait/,
-    /worktree: true/,
     /waitGoverned/,
-    /schema[.]hypothesize/,
-    /schema[.]verify/,
-    /schema[.]commit/,
-    /state[.]transition/,
-    /ledgerReceipt/,
-    /allowlist[.]includes[(]verifyCommand[)]/,
-    /π[.]verifyAllowlist/,
-    /normalizeRepoPath/,
-    /shellQuote/,
-    /shell control operators are not allowed/,
-    /primary-approved project commands/,
+    /status !== ['"]completed['"]/,
+    /spawnLeaf/,
+    /primary synthesizes/,
   ])
-    assert.match(fix, pattern, "fix: " + pattern);
-});
+    assert.match(verify, pattern, "verify: " + pattern);
+  assert.doesNotMatch(
+    verify,
+    /schema[.]commit|worktree: true/,
+    "verify: read-only fan-out never transacts or takes worktrees",
+  );
 
-test("verify and gc use governed read-only fan-out with primary synthesis", () => {
-  for (const name of ["verify", "gc"]) {
-    const text = readFileSync(join(root, "prompts", name + ".md"), "utf8");
-    for (const pattern of [
-      /agents[.]spawn/,
-      /agents[.]status/,
-      /agents[.]steer/,
-      /agents[.]wait/,
-      /waitGoverned/,
-      /status !== ['"]completed['"]/,
-      /spawnLeaf/,
-      /primary synthesizes/,
-    ])
-      assert.match(text, pattern, name + ": " + pattern);
-    assert.doesNotMatch(
-      text,
-      /schema[.]commit|worktree: true/,
-      name + ": read-only fan-out never transacts or takes worktrees",
-    );
-  }
+  // gc: NON-MUTATING — no dispatch, no worktree, no transaction, no file write.
+  // Asserts the proposal/units shape instead of an engine.
+  const gc = readFileSync(join(root, "prompts", "gc.md"), "utf8");
+  const gcCode = programCode(gc);
+  assert.doesNotMatch(
+    gcCode,
+    /agents[.]spawn|agents[.]status|agents[.]steer|agents[.]wait|waitGoverned|worktree: true|schema[.]commit|schema[.]hypothesize|pi[.]write|spawnLeaf/,
+    "gc: non-mutating — no dispatch/transaction/write in code",
+  );
+  assert.doesNotMatch(gcCode, /QUALITY[.]md/, "gc: no QUALITY.md write in code");
+  assert.match(gc, /primary synthesizes/, "gc: primary synthesizes");
+  assert.match(gc, /PROPOSAL only/, "gc: report is a proposal only");
+  assert.match(gc, /"units"/, "gc: proposes structured cleanup units");
+  assert.match(gc, /"ownedPaths"/, "gc: units carry owned paths");
+  assert.match(gc, /"tag"/, "gc: units carry a tag");
 });
 
 test("create writes spec and tasks artifacts with ledger receipts", () => {
@@ -718,12 +751,11 @@ test("every workflow binds general-only implementation, current models, canonica
     const text = readFileSync(join(workflowDir, name), "utf8");
     // general is the named implementation route
     assert.match(text, /general/, `${name}: names general as the implementation route`);
-    // current model fleet across lanes
+    // current model fleet: GLM lanes carry implementation and read-only routes;
+    // openai-codex is unprovisioned and retired from the fleet
     assert.match(text, /makora\/zai-org\/GLM-5.2-NVFP4/, `${name}: makora GLM 5.2`);
     assert.match(text, /umans\/umans-glm-5.2/, `${name}: umans GLM 5.2`);
-    assert.match(text, /openai-codex\/gpt-5.4-mini/, `${name}: small-model lane`);
-    assert.match(text, /claude-bridge\/claude-haiku-4-5/, `${name}: haiku alternate lane`);
-    assert.match(text, /openai-codex\/gpt-5.6-sol/, `${name}: reasoning lane`);
+    assert.doesNotMatch(text, /openai-codex\/gpt-5\.[46]/, `${name}: no retired codex lanes`);
     // canonical board-state chain on a single line
     assert.match(
       text,

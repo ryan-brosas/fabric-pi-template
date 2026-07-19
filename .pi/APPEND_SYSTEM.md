@@ -26,8 +26,8 @@
 - Project commands are prompt templates in `.pi/prompts/`.
 - Capabilities are Agent Skills in `.pi/skills/` and load progressively.
 - Custom tools and plugins are implemented as Pi extensions in `.pi/extensions/`.
-- Fabric is the orchestration brain for delegated work: `task()` maps to bounded Fabric dispatch; direct-first remains the default.
-- Implementation dispatch uses the GLM 12 pool — up to 12 concurrent GLM 5.2 workers split across makora/zai-org/GLM-5.2-NVFP4 and umans/umans-glm-5.2, at least 6 on makora; read-only fan-out uses small-model lanes openai-codex/gpt-5.4-mini and claude-bridge/claude-haiku-4-5.
+- Fabric is the orchestration brain for delegated work: `task()` maps to bounded Fabric dispatch; read-only analysis stays direct, and all code/test/config/prompt edits delegate to the GLM pool (no direct-Main implementation, not even one-liners).
+- Implementation dispatch uses the GLM pool — up to 8 concurrent GLM 5.2 workers split across makora/zai-org/GLM-5.2-NVFP4 (cap 6) and umans/umans-glm-5.2 (cap 2); read-only fan-out (explore, scout, review, debug) runs the same GLM lanes; plan runs claude-bridge/claude-opus-4-8 and compaction runs claude-bridge/claude-haiku-4-5.
 - Multi-worker efforts coordinate over mesh: durable topic fabric-pi-<slug> for assignment/status events and a compare-and-swap board at mesh key fabric-pi/<slug>/board; the primary assigns, workers report, the primary verifies and integrates.
 - Claude models are reached only through the Claude Bridge provider, never a native Claude runner.
 - `question()` maps to asking the operator in the Pi conversation or an extension UI.

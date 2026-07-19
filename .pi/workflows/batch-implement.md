@@ -1,5 +1,5 @@
 
-> **Pi execution binding:** The TypeScript block(s) below run inside `fabric_exec` as real governed dispatch — `general`-only implementation on the GLM 12 pool (`makora/zai-org/GLM-5.2-NVFP4` + `umans/umans-glm-5.2`), read-only reasoning on `openai-codex/gpt-5.6-sol`, and read-only fan-out on `openai-codex/gpt-5.4-mini` / `claude-bridge/claude-haiku-4-5`.
+> **Pi execution binding:** The TypeScript block(s) below run inside `fabric_exec` as real governed dispatch — `general`-only implementation on the GLM pool (`makora/zai-org/GLM-5.2-NVFP4` cap 6 + `umans/umans-glm-5.2` cap 2), read-only plan reasoning on `claude-bridge/claude-opus-4-8`, and read-only fan-out (`explore`/`scout`/`review`/`debug`) on the same GLM lanes.
 > Workers never create branches, commits, or PRs without operator confirmation; the board tracks `assigned -> running -> returned -> verified | failed`; the full dispatch doctrine (GLM pool, role routes, `required_skills`, board states, worker-distrust / primary-sole-integrator) lives in `.pi/docs/fabric-tuning.md` (kernel in `APPEND_SYSTEM.md`).
 # batch-implement
 
@@ -36,7 +36,7 @@ Keep each task description under 100 words.
 
 - **Depends on:** Phase 1
 - **Agent:** @general
-- **Concurrency:** Dynamic (1 agent per task, min 2, up to 12 (GLM 12 pool ceiling))
+- **Concurrency:** Dynamic (1 agent per task, min 2, up to 8 (GLM pool ceiling))
 - **Prompt:**
 
 Implement the following task from the plan: {phase_1_output}. Write production-quality code following project conventions. Include type definitions, error handling, and unit tests. Keep changes scoped to your owned paths — do not edit files outside them or refactor unrelated code. On a failed verification you get one bounded retry, then report a blocker instead of forcing a merge. Return a summary in this format:

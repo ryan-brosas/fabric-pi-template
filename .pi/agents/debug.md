@@ -9,9 +9,8 @@ route: .pi/config.json#role_routes.debug
 > `maxDepth` 1): never spawn agents, never call Fabric `state.*`, and never ask
 > the operator directly — surface questions as blockers in your final report.
 > Your model, thinking level, and tool set come from `role_routes.debug` in
-> `.pi/config.json`. This route runs `openai-codex/gpt-5.6-sol` at `medium`
-> thinking (alternate: `claude-bridge/claude-opus-4-8`; `claude-bridge/claude-fable-5`
-> is the other Claude reasoning option for explicit dispatch). Your tool set is
+> `.pi/config.json`. This route runs `makora/zai-org/GLM-5.2-NVFP4` at `medium`
+> thinking (alternate: `umans/umans-glm-5.2`). Your tool set is
 > `read`/`grep`/`find`/`ls` only — no `bash`, no edits, no implementation. Do not
 > pretend to run shell checks you cannot perform: when verification needs
 > execution, request it as an evidence-backed blocker for the primary to run

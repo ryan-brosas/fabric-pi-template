@@ -11,18 +11,8 @@ const pass = (condition, message) => {
 const settings = readJson("settings.json");
 const config = readJson("config.json");
 readJson("fabric.json");
-const roles = [
-  "build",
-  "compaction",
-  "debug",
-  "explore",
-  "general",
-  "plan",
-  "review",
-  "scout",
-  "vision",
-];
-const contractRoles = roles.filter((role) => role !== "compaction");
+const roles = ["build", "debug", "explore", "general", "plan", "review", "scout", "vision"];
+const contractRoles = roles;
 const commands = ["audit", "create", "fix", "gc", "init", "plan", "research", "ship", "verify"];
 const bridgeModels = [
   "claude-bridge/claude-fable-5",
@@ -42,7 +32,10 @@ pass(
   commands.every((name) => existsSync(join(root, "prompts", `${name}.md`))),
   "one or more source commands are missing",
 );
-pass(config.dispatch.default === "direct", "source direct-first routing is not active");
+pass(
+  config.dispatch.default === "delegated",
+  "source orchestrator-only (delegated) routing is not active",
+);
 pass(
   bridgeModels.every((model) => settings.enabledModels.includes(model)),
   "one or more requested Claude Bridge models are not enabled",
