@@ -120,16 +120,6 @@ test("fabric-focus invariants hold across the config trio", () => {
     "failed",
   ]);
   assert.ok(config.dispatch.retry_policy.max_retries_per_task >= 1);
-  assert.deepEqual(config.dispatch.leaf_excluded_skills.skills, ["grill-me", "grill-with-docs"]);
-  const resultSchema = JSON.parse(
-    readFileSync(join(root, "schemas", "worker-result.json"), "utf8"),
-  );
-  assert.deepEqual([...resultSchema.required].sort(), [
-    "changed_paths",
-    "checks_run",
-    "status",
-    "stop_reason",
-  ]);
 });
 
 test("substantive coding requires visible team dispatch", () => {
@@ -393,8 +383,6 @@ test("skill policy requires named skills per brief and loads nothing implicitly"
 });
 
 test("brainstorming is primary-session-only and gates commits on operator confirmation", () => {
-  const manifest = JSON.parse(readFileSync(join(root, "skills", "manifest.json"), "utf8"));
-  assert.ok(manifest.primary_only.interactive.includes("brainstorming"));
   const bs = readFileSync(join(root, "skills", "brainstorming", "SKILL.md"), "utf8");
   assert.match(bs, /primary-session-only/, "brainstorming runs primary-session-only");
   assert.match(

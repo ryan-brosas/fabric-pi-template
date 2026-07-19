@@ -51,7 +51,6 @@ async function spawnLeaf(role, brief, name) {
     extensions: true, timeoutMs: 600000,
     task: contract + '\n\n---\n\nrequired_skills: [] (load no skill)\n' + brief } });
 }
-// Governed join: status-poll with a deadline steer, then wait.
 async function waitGoverned(id, timeoutMs) {
   const started = Date.now(); let steered = false;
   for (;;) {

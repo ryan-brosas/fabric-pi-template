@@ -39,7 +39,9 @@ function universal(file, text, findings) {
       findings.push(`${file}:${i + 1} merge-marker conflict marker present`);
     }
     if (TRUNC_RE.test(line)) {
-      findings.push(`${file}:${i + 1} truncation-marker pi-read truncation banner captured in content`);
+      findings.push(
+        `${file}:${i + 1} truncation-marker pi-read truncation banner captured in content`,
+      );
     }
   });
   if (text.length > 0 && !text.endsWith("\n")) {
@@ -47,19 +49,20 @@ function universal(file, text, findings) {
   }
 }
 
-function jsTs(file, findings) {
+function jsTs(files, findings) {
+  if (files.length === 0) return;
   try {
-    execFileSync("npx", ["--no-install", "oxfmt", "--check", file], {
+    execFileSync("npx", ["--no-install", "oxfmt", "--check", ...files], {
       stdio: "pipe",
       timeout: 10000,
     });
   } catch (e) {
     const err = String(e.stderr ?? e.message ?? "");
     if (e.status === undefined || /--no-install|not found|ENOENT|canceled/i.test(err)) {
-      console.log(`run-pack: skip js-ts pack for ${file} (oxfmt unavailable)`);
+      console.log(`run-pack: skip js-ts pack for ${files.length} file(s) (oxfmt unavailable)`);
       return;
     }
-    findings.push(`${file}:1 format oxfmt --check failed`);
+    findings.push(`${files.join(", ")}:1 format oxfmt --check failed`);
   }
 }
 
@@ -75,6 +78,7 @@ if (files.length === 0) {
 }
 
 const findings = [];
+const jsTsFiles = [];
 for (const file of files) {
   let text;
   let size;
@@ -90,8 +94,9 @@ for (const file of files) {
   }
   if (text.includes("\u0000")) continue;
   universal(file, text, findings);
-  if (JS_EXTS.has(extname(file))) jsTs(file, findings);
+  if (JS_EXTS.has(extname(file))) jsTsFiles.push(file);
 }
+jsTs(jsTsFiles, findings);
 
 if (findings.length > 0) {
   console.log(findings.join("\n"));

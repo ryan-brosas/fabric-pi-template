@@ -20,7 +20,7 @@ pass() {
 }
 
 # --- 1. Plugin isolation: no cross-plugin imports ---
-echo "[Check 1/6] Plugin isolation — no cross-plugin imports..."
+echo "[Check 1/5] Plugin isolation — no cross-plugin imports..."
 
 PLUGIN_DIR="$ROOT/.pi/extensions"
 
@@ -72,7 +72,7 @@ done
 [ "$cross_violation" -eq 0 ] && pass "No cross-plugin imports detected"
 
 # --- 2. SDK boundary: SDK doesn't import from plugin/ ---
-echo "[Check 2/6] SDK boundary — SDK has no plugin dependencies..."
+echo "[Check 2/5] SDK boundary — SDK has no plugin dependencies..."
 
 if [ -d "$PLUGIN_DIR/sdk" ]; then
 	SDK_FILES=$(find "$PLUGIN_DIR/sdk" -name "*.ts" 2>/dev/null)
@@ -87,7 +87,7 @@ fi
 pass "SDK boundary intact"
 
 # --- 3. File size limits ---
-echo "[Check 3/6] File size limits..."
+echo "[Check 3/5] File size limits..."
 
 check_size() {
 	local path="$1"
@@ -133,7 +133,7 @@ check_size "$ROOT/.pi/prompts/team.md" 1500 "Prompt team.md"
 pass "All files within size limits"
 
 # --- 4. No TODO/FIXME without owner ---
-echo "[Check 4/6] TODO/FIXME hygiene..."
+echo "[Check 4/5] TODO/FIXME hygiene..."
 
 BAD_TODO=$(grep -rn "TODO\|FIXME" "$ROOT/.pi/extensions/"*.ts 2>/dev/null | grep -v "//.*owner:" || true)
 if [ -n "$BAD_TODO" ]; then
@@ -143,7 +143,7 @@ fi
 pass "TODO hygiene acceptable"
 
 # --- 5. Consistent naming: kebab-case filenames (basename only) ---
-echo "[Check 5/6] Filename convention..."
+echo "[Check 5/5] Filename convention..."
 
 BAD_NAMES=$(find "$ROOT/.pi/extensions" "$ROOT/.pi/tools" \( -name "*.ts" -o -name "*.sh" \) 2>/dev/null | grep -v node_modules | while IFS= read -r f; do
 	bn=$(basename "$f")
@@ -155,18 +155,6 @@ if [ -n "$BAD_NAMES" ]; then
 	echo "$BAD_NAMES"
 fi
 pass "Filename convention OK"
-
-# --- 6. Remediator: if this check fails, instructions are below ---
-echo "[Check 6/6] Remediation readiness..."
-
-# Ensure fallow is available
-if command -v npx &>/dev/null; then
-	if npx fallow --version &>/dev/null; then
-		pass "Fallow available for structural analysis"
-	else
-		echo "  INFO: Fallow not installed — run 'npm install -g fallow' or 'npx fallow'"
-	fi
-fi
 
 echo ""
 echo "---"

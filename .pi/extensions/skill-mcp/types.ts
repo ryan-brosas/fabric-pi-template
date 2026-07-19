@@ -1,4 +1,3 @@
-
 import type { ChildProcess } from "node:child_process";
 
 export interface McpServerConfig {
@@ -24,8 +23,4 @@ export interface McpClient {
 export interface SkillMcpState {
   clients: Map<string, McpClient>;
   loadedSkills: Map<string, Record<string, McpServerConfig>>;
-}
-
-export interface ClientManager {
-  state: SkillMcpState;
 }

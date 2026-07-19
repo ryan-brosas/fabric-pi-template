@@ -1,18 +1,23 @@
-
 import { spawn } from "node:child_process";
 import type { McpClient, McpServerConfig, SkillMcpState } from "./types.js";
 import { filterTools } from "./utils.js";
 
 export function resolveConfigEnv(env: Record<string, string> | undefined): Record<string, string> {
   if (!env) return {};
-  return Object.fromEntries(Object.entries(env).map(([key, value]) => {
-    const resolved = value.replace(/[$][{]([A-Za-z_][A-Za-z0-9_]*)[}]/g, (_match, name: string) => {
-      const inherited = process.env[name];
-      if (inherited === undefined) throw new Error(`Missing environment variable ${name} required by skill MCP config`);
-      return inherited;
-    });
-    return [key, resolved];
-  }));
+  return Object.fromEntries(
+    Object.entries(env).map(([key, value]) => {
+      const resolved = value.replace(
+        /[$][{]([A-Za-z_][A-Za-z0-9_]*)[}]/g,
+        (_match, name: string) => {
+          const inherited = process.env[name];
+          if (inherited === undefined)
+            throw new Error(`Missing environment variable ${name} required by skill MCP config`);
+          return inherited;
+        },
+      );
+      return [key, resolved];
+    }),
+  );
 }
 
 export function getClientKey(skillName: string, serverName: string): string {
@@ -24,36 +29,6 @@ export function disconnectAll(state: SkillMcpState): void {
     client.process.kill();
   }
   state.clients.clear();
-}
-
-export function buildLoadedMcpDetails(loadedSkills: Map<string, Record<string, McpServerConfig>>): {
-  summary: string;
-  examples: string;
-} {
-  const loadedEntries = Array.from(loadedSkills.entries());
-  if (loadedEntries.length === 0) {
-    return {
-      summary:
-        "Connected MCP skills: (none). Load the relevant `/skill:name` instructions, then call `skill_mcp` with that skill name.",
-      examples:
-        'Examples:\n- /skill:playwright\n- skill_mcp(skill_name="playwright", list_tools=true)',
-    };
-  }
-
-  const summaryLines = ["Loaded MCP skills and servers:"];
-  const examples: string[] = [];
-  for (const [skillName, config] of loadedEntries) {
-    const serverNames = Object.keys(config);
-    summaryLines.push(`- ${skillName}: ${serverNames.join(", ")}`);
-
-    const serverHint = serverNames.length > 1 ? `, mcp_name="${serverNames[0]}"` : "";
-    examples.push(`- skill_mcp(skill_name="${skillName}", list_tools=true${serverHint})`);
-  }
-
-  return {
-    summary: summaryLines.join("\n"),
-    examples: `Examples:\n${examples.slice(0, 3).join("\n")}`,
-  };
 }
 
 export function sendRequest(client: McpClient, method: string, params?: any): Promise<any> {

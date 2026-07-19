@@ -8,7 +8,13 @@ import type {
   ResolvedDiagnosticsParams,
 } from "./types.ts";
 
-export * from "./planning.ts";
+export {
+  buildPlans,
+  createAutoGate,
+  isAutoConfigFile,
+  resolveExecutable,
+  resolveParams,
+} from "./planning.ts";
 export type * from "./types.ts";
 
 export async function runDiagnostics(
