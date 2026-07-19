@@ -1,8 +1,7 @@
 {
   "profile": {
-    "name": "fabric-pi-opencode-semantic-port",
-    "source": "/home/ryan/repo/new-system/.opencode",
-    "authority": "source-opencode-behavior"
+    "name": "fabric-pi",
+    "authority": "fabric-first"
   },
   "role_routes": {
     "build": {

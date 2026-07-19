@@ -25,13 +25,12 @@
 
 - Project commands are prompt templates in `.pi/prompts/`.
 - Capabilities are Agent Skills in `.pi/skills/` and load progressively.
-- OpenCode plugins and custom tools are implemented as Pi extensions in `.pi/extensions/`.
+- Custom tools and plugins are implemented as Pi extensions in `.pi/extensions/`.
 - Fabric is the orchestration brain for delegated work: `task()` maps to bounded Fabric dispatch; direct-first remains the default.
-- Implementation dispatch uses the Makora 6 pool (makora/zai-org/GLM-5.2-NVFP4, up to 6 concurrent workers); read-only fan-out uses small-model lanes openai-codex/gpt-5.4-mini and claude-bridge/claude-haiku-4-5.
+- Implementation dispatch uses the GLM 12 pool — up to 12 concurrent GLM 5.2 workers split across makora/zai-org/GLM-5.2-NVFP4 and umans/umans-glm-5.2, at least 6 on makora; read-only fan-out uses small-model lanes openai-codex/gpt-5.4-mini and claude-bridge/claude-haiku-4-5.
 - Multi-worker efforts coordinate over mesh: durable topic fabric-pi-<slug> for assignment/status events and a compare-and-swap board at mesh key fabric-pi/<slug>/board; the primary assigns, workers report, the primary verifies and integrates.
 - Claude models are reached only through the Claude Bridge provider, never a native Claude runner.
-- OpenCode `question()` semantics map to asking the operator in the Pi conversation or an extension UI.
-- OpenCode artifact paths map from `.opencode/...` to `.pi/...`.
-- Use Pi core tools (`read`, `grep`, `find`, `ls`, `edit`, `write`, `bash`) rather than OpenCode-only APIs.
+- `question()` maps to asking the operator in the Pi conversation or an extension UI.
+- Use Pi core tools (`read`, `grep`, `find`, `ls`, `edit`, `write`, `bash`) for repository work.
 
-Detailed guidance: `.pi/AGENTS.md`. Port mapping: `.pi/PORT-MAP.md`.
+Detailed guidance: `.pi/AGENTS.md`.

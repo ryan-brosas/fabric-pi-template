@@ -3,7 +3,7 @@ description: Ship a plan - implement specs, verify, review, close
 agent: build
 ---
 
-> **Pi execution binding:** OpenCode pseudocode in this source-derived prompt is semantic, not executable. `task()` maps to bounded Fabric subagent dispatch with an explicit role from `.pi/config.json`.
+> **Pi execution binding:** The pseudocode in this prompt is semantic, not executable. `task()` maps to bounded Fabric subagent dispatch with an explicit role from `.pi/config.json`.
 > The implementation role `general` (only) runs on the GLM 12 pool (`makora/zai-org/GLM-5.2-NVFP4` + `umans/umans-glm-5.2`, up to 12 concurrent; first six on makora, balance on umans) with `extensions: true`; the primary (`build`, supervisor + sole integrator) runs `claude-bridge/claude-opus-4-8` at high thinking.
 > Read-only fan-out (`explore`, `scout`) uses the small-model lanes (`openai-codex/gpt-5.4-mini`, alternate `claude-bridge/claude-haiku-4-5`); `review` runs on `openai-codex/gpt-5.6-sol` at medium thinking.
 > The primary resolves `required_skills` against `.pi/skills/manifest.json` before spawn and injects the role contract from `.pi/agents/` into every dispatch. Multi-worker phases coordinate over the canonical mesh (topic `fabric-pi-<slug>`, CAS board `fabric-pi/<slug>/board`); the primary steers drift, reads every diff, and verifies before integrating.

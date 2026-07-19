@@ -1,7 +1,6 @@
 {
   "version": 1,
-  "source": "/home/ryan/repo/new-system/.opencode/skill",
-  "policy": "Every source skill file remains present. Files not listed here must stay byte-identical to source; listed files may differ only for Pi runtime bindings.",
+  "policy": "Registry of skill files that diverge from their upstream imports. Files not listed here stay byte-identical to upstream; listed files may differ only for Pi runtime bindings.",
   "adapted": {
     "accessibility-audit/SKILL.md": "Normalize agent_types to Pi role_routes vocabulary (planner->plan, worker->general, reviewer->review).",
     "api-and-interface-design/SKILL.md": "Normalize agent_types to Pi role_routes vocabulary (planner->plan, worker->general, reviewer->review).",
@@ -11,7 +10,7 @@
     "browser-tools/SKILL.md": "Expose copied browser helpers through project-local Pi commands and skill-MCP alternatives.",
     "ci-cd-and-automation/SKILL.md": "Normalize agent_types to Pi role_routes vocabulary (planner->plan, worker->general, reviewer->review).",
     "cloudflare/SKILL.md": "Normalize agent_types to Pi role_routes vocabulary (planner->plan, worker->general, reviewer->review).",
-    "cloudflare/references/workers-ai/README.md": "Replace OpenCode installation and load commands with the containing Pi skill command.",
+    "cloudflare/references/workers-ai/README.md": "Replace upstream installation and load commands with the containing Pi skill command.",
     "code-cleanup/SKILL.md": "Normalize agent_types to Pi role_routes vocabulary (planner->plan, worker->general, reviewer->review).",
     "code-review-and-quality/SKILL.md": "Normalize agent_types to Pi role_routes vocabulary (planner->plan, worker->general, reviewer->review).",
     "core-data-expert/SKILL.md": "Normalize agent_types to Pi role_routes vocabulary (planner->plan, worker->general, reviewer->review).",
@@ -26,7 +25,7 @@
     "fallow/SKILL.md": "Normalize agent_types to Pi role_routes vocabulary (planner->plan, worker->general, reviewer->review).",
     "figma/SKILL.md": "Normalize agent_types to Pi role_routes vocabulary (planner->plan, worker->general, reviewer->review).",
     "frontend-design/SKILL.md": "Normalize agent_types to Pi role_routes vocabulary (planner->plan, worker->general, reviewer->review).",
-    "gemini-large-context/SKILL.md": "Map workflow artifact paths from .opencode to .pi.",
+    "gemini-large-context/SKILL.md": "Map workflow artifact paths to .pi.",
     "git-workflow-and-versioning/SKILL.md": "Normalize agent_types to Pi role_routes vocabulary (planner->plan, worker->general, reviewer->review).",
     "grill-me/SKILL.md": "Normalize agent_types to Pi role_routes vocabulary (planner->plan, worker->general, reviewer->review).",
     "high-end-visual-design/SKILL.md": "Normalize agent_types to Pi role_routes vocabulary (planner->plan, worker->general, reviewer->review).",
@@ -37,13 +36,13 @@
     "minimalist-ui/SKILL.md": "Normalize agent_types to Pi role_routes vocabulary (planner->plan, worker->general, reviewer->review).",
     "mockup-to-code/SKILL.md": "Normalize agent_types to Pi role_routes vocabulary (planner->plan, worker->general, reviewer->review).",
     "opensrc/SKILL.md": "Normalize agent_types to Pi role_routes vocabulary (planner->plan, worker->general, reviewer->review).",
-    "opensrc/references/analysis-tips.md": "Map OpenCode pseudo-tool examples to pi.find and pi.read.",
-    "opensrc/references/anti-patterns.md": "Map OpenCode pseudo-tool examples to pi.read.",
-    "opensrc/references/common-patterns.md": "Map OpenCode pseudo-tool examples to pi.grep, pi.find, and pi.read.",
+    "opensrc/references/analysis-tips.md": "Map upstream pseudo-tool examples to pi.find and pi.read.",
+    "opensrc/references/anti-patterns.md": "Map upstream pseudo-tool examples to pi.read.",
+    "opensrc/references/common-patterns.md": "Map upstream pseudo-tool examples to pi.grep, pi.find, and pi.read.",
     "opensrc/references/example-workflow.md": "Write research artifacts under .pi.",
     "pdf-extract/SKILL.md": "Normalize agent_types to Pi role_routes vocabulary (planner->plan, worker->general, reviewer->review).",
     "performance-optimization/SKILL.md": "Normalize agent_types to Pi role_routes vocabulary (planner->plan, worker->general, reviewer->review).",
-    "planning-and-task-breakdown/SKILL.md": "Remove ignored OpenCode TaskCreate/TaskUpdate tool metadata.",
+    "planning-and-task-breakdown/SKILL.md": "Remove ignored upstream TaskCreate/TaskUpdate tool metadata.",
     "playwright/SKILL.md": "Normalize agent_types to Pi role_routes vocabulary (planner->plan, worker->general, reviewer->review).",
     "polar/SKILL.md": "Normalize agent_types to Pi role_routes vocabulary (planner->plan, worker->general, reviewer->review).",
     "react-best-practices/SKILL.md": "Normalize agent_types to Pi role_routes vocabulary (planner->plan, worker->general, reviewer->review).",
@@ -51,10 +50,10 @@
     "resend/SKILL.md": "Normalize agent_types to Pi role_routes vocabulary (planner->plan, worker->general, reviewer->review).",
     "root-cause-tracing/SKILL.md": "Normalize agent_types to Pi role_routes vocabulary (planner->plan, worker->general, reviewer->review).",
     "security-and-hardening/SKILL.md": "Normalize agent_types to Pi role_routes vocabulary (planner->plan, worker->general, reviewer->review).",
-    "shipping-and-launch/SKILL.md": "Remove ignored OpenCode ask-user tool metadata; Pi requests approval in normal conversation.",
+    "shipping-and-launch/SKILL.md": "Remove ignored upstream ask-user tool metadata; Pi requests approval in normal conversation.",
     "source-driven-development/SKILL.md": "Normalize agent_types to Pi role_routes vocabulary (planner->plan, worker->general, reviewer->review).",
-    "spec-driven-development/SKILL.md": "Remove ignored OpenCode ask-user and TaskCreate tool metadata; Pi asks in normal conversation.",
-    "subagent-driven-development/SKILL.md": "Replace OpenCode Task/TodoWrite orchestration with bounded Fabric leaf workers, mesh CAS, and parent integration.",
+    "spec-driven-development/SKILL.md": "Remove ignored upstream ask-user and TaskCreate tool metadata; Pi asks in normal conversation.",
+    "subagent-driven-development/SKILL.md": "Replace upstream Task/TodoWrite orchestration with bounded Fabric leaf workers, mesh CAS, and parent integration.",
     "supabase-postgres-best-practices/SKILL.md": "Normalize agent_types to Pi role_routes vocabulary (planner->plan, worker->general, reviewer->review).",
     "supabase/SKILL.md": "Normalize agent_types to Pi role_routes vocabulary (planner->plan, worker->general, reviewer->review).",
     "swift-concurrency/SKILL.md": "Normalize agent_types to Pi role_routes vocabulary (planner->plan, worker->general, reviewer->review).",
@@ -68,7 +67,7 @@
     "verification-before-completion/references/VERIFICATION_PROTOCOL.md": "Store verification cache under .pi artifacts.",
     "webclaw/SKILL.md": "Normalize agent_types to Pi role_routes vocabulary (planner->plan, worker->general, reviewer->review).",
     "writing-skills/SKILL.md": "Normalize agent_types to Pi role_routes vocabulary (planner->plan, worker->general, reviewer->review).",
-    "writing-skills/persuasion-principles.md": "Replace OpenCode TodoWrite guidance with Pi/Fabric durable tracking.",
+    "writing-skills/persuasion-principles.md": "Replace upstream TodoWrite guidance with Pi/Fabric durable tracking.",
     "writing-skills/references/claude-search-optimization.md": "Use Pi /skill:name syntax for required sub-skills."
   },
   "added": {
@@ -81,6 +80,6 @@
     "brainstorming/visual-companion.md": "Pi-adapted visual companion guide for the brainstorming skill.",
     "brave-search/package.json": "Declare dependencies used by the copied Brave helper scripts.",
     "browser-tools/package.json": "Declare dependencies used by the copied browser helper scripts.",
-    "webclaw/mcp.json": "Declare the enabled source opencode.json webclaw MCP server through the skill-MCP loader."
+    "webclaw/mcp.json": "Declare the enabled upstream webclaw MCP server through the skill-MCP loader."
   }
 }

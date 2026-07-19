@@ -121,8 +121,8 @@ while IFS= read -r -d '' f; do
 	check_size "$f" 150 "SDK $(basename "$f")"
 done < <(find "$PLUGIN_DIR/sdk" -name "*.ts" -type f -print0 2>/dev/null || true)
 
-# Source OpenCode commands only. The source ship.md is 502 lines, so the
-# semantic port allows 550 without rewriting its operator contract for size alone.
+# Lifecycle command prompts. ship.md is ~500 lines by design, so the limit
+# is 550 to avoid rewriting its operator contract for size alone.
 for name in audit create fix gc init plan research ship verify; do
 	f="$ROOT/.pi/prompts/$name.md"
 	[ ! -f "$f" ] && continue

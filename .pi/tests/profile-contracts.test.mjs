@@ -4,19 +4,14 @@ import { readFileSync, existsSync, readdirSync } from "node:fs";
 import { resolve, join } from "node:path";
 
 const root = resolve(import.meta.dirname, "..");
-const source = "/home/ryan/repo/new-system/.opencode";
 const json = (name) => JSON.parse(readFileSync(join(root, name), "utf8"));
 const esc = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-const walk = (dir) =>
-  readdirSync(dir, { withFileTypes: true }).flatMap((entry) =>
-    entry.isDirectory() ? walk(join(dir, entry.name)) : [join(dir, entry.name)],
-  );
 
-test("configuration parses and names the OpenCode source", () => {
+test("configuration parses with the fabric-first profile", () => {
   const config = json("config.json");
   json("settings.json");
   json("fabric.json");
-  assert.equal(config.profile.source, source);
+  assert.equal(config.profile.authority, "fabric-first");
   assert.equal(config.dispatch.default, "direct");
 });
 
@@ -160,7 +155,7 @@ test("Codex search is pinned project-locally and granted only to the scout resea
   assert.match(scout, /existing openai-codex login/);
 });
 
-test("the nine OpenCode commands plus project team prompt exist", () => {
+test("the nine lifecycle commands plus project team prompt exist", () => {
   for (const name of ["audit", "create", "fix", "gc", "init", "plan", "research", "ship", "verify"])
     assert.ok(existsSync(join(root, "prompts", `${name}.md`)));
   assert.ok(existsSync(join(root, "prompts", "team.md")));
@@ -170,18 +165,18 @@ test("the nine OpenCode commands plus project team prompt exist", () => {
   );
 });
 
-test("skill provenance: byte-equal to source when present; registry-cataloged when installed from template", () => {
+test("skill registry: every cataloged path exists and manifest tiers are complete", () => {
   const registry = json("skill-adaptations.json");
   const adapted = new Set(Object.keys(registry.adapted));
   const added = new Set(Object.keys(registry.added ?? {}));
   const targetRoot = join(root, "skills");
 
-  // Both modes: every adapted and added registry path exists locally.
+  // Every adapted and added registry path exists locally.
   for (const rel of [...adapted, ...added])
     assert.ok(existsSync(join(targetRoot, rel)), `registry path must exist: ${rel}`);
 
-  // Both modes: every SKILL.md directory is cataloged exactly once in the
-  // manifest tiers. The manifest owns whole-static-surface integrity; the test
+  // Every SKILL.md directory is cataloged exactly once in the manifest
+  // tiers. The manifest owns whole-static-surface integrity; the test
   // derives the directory set from the filesystem rather than hardcoding it.
   const manifest = JSON.parse(readFileSync(join(targetRoot, "manifest.json"), "utf8"));
   const tierSkills = [];
@@ -202,37 +197,9 @@ test("skill provenance: byte-equal to source when present; registry-cataloged wh
     "manifest tiers catalog every SKILL.md directory exactly once",
   );
 
-  // Full byte-provenance comparison runs only when the source checkout exists.
-  const sourceRoot = join(source, "skill");
-  if (existsSync(sourceRoot)) {
-    const sourceFiles = new Set();
-    const seen = new Set();
-    for (const path of walk(sourceRoot)) {
-      const relative = path.slice(sourceRoot.length + 1);
-      sourceFiles.add(relative);
-      const target = join(targetRoot, relative);
-      assert.ok(existsSync(target), relative);
-      if (adapted.has(relative)) {
-        assert.notDeepEqual(readFileSync(target), readFileSync(path), relative);
-        seen.add(relative);
-      } else {
-        assert.deepEqual(readFileSync(target), readFileSync(path), relative);
-      }
-    }
-    const targetFiles = walk(targetRoot)
-      .map((path) => path.slice(targetRoot.length + 1))
-      .filter((path) => !path.split("/").includes("node_modules"));
-    const extras = targetFiles.filter((path) => !sourceFiles.has(path));
-    assert.deepEqual([...seen].sort(), [...adapted].sort());
-    assert.deepEqual(extras.sort(), [...added].sort());
-  }
-  // Installed-template mode (source absent): the test does NOT claim byte
-  // equality against a missing source. The registry-existence and
-  // cataloged-exactly-once contracts above are the installed-template surface
-  // checks; the manifest verifier owns whole-static-surface integrity.
 });
 
-test("adapted skills contain no active OpenCode artifact or task-tool bindings", () => {
+test("adapted skills contain no active legacy artifact or task-tool bindings", () => {
   const registry = json("skill-adaptations.json");
   for (const relative of Object.keys(registry.adapted)) {
     const text = readFileSync(join(root, "skills", relative), "utf8");
@@ -271,7 +238,7 @@ test("project guard explicitly leaves Fabric-native tools to Fabric", () => {
   assert.doesNotMatch(guard, /command[.]includes\(["'`]fabric/);
 });
 
-test("active extensions use Pi APIs, not OpenCode runtime imports", () => {
+test("active extensions use Pi APIs, not legacy runtime imports", () => {
   for (const name of [
     "diagnostics.ts",
     "diagnostics/core.ts",
@@ -549,7 +516,7 @@ test("/team fails closed across command, path, diff, peer-review, and goal bound
   assert.match(team, /checkpoint-required/);
 });
 
-test("all source prompts use current routes and safe dispatch/action bindings", () => {
+test("all lifecycle prompts use current routes and safe dispatch/action bindings", () => {
   const names = ["audit", "create", "fix", "gc", "init", "plan", "research", "ship", "verify"];
   for (const name of names) {
     const text = readFileSync(join(root, "prompts", name + ".md"), "utf8");

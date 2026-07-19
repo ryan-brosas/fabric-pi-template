@@ -85,7 +85,7 @@ We do not care about backwards compatibility—we're in early development with n
 
 ## Routing
 
-Use this priority, adapted from the OpenCode build agent:
+Use this priority for routing work:
 
 1. Fix/refactor, docs/config/tests, and investigations: direct tools by default.
 2. Features touching at most two files: direct when architecture is known.
@@ -129,7 +129,7 @@ After two failures on the same edit, stop and report the mismatch.
 - Use `bash` for execution, not as a substitute for repository file tools.
 - Load the complete `SKILL.md` when a skill description matches the task.
 - Use `context7` for current library documentation, `grepsearch` for public production examples, and `codex_search` for live general web/release evidence when those tools are available.
-- OpenCode pseudocode in imported source material is conceptual: `task()` means bounded Fabric dispatch; `question()` means ask the operator; `skill()` means load a Pi skill. Never execute those snippets literally.
+- Pseudocode in prompts, workflows, and skills is conceptual: `task()` means bounded Fabric dispatch; `question()` means ask the operator; `skill()` means load a Pi skill. Never execute those snippets literally.
 
 ## Communication
 

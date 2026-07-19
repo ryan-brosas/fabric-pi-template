@@ -1,8 +1,7 @@
-import { readFileSync, existsSync, readdirSync } from "node:fs";
+import { readFileSync, existsSync } from "node:fs";
 import { resolve, join } from "node:path";
 
 const root = resolve(import.meta.dirname, "..");
-const source = "/home/ryan/repo/new-system/.opencode";
 const readJson = (name) => JSON.parse(readFileSync(join(root, name), "utf8"));
 const failures = [];
 const pass = (condition, message) => { if (!condition) failures.push(message); };
@@ -14,7 +13,7 @@ const roles = ["build", "compaction", "explore", "general", "plan", "review", "s
 const contractRoles = roles.filter((role) => role !== "compaction");
 const commands = ["audit", "create", "fix", "gc", "init", "plan", "research", "ship", "verify"];
 const bridgeModels = ["claude-bridge/claude-fable-5", "claude-bridge/claude-sonnet-5", "claude-bridge/claude-opus-4-8"];
-pass(JSON.stringify(config.profile).includes("new-system/.opencode"), "config source provenance missing");
+pass(config.profile.authority === "fabric-first", "config profile authority is not fabric-first");
 pass(roles.every((role) => config.role_routes[role]), "one or more source roles are unmapped");
 pass(contractRoles.every((role) => existsSync(join(root, "agents", `${role}.md`))), "one or more source role contracts are missing");
 pass(commands.every((name) => existsSync(join(root, "prompts", `${name}.md`))), "one or more source commands are missing");
@@ -27,13 +26,6 @@ const activeExtensions = ["diagnostics.ts", "guard.ts", "prompt-leverage.ts", "r
 for (const name of activeExtensions) {
   const text = readFileSync(join(root, "extensions", name), "utf8");
   pass(!text.includes("@opencode-ai") && !text.includes(".opencode"), `legacy OpenCode runtime reference in ${name}`);
-}
-if (existsSync(join(source, "skill"))) {
-  const walk = (dir) => readdirSync(dir, { withFileTypes: true }).flatMap((entry) => entry.isDirectory() ? walk(join(dir, entry.name)) : [join(dir, entry.name)]);
-  for (const path of walk(join(source, "skill"))) {
-    const rel = path.slice(join(source, "skill").length + 1);
-    pass(existsSync(join(root, "skills", rel)), `missing source skill file: ${rel}`);
-  }
 }
 if (failures.length) {
   console.error(JSON.stringify({ ok: false, failures }, null, 2));

@@ -1,5 +1,5 @@
 // verify-manifest.mjs — whole-boundary SHA256 verifier for the Fabric-Pi
-// OpenCode-to-Pi semantic port.
+// template payload.
 //
 // Pure function + CLI. No external dependencies. It checks agreement between
 // .template-manifest.json and the static .pi payload while excluding Pi/Fabric

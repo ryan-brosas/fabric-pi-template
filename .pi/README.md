@@ -1,26 +1,18 @@
-# Fabric-Pi — Fabric-first OpenCode behavior on Pi
+# Fabric-Pi — Fabric-first agentic coding on Pi
 
 This `.pi` profile is Fabric-first: Fabric (the `fabric_exec` tool surface) is
 the orchestration brain — the primary session plans, routes, dispatches, steers,
 and integrates all delegated work through Fabric, while direct execution
-remains the default for small, known work. Its behavioral heritage is a
-semantic port of `/home/ryan/repo/new-system/.opencode`. It does **not** use
-`/home/ryan/repo/new-system/project/.pi` as design authority.
+remains the default for small, known work.
 
-## Source mapping
+## Layout
 
-The OpenCode → Pi/Fabric mapping, in short:
-
-- OpenCode agents → seven role contracts in `.pi/agents/`, routed through Fabric by `.pi/config.json`
-- OpenCode commands → nine source Pi prompt templates plus the port-added `/team` lifecycle prompt in `.pi/prompts/`
-- OpenCode Agent Skills → `.pi/skills/`
-- OpenCode plugins and custom tools → native Pi extensions in `.pi/extensions/`
-- OpenCode workflows/templates/context → `.pi/workflows/`, `.pi/templates/`, and `.pi/*.md`
-- OpenCode model, compaction, permission, formatter, and watcher settings → Pi settings/config/extensions
-
-The previous generated Fabric-Pi profile is preserved under
-`/home/ryan/repo/swastika/.migration-backup/`. Generated-only duplicate agents,
-prompts, skills, and templates were moved out of the active `.pi` tree.
+- Role contracts in `.pi/agents/`, routed through Fabric by `.pi/config.json`
+- Lifecycle commands as prompt templates in `.pi/prompts/` (nine commands plus `/team`)
+- Agent Skills in `.pi/skills/`
+- Native Pi extensions in `.pi/extensions/`
+- Workflows, templates, and shared context in `.pi/workflows/`, `.pi/templates/`, and `.pi/*.md`
+- Model, compaction, permission, formatter, and watcher behavior in Pi settings/config/extensions
 
 ## Operator commands
 
@@ -29,7 +21,7 @@ prompts, skills, and templates were moved out of the active `.pi` tree.
 | `/init` | Initialize project guidance, stack context, roadmap/state, or user preferences. |
 | `/create` | Create a lite or full specification and executable tasks. |
 | `/plan` | Add detailed goal-backward planning for complex work. |
-| `/ship` | Execute, verify, review, and close source-defined work. |
+| `/ship` | Execute, verify, review, and close the active work. |
 | `/verify` | Check completeness, correctness, and artifact coherence. |
 | `/fix` | Reproduce, isolate, fix, and verify a defect. |
 | `/research` | Run direct or multi-angle research. |
@@ -46,8 +38,8 @@ exits 0 only when the goal is genuinely met. The team loop stops when
 (Opus 4.8 high) is the sole integrator: it gates every phase, reads every diff,
 and verifies before integrating.
 
-OpenCode snippets shown in source-derived prompts are semantic examples. Pi
-bindings are explicit at the top of every prompt: `task()` maps to bounded
+Pseudocode snippets shown in prompts are semantic examples. Pi bindings are
+explicit at the top of every prompt: `task()` maps to bounded
 Fabric dispatch, `question()` maps to operator interaction, and `skill()` maps
 to a Pi Agent Skill.
 
@@ -61,7 +53,7 @@ Brownfield: `/init` auto-detects existing code and stack. When the area is unfam
 
 `.pi/artifacts/.active` holds the current work slug (see `config.json` `artifacts.active`). Resume: read `.active`, then the artifact directory it names. Switch: update `.active` to another slug — never delete or overwrite existing artifact directories.
 
-## Nine role routes — seven source contracts, the compaction support route, and the port-added `debug` route
+## Nine role routes
 
 | Role | Route | Authority |
 |---|---|---|
@@ -96,14 +88,14 @@ models live in `.pi/config.json`. See `.pi/docs/fabric-tuning.md` for tuning. Al
 
 ## Native extensions
 
-- `guard.ts` — source permission policy, secret-path protection, destructive command gates, pipe-to-shell blocking, and Conventional Commits.
-- `prompt-leverage.ts` — transforms substantive user prompts through the source seven-block framing.
+- `guard.ts` — permission policy, secret-path protection, destructive command gates, pipe-to-shell blocking, and Conventional Commits.
+- `prompt-leverage.ts` — transforms substantive user prompts through the seven-block framing.
 - `session-summary.ts` — persistent intent, artifact trail, decisions, next steps, context injection, and compaction persistence.
-- `diagnostics.ts` — installed-only TypeScript/Rust/Go/Python checks, full/changed Fallow analysis, aislop formatting, source oxfmt behavior, and globally debounced post-edit diagnostics; missing tools are skipped without downloads.
+- `diagnostics.ts` — installed-only TypeScript/Rust/Go/Python checks, full/changed Fallow analysis, aislop formatting, oxfmt behavior, and globally debounced post-edit diagnostics; missing tools are skipped without downloads.
 - `research-tools.ts` — native `context7` and `grepsearch` tools with Pi output truncation.
 - `pi-codex-search` — pinned project package adding `codex_search` through the existing OpenAI Codex login; standalone webpage actions remain disabled by default.
 - `skill-mcp/` — skill-scoped MCP discovery, includeTools filtering, calls, status, disconnect, and shutdown cleanup.
-- `tui-bindings.ts` — source Ctrl+K compaction behavior.
+- `tui-bindings.ts` — Ctrl+K compaction behavior.
 
 ## Setup
 
@@ -121,7 +113,7 @@ pi --approve --list-models
 
 ## Known Pi boundary
 
-Pi project settings do not own user-global keybindings. The port registers
+Pi project settings do not own user-global keybindings. The profile registers
 Ctrl+K compaction locally, but it does not silently overwrite the operator's
 global command-list or session-navigation keys. Pi's `/tree` supplies native
 session-tree navigation.
