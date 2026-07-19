@@ -179,7 +179,7 @@ For each task (wave-based or sequential fallback):
 6. **Verify** — run each verification step from the task
 7. **If verification fails**, fix and retry (max 2 attempts per task)
 8. **Suggest commit** — record a suggested Conventional Commit message in progress.md; never commit yourself without explicit operator authorization (see "Commit Authorization" below)
-9. **Mark** `passes: true` in `.pi/artifacts/tasks.json`
+9. **Mark** `passes: true` in `.pi/artifacts/$(cat .pi/artifacts/.active)/tasks.json`
 10. **Append** progress to `.pi/artifacts/$(cat .pi/artifacts/.active)/progress.md`
 
 ### Checkpoint Protocol

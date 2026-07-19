@@ -28,7 +28,7 @@ Before delegating: can direct tools solve this? Can an artifact replace state? W
 - **Path ownership:** Assign exclusive owned paths per task within a wave (`dispatch.wave_policy.path_ownership`: exclusive per task; overlapping paths force sequential waves). Each leaf edits only the paths named in its brief; the dispatcher guarantees no two concurrent tasks own the same path.
 - **Decision:** <3 independent → parallel `fabric_exec` spawns. Dependencies → track phases in `.pi/artifacts/<slug>/progress.md` or the mesh board (`fabric-pi/<slug>/board`) + sequential phases.
 - **Post-delegation (primary verification):** Worker Distrust per AGENTS.md — treat worker output as untrusted until the primary reads the diff, runs the named verification, and checks acceptance criteria. The worker's final report must end with a `worker-result` envelope (`.pi/schemas/worker-result.json`); the primary parses `status`/`changed_paths`/`checks_run` before integrating. Never `git add .`.
-- **Context:** `.pi/artifacts/<slug>/worker-context.md` for >500 tokens. `grep -n "topic" .pi/artifacts/MEMORY.md` for prior decisions/patterns. Web: `context7` (library docs) → `codex_search` (live general web/releases) → `grepsearch` (production examples) → primary-brokered Exa/arbitrary URL fetch. The scout receives the first three through project extensions; it has no Fabric MCP.
+- **Context:** `.pi/artifacts/<slug>/worker-context.md` for >500 tokens. `grep -n "topic" .pi/artifacts/MEMORY.md` for prior decisions/patterns, plus Fabric `memory.recall` for cross-session timeline search before re-deriving a past decision. Web: `context7` (library docs) → `codex_search` (live general web/releases) → `grepsearch` (production examples) → primary-brokered Exa/arbitrary URL fetch. The scout receives the first three through project extensions; it has no Fabric MCP.
 - **Completion gate:** dispatch the configured `review` role through `fabric_exec` (`agents.spawn` with `role_routes.review` from `.pi/config.json`) with paths touched, or `REVIEW_SKIPPED:<reason>` before done. Parent verifies.
 - **Quality gate (anti-slop):** every worker inherits `general.md`, which carries the language-agnostic Code Quality Standard. As sole integrator, bounce any diff that violates it — unrequested abstraction, non-idiomatic style, redundant comments, dead scaffolding, or defensive code for impossible cases — and re-dispatch for a simpler pass. A simpler passing diff always wins over a clever one. Deterministic layer: before integrating, run `node .pi/tools/quality/run-pack.mjs` on the changed paths at ROOT; an implementation envelope whose `checks_run` lacks a `quality-pack` entry fails verification.
 
@@ -37,7 +37,7 @@ Before delegating: can direct tools solve this? Can an artifact replace state? W
 - **Bugfix:** narrow search → read 1-2 files → fix inline → verify → report.
 - **Feature:** plan steps → execute incrementally → verify each → report.
 - **Investigate:** search + read ≤4 files → answer with citations.
-- **TODO:** ≥2 tool calls or ≥2 files → append `### YYYY-MM-DD - <title>` to `.pi/artifacts/TODO.md`. ADR only for real tradeoffs.
+- **TODO:** ≥2 tool calls or ≥2 files → append `### YYYY-MM-DD - <title>` to `.pi/artifacts/todo.md`. ADR only for real tradeoffs.
 - **Close loop:** 1-3 line summary per phase. If you can't summarize it, you don't understand it.
 
 ## Anti-Patterns

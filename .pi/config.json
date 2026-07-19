@@ -100,7 +100,7 @@
         "alternates": ["claude-bridge/claude-opus-4-8", "claude-bridge/claude-fable-5"],
         "implements": false,
         "tools": ["read", "grep", "find", "ls"],
-        "note": "Read-only. Sol and Fable (and Opus when used here) NEVER receive implementation briefs and cannot edit; they plan, review, and diagnose only."
+        "note": "Read-only. Automated fallback uses each route's alternate_model (Opus); Fable is an operator-selectable alternate, not an automatic fallback. None of Sol/Opus/Fable ever receive implementation briefs or edit; they plan, review, and diagnose only."
       },
       "fanout": {
         "roles": ["explore", "scout", "compaction"],
@@ -163,7 +163,7 @@
       "enforcement_scope": "Skill policy is enforced by the primary during dispatch resolution only — name validation, primary-only and leaf-exclusion checks before spawn. No skill gate is enforced at runtime inside the worker beyond the role's tool authority; the worker loads named skills into context and follows their prose."
     },
     "quality_policy": {
-      "standard": ".pi/agents/general.md#code-quality-standard",
+      "standard": ".pi/agents/general.md#code-quality-standard-language-agnostic",
       "scope": "language-agnostic; applies to every implementation brief regardless of language",
       "every_brief_must_carry": true,
       "carried_by": "the general.md contract injected into every implementation spawn — no extra brief field needed",
@@ -246,7 +246,7 @@
     "root": ".pi/artifacts",
     "active": ".pi/artifacts/.active",
     "memory": ".pi/artifacts/MEMORY.md",
-    "todo": ".pi/artifacts/TODO.md"
+    "todo": ".pi/artifacts/todo.md"
   },
   "permissions": {
     "deny_read_patterns": [

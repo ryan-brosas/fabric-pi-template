@@ -307,17 +307,10 @@ Report what was created:
 
 ---
 
-### Skill Installation
+### Skills
 
-If you use a platform-specific technology, install the matching skill:
-
-```
-.pi/scripts/install-skill.sh cloudflare
-.pi/scripts/install-skill.sh react-best-practices
-.pi/scripts/install-skill.sh supabase-postgres-best-practices
-.pi/scripts/install-skill.sh swiftui-expert-skill
-.pi/scripts/install-skill.sh swift-concurrency
-.pi/scripts/install-skill.sh core-data-expert
-```
-
-Run `.pi/scripts/install-skill.sh --list` to see all available. Skills are on-demand — only install what your project actually needs.
+Skills ship pre-installed under `.pi/skills/<name>/SKILL.md` and load on demand:
+the primary names them per brief via `required_skills`, resolved against
+`.pi/skills/manifest.json`. Nothing installs at init time — when the stack is
+detected (e.g. Cloudflare, React, Supabase, SwiftUI), note the matching skills
+in the project guidance so briefs can name them later.

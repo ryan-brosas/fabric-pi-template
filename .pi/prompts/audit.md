@@ -34,7 +34,7 @@ This command invokes the `audit-pattern` workflow for multi-agent parallel execu
 2. **Execute all phases:**
    - Phase 1: Spawn 1 @explore agent to discover all occurrences
    - Phase 2: Spawn multiple @review agents (dynamic count based on occurrences)
-   - Phase 3: Spawn 1 @general agent to synthesize findings
+   - Final synthesis: performed directly by the main agent from {phase_2_output}, per audit-pattern.md — no @general worker is spawned
 3. **Replace placeholders:**
    - `{pattern}` → the pattern from $ARGUMENTS
    - `{phase_N_output}` → actual output from completed phases

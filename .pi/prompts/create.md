@@ -240,7 +240,7 @@ skill({ name: "using-git-worktrees" });
 
 ## Phase 10: Convert PRD to Tasks
 
-Convert PRD markdown → executable JSON (`prd.json`).
+Convert PRD markdown → executable JSON (`tasks.json` in the active artifact directory — the file `/ship` parses).
 
 ## Phase 11: Report
 

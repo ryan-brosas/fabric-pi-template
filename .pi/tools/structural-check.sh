@@ -24,8 +24,8 @@ echo "[Check 1/6] Plugin isolation — no cross-plugin imports..."
 
 PLUGIN_DIR="$ROOT/.pi/extensions"
 
-# A "plugin" is either a top-level .ts file (minus the index.ts barrel and
-# the disabled profile-doctor.ts backup) or a subdirectory of extensions/.
+# A "plugin" is either a top-level .ts file (minus the index.ts barrel) or
+# a subdirectory of extensions/.
 # Files within the same plugin (e.g. extensions/skill-mcp/*) may import each
 # other; importing another plugin is a violation. Discovery is recursive so
 # files nested under a subdirectory plugin are grouped with that plugin.
@@ -37,7 +37,6 @@ shopt -s nullglob
 for f in "$PLUGIN_DIR"/*.ts; do
 	name="$(basename "$f" .ts)"
 	[ "$name" = "index" ] && continue
-	[ "$name" = "profile-doctor" ] && continue
 	PLUGIN_NAMES+=("$name")
 	PLUGIN_FILE_LIST["$name"]="$f"
 done
@@ -103,15 +102,12 @@ check_size() {
 	fi
 }
 
-# Active source-derived extensions (recursive): 300 lines max.
-# Only the top-level index.ts barrel and the disabled profile-doctor.ts backup
-# are skipped; files inside subdirectory plugins (e.g. skill-mcp/) are checked.
-# profile-doctor.ts belongs to the preserved generated-profile backup and is
-# disabled in settings; it remains on disk only because deletion was not authorized.
+# Active extensions (recursive): 300 lines max.
+# Only the top-level index.ts barrel is skipped; files inside subdirectory
+# plugins (e.g. skill-mcp/) are checked.
 while IFS= read -r -d '' f; do
 	case "$f" in
 		"$PLUGIN_DIR/index.ts") continue ;;
-		"$PLUGIN_DIR/profile-doctor.ts") continue ;;
 	esac
 	check_size "$f" 300 "Extension $(basename "$f")"
 done < <(find "$PLUGIN_DIR" -name "*.ts" -type f -print0 2>/dev/null)

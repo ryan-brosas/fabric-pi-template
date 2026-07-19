@@ -287,7 +287,7 @@ Primitives (pi-fabric 0.21.5, verified against `dist/`):
 - `agents.ask({id, message, data})` — send and wait for the actor's next response (synchronous peer exchange).
 - `agents.tell({id, message, data})` — queue a message without waiting (async mailbox).
 - `agents.actors()` / `agents.actorStatus({id})` / `agents.messages({id})` — inspect live actors and their bounded inbox/outbox.
-- `agents.setInstructions` / `setEvents` / `setModel` / `setThinking` — refine a peer live without recreating it.
+- `agents.setInstructions` / `setEvents` — refine a peer's persona or subscriptions live. No live setter exists for model or thinking: changing those requires recreating the actor (its runner and model are fixed at creation; the dashboard can repoint the model for the next activation).
 - `agents.import` / `export` — move role templates between the global registry and live project actors.
 - `agents.steer` / `followUp` — reach a peer cross-process over the mesh ("any Fabric-equipped agent can steer any other").
 - `ActorManager.haltAll()` — stop-the-world if a conversation runs away.
