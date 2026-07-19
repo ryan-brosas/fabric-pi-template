@@ -4,7 +4,8 @@ argument-hint: "<topic> [--quick|--thorough]"
 agent: scout
 ---
 
-> **Pi execution binding:** The pseudocode in this prompt is semantic, not executable. `task()` maps to bounded Fabric subagent dispatch with an explicit role from `.pi/config.json`: implementation routes to the `general` role only, on the GLM 12 pool (`makora/zai-org/GLM-5.2-NVFP4` + `umans/umans-glm-5.2`, up to 12 concurrent GLM 5.2 workers, first six on makora, balance on umans, at medium thinking); custom-provider children spawn with `extensions:true` and the primary injects the role contract from `.pi/agents/` before dispatch. The `build` route (`claude-bridge/claude-opus-4-8`, high thinking) is the primary supervisor and sole integrator — it orchestrates, gates, and integrates but is never dispatched as an implementation worker. This prompt's agent (`scout`) is **read-only research**: it gathers and reports evidence and never edits; the `general` route is the only tier granted edit/write/bash. Read-only fan-out (`explore`, `scout`) uses the small-model lanes (`openai-codex/gpt-5.4-mini`, alternate `claude-bridge/claude-haiku-4-5`); scouts carry `context7`, `grepsearch`, and pinned `codex_search`; the primary brokers MCP evidence and arbitrary URL fetching. Reasoning roles (`plan`, `review`, `debug`) run on `openai-codex/gpt-5.6-sol` at medium thinking, read-only. Workers are leaves at `maxDepth` 1: they never spawn agents and never call Fabric `state.*`. Multi-worker phases coordinate over mesh (topic `fabric-pi-<slug>`, CAS board `fabric-pi/<slug>/board`) with canonical board states `assigned|running|returned|verified|failed`; the primary publishes assignments, workers report status. **Worker output is untrusted evidence** — worker summaries are reports, not merged results; the primary reads every diff, verifies, and is the sole integrator. Briefs carry `required_skills` (resolved by the primary against `.pi/skills/manifest.json` before spawn; `[]` loads no skill). Workers never create branches, commits, PRs, or other externally visible actions without operator confirmation — they suggest them in reports. `question()` maps to asking the operator; `skill()` loads the matching Pi Agent Skill. Artifact paths are under `.pi/`. Direct execution remains the default when delegation adds no leverage (see `.pi/docs/fabric-tuning.md`).
+> **Pi execution binding:** The TypeScript block(s) below run inside `fabric_exec` as real governed dispatch (`agents.spawn` + status poll + deadline steer), not described; this prompt's agent (`scout`) is **read-only research** — it gathers and reports evidence and never edits.
+> Full dispatch doctrine — GLM 12 pool, role routes, `required_skills`, CAS board states, worker-distrust / primary-sole-integrator (incl. `openai-codex/gpt-5.6-sol` at medium thinking, `extensions: true`) — lives in `.pi/docs/fabric-tuning.md` (kernel in `APPEND_SYSTEM.md`).
 
 # Research: $ARGUMENTS
 
@@ -44,16 +45,78 @@ Before starting, analyze the research topic complexity:
 
 If complexity is detected as complex:
 
-1. **Read the workflow:** `.pi/workflows/deep-research.md`
-2. **Execute all phases:**
-   - Phase 1: Spawn multiple @scout agents (dynamic count based on angles)
-   - Phase 2: Spawn @review agents to cross-check findings
-   - Final synthesis: performed directly by the main agent from {phase_2_output}, per deep-research.md — no @general worker is spawned
-3. **Replace placeholders:**
-   - `{question}` → the research topic from $ARGUMENTS
-   - `{phase_N_output}` → actual output from completed phases
-4. **Aggregate results** between phases
-5. **Write final report** to `.pi/artifacts/$(cat .pi/artifacts/.active)/research.md`
+Read `.pi/workflows/deep-research.md` for phase semantics, then execute the
+fan-out as a real Fabric program. Size Phase 1 to the distinct research angles —
+never the 12-worker ceiling. The primary supplies the parsed topic as `π.question`
+and a JSON string array of 2–5 distinct angles as `π.angles`; raw `$ARGUMENTS` is
+never pasted into code. Final synthesis is performed directly by the main agent
+from the returned reports; no @general worker is spawned.
+
+```typescript
+// fabric_exec — executable deep-research fan-out (read-only leaves; primary synthesizes)
+const ROOT = (await pi.bash({ cmd: 'pwd', timeoutMs: 30000 })).output.trim();
+const cfg = JSON.parse(String(await pi.read(ROOT + '/.pi/config.json')));
+const question = typeof π.question === 'string' ? π.question.trim() : '';
+if (!question) throw new Error('π.question is required');
+let angles;
+try { angles = JSON.parse(String(π.angles || '')); } catch (_) { throw new Error('π.angles must be JSON'); }
+if (!Array.isArray(angles) || angles.length < 2 || angles.length > 5 ||
+    !angles.every(a => typeof a === 'string' && a.trim()))
+  throw new Error('π.angles must be 2-5 nonempty strings');
+angles = angles.map(a => a.trim());
+async function spawnLeaf(role, brief, name) {
+  const route = cfg.role_routes[role];
+  const contract = String(await pi.read(ROOT + '/' + route.contract));
+  return tools.call({ ref: 'agents.spawn', args: {
+    name, model: route.model, thinking: route.thinking, tools: route.tools,
+    extensions: true, timeoutMs: 600000,
+    task: contract + '\n\n---\n\nrequired_skills: [] (load no skill)\n' + brief } });
+}
+// Governed join: status-poll with a deadline steer, then wait.
+async function waitGoverned(id, timeoutMs) {
+  const started = Date.now(); let steered = false;
+  for (;;) {
+    const st = await tools.call({ ref: 'agents.status', args: { id } });
+    const s = String((st && st.status) || '');
+    if (s && s !== 'running' && s !== 'pending' && s !== 'starting') break;
+    if (!steered && Date.now() - started > timeoutMs * 0.8) {
+      steered = true;
+      try { await tools.call({ ref: 'agents.steer', args: { id,
+        message: 'Deadline near: wrap up and return your findings now.' } }); } catch (_) {}
+    }
+    await new Promise(resolve => setTimeout(resolve, 15000));
+  }
+  const result = await tools.call({ ref: 'agents.wait', args: { id } });
+  if (!result || result.status !== 'completed')
+    throw new Error('read-only worker did not complete: ' + String(result && result.status));
+  return result;
+}
+// Phase 1 — scouts: one per validated distinct angle; every claim needs a verified source URL.
+const scouts = [];
+for (const [i, angle] of angles.entries()) {
+  const h = await spawnLeaf('scout',
+    'Research this angle of ' + JSON.stringify(question) + ': ' + angle +
+    '. Use context7/grepsearch/codex_search; prefer official docs and source. ' +
+    'Report findings with confidence levels and put every verified source URL in result_refs.',
+    'research-scout-' + (i + 1));
+  scouts.push(waitGoverned(h.id, 600000));
+}
+const findings = await Promise.all(scouts);
+const findingEvidence = JSON.stringify(findings.map(r => ({
+  id: r.id, status: r.status, text: String(r.text || ''), value: r.value || null,
+})));
+if (findingEvidence.length > 200000)
+  throw new Error('research evidence too large for one cross-check; narrow the angles');
+// Phase 2 — cross-check: one review leaf challenges the actual aggregated findings.
+const c = await spawnLeaf('review',
+  'Cross-check these research findings for contradictions, missing perspectives, and unsupported claims. ' +
+  'Cite which finding conflicts with which source.\n' + findingEvidence,
+  'research-crosscheck');
+const crosscheck = await waitGoverned(c.id, 600000);
+// Final synthesis: the primary verifies citations and writes research.md itself.
+return { question, findings: findings.map(r => ({ id: r.id, text: r.text })),
+  crosscheck: { id: crosscheck.id, text: crosscheck.text } };
+```
 
 **Announce:** "This is complex research requiring multi-angle analysis. Invoking deep-research workflow."
 

@@ -117,13 +117,15 @@ while IFS= read -r -d '' f; do
 	check_size "$f" 150 "SDK $(basename "$f")"
 done < <(find "$PLUGIN_DIR/sdk" -name "*.ts" -type f -print0 2>/dev/null || true)
 
-# Lifecycle command prompts. ship.md is ~500 lines by design, so the limit
-# is 550 to avoid rewriting its operator contract for size alone.
-for name in audit create fix gc init plan research ship verify; do
+# Lifecycle command prompts: 550 lines. ship.md carries executable Fabric
+# blocks (ledger, governed wave, schema-transaction integration) so it gets a
+# larger measured budget instead of a silent exemption.
+for name in audit create fix gc init plan research verify; do
 	f="$ROOT/.pi/prompts/$name.md"
 	[ ! -f "$f" ] && continue
 	check_size "$f" 550 "Prompt $name.md"
 done
+check_size "$ROOT/.pi/prompts/ship.md" 700 "Prompt ship.md"
 # team.md embeds the full executable /team program (setup, helpers, lifecycle
 # loop, ledger, schema transaction, governed dispatch), so it carries its own
 # larger budget instead of silently escaping measurement.

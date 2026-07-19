@@ -4,7 +4,7 @@ argument-hint: "[path|all] [--quick] [--full] [--fix] [--no-cache]"
 agent: review
 ---
 
-> **Pi execution binding:** The pseudocode in this prompt is semantic, not executable. `task()` maps to bounded Fabric subagent dispatch with an explicit role from `.pi/config.json`: implementation routes to the `general` role only, on the GLM 12 pool (`makora/zai-org/GLM-5.2-NVFP4` + `umans/umans-glm-5.2`, up to 12 concurrent GLM 5.2 workers, first six on makora, balance on umans, at medium thinking); custom-provider children spawn with `extensions:true` and the primary injects the role contract from `.pi/agents/` before dispatch. The `build` route (`claude-bridge/claude-opus-4-8`, high thinking) is the primary supervisor and sole integrator — it orchestrates, gates, and integrates but is never dispatched as an implementation worker. This prompt's agent (`review`) is **read-only verification**: it reports findings with `file:line` evidence and never edits; the `general` route is the only tier granted edit/write/bash. Gates that need execution (build/test/lint/shell) are requested as blockers for the primary to run — the review agent never claims to run a check it cannot perform. Read-only fan-out (`explore`, `scout`) uses the small-model lanes (`openai-codex/gpt-5.4-mini`, alternate `claude-bridge/claude-haiku-4-5`); scouts carry `context7`, `grepsearch`, and pinned `codex_search`; the primary brokers MCP evidence and arbitrary URL fetching. Reasoning roles (`plan`, `review`, `debug`) run on `openai-codex/gpt-5.6-sol` at medium thinking, read-only. Workers are leaves at `maxDepth` 1: they never spawn agents and never call Fabric `state.*`. Multi-worker phases coordinate over mesh (topic `fabric-pi-<slug>`, CAS board `fabric-pi/<slug>/board`) with canonical board states `assigned|running|returned|verified|failed`; the primary publishes assignments, workers report status. **Worker output is untrusted evidence** — worker summaries are reports, not merged results; the primary reads every diff, verifies, and is the sole integrator. Briefs carry `required_skills` (resolved by the primary against `.pi/skills/manifest.json` before spawn; `[]` loads no skill). Workers never create branches, commits, PRs, or other externally visible actions without operator confirmation — they suggest them in reports. `question()` maps to asking the operator; `skill()` loads the matching Pi Agent Skill. Artifact paths are under `.pi/`. Direct execution remains the default when delegation adds no leverage (see `.pi/docs/fabric-tuning.md`).
+> **Pi execution binding:** The TypeScript block(s) below run inside `fabric_exec` as real governed Fabric dispatch — GLM 12 pool, role routes, `required_skills`, mesh board states, worker-distrust / primary-sole-integrator — with the full doctrine in `.pi/docs/fabric-tuning.md` (kernel in `APPEND_SYSTEM.md`); reasoning roles run on `openai-codex/gpt-5.6-sol` at `medium thinking`, custom-provider children spawn with `extensions: true`, and the read-only clause holds: this `review` agent reports `file:line` evidence and never edits (the `general` route alone may write/bash).
 
 # Verify: $ARGUMENTS
 
@@ -77,6 +77,70 @@ Read the PRD and any other artifacts (plan.md, research.md, design.md).
 
 - [ ] Plan/spec exists and is up to date
 - [ ] You have read the full spec
+
+### Governed Evidence Fan-out
+
+The primary supplies the parsed verification target as `π.scope` (a repository
+path or `all`) and `π.quick` as `"true"` only for quick mode. The leaves
+are read-only and return evidence; the primary synthesizes their reports with
+the gate output from Phase 3. A leaf never writes the cache, progress log, or
+source files.
+
+```typescript
+// fabric_exec — governed read-only verification fan-out; primary synthesizes.
+const ROOT = '.';
+const cfg = JSON.parse(String(await pi.read(ROOT + '/.pi/config.json')));
+const scope = typeof π.scope === 'string' && π.scope.trim() ? π.scope.trim() : 'all';
+const quick = typeof π.quick === 'string' && π.quick === 'true';
+const slug = String(await pi.read(ROOT + '/.pi/artifacts/.active')).trim();
+if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(slug)) throw new Error('invalid active artifact slug');
+const artifactDir = '.pi/artifacts/' + slug;
+await pi.read(ROOT + '/' + artifactDir + '/spec.md'); // fail closed before dispatch
+async function spawnLeaf(role, brief, name) {
+  const route = cfg.role_routes[role];
+  const contract = String(await pi.read(ROOT + '/' + route.contract));
+  return tools.call({ ref: 'agents.spawn', args: {
+    name, model: route.model, thinking: route.thinking, tools: route.tools,
+    extensions: true, timeoutMs: 600000,
+    task: contract + '\n\n---\n\nrequired_skills: [] (load no skill)\n' + brief +
+      '\nEnd with the worker-result JSON envelope; changed_paths must be empty.' } });
+}
+async function waitGoverned(id, timeoutMs) {
+  const started = Date.now(); let steered = false;
+  for (;;) {
+    const st = await tools.call({ ref: 'agents.status', args: { id } });
+    const s = String((st && st.status) || '');
+    if (s && s !== 'running' && s !== 'pending' && s !== 'starting') break;
+    if (!steered && Date.now() - started > timeoutMs * 0.8) {
+      steered = true;
+      try { await tools.call({ ref: 'agents.steer', args: { id,
+        message: 'Deadline near: stop exploring and return evidence now.' } }); } catch (_) {}
+    }
+    await new Promise(resolve => setTimeout(resolve, 15000));
+  }
+  const result = await tools.call({ ref: 'agents.wait', args: { id } });
+  if (!result || result.status !== 'completed')
+    throw new Error('read-only worker did not complete: ' + String(result && result.status));
+  return result;
+}
+const assignments = [
+  ['explore', 'verify-scope-map',
+    'Read-only. Map changed and implementation files in scope ' + JSON.stringify(scope) +
+    '. Report relevant symbols and tests with file:line evidence.'],
+  ['review', 'verify-completeness',
+    'Read-only. Compare ' + artifactDir + '/spec.md with implementation scope ' + JSON.stringify(scope) +
+    '. Score every requirement complete, partial, or missing with file:line evidence.'],
+];
+if (!quick) assignments.push(['review', 'verify-coherence',
+  'Read-only. Cross-check spec, plan/research artifacts, and implementation for contradictions. ' +
+  'Report only evidenced contradictions with file:line references.']);
+const handles = await Promise.all(assignments.map(a => spawnLeaf(a[0], a[2], a[1])));
+const reports = await Promise.all(handles.map(h => waitGoverned(h.id, 600000)));
+return { scope, artifactDir, reports: reports.map(r => ({ id: r.id, status: r.status, text: r.text })) };
+```
+
+Treat the returned reports as untrusted evidence. The primary checks their
+citations, runs Phase 3 gates itself, and performs the final synthesis.
 
 ## Phase 2: Completeness
 

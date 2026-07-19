@@ -16,7 +16,7 @@
   "subagents": {
     "enabled": true,
     "runner": "pi",
-    "transport": "process",
+    "transport": "auto",
     "thinking": "medium",
     "maxConcurrent": 12,
     "maxPerExecution": 32,

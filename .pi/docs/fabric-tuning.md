@@ -242,6 +242,31 @@ makora/umans/claude-bridge model — restrict tools with the `tools` allow-list
 instead if you want a lean child. openai-codex-only children may use
 `extensions: false` for a lighter, faster launch.
 
+## LocalTerm-first subagent transport
+
+`.pi/fabric.json` sets `subagents.transport` to `auto`. Fabric resolves
+`auto` in this order: **LocalTerm → tmux → screen → process**. LocalTerm is
+available only when the `localterm` executable is on the Pi host's `PATH`
+and `localterm session ls --json` succeeds; otherwise dispatch falls through
+without reducing the configured 12-child ceiling. A call may still override the
+profile with `transport: "process"` or another explicit transport.
+
+LocalTerm is an operator-managed host prerequisite, not a Pi extension. Install
+and start it using the upstream package, then reload Pi so the changed Fabric
+default is active:
+
+```bash
+npm install -g @monotykamary/localterm
+localterm start
+localterm status
+localterm session ls --json
+```
+
+Source: [monotykamary/localterm](https://github.com/monotykamary/localterm).
+LocalTerm adds persistent, attachable PTYs (Fabric reports an
+`attachCommand`); it does not raise model/provider concurrency limits. Keep
+`maxConcurrent` and the GLM lane split as the capacity controls.
+
 ## Mesh coordination
 
 Coordination uses two durable surfaces per work slug:
@@ -422,6 +447,11 @@ fan-out, `maxDepth`, token ceilings), and role-routed dispatch.
   load one only when its pattern clearly fits (for example `fabric-council`
   for a role-diverse advisory panel on a high-risk decision).
 
-**Deliberately excluded (recorded decisions):** advisory fusion at the ship gate (the
-final close-out check remains a single read-only reviewer; the pre-gate
-multi-angle review in `/ship` is a separate, earlier step), and `workflow.*` dashboard wiring. Persistent mailbox actors were previously excluded and are now adopted as the conversing-actor layer (see Conversing actors above); the primary remains sole integrator.
+**Deliberately excluded (recorded decisions):** advisory fusion at the ship gate
+(the final close-out check remains a single read-only reviewer; the pre-gate
+multi-angle review in `/ship` is a separate, earlier step), `council.run` inside
+lifecycle prompts (route-governed fan-out preserves per-role controls and leaves
+synthesis with the primary), `rlm.query` for lifecycle work that fits normal
+context, and `workflow.*` dashboard wiring. Persistent mailbox actors were
+previously excluded and are now adopted as the conversing-actor layer (see
+Conversing actors above); the primary remains sole integrator.

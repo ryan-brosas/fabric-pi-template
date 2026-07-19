@@ -61,6 +61,11 @@ test("fabric-focus invariants hold across the config trio", () => {
   assert.equal(fabric.subagents.maxConcurrent, 12);
   assert.equal(fabric.subagents.extensions, true);
   assert.equal(fabric.subagents.maxDepth, 1);
+  assert.equal(
+    fabric.subagents.transport,
+    "auto",
+    "auto transport selects LocalTerm first and retains tmux/screen/process fallback",
+  );
   assert.equal(config.coordination.mesh_topic_prefix, "fabric-pi-");
   assert.equal(config.coordination.board_key_prefix, "fabric-pi/");
   assert.deepEqual(config.team_mode.phase_order, [
@@ -196,7 +201,6 @@ test("skill registry: every cataloged path exists and manifest tiers are complet
     [...skillMdDirs].sort(),
     "manifest tiers catalog every SKILL.md directory exactly once",
   );
-
 });
 
 test("adapted skills contain no active legacy artifact or task-tool bindings", () => {
@@ -561,6 +565,156 @@ test("all lifecycle prompts use current routes and safe dispatch/action bindings
   assert.match(ship, /explicit operator authorization naming the exact action/);
   assert.match(ship, /named Git\/action options/);
   assert.doesNotMatch(ship, /Per-task commits required|Commit — per-task commit/);
+});
+
+test("ship, audit, and research run Fabric natively (governed dispatch; ship transacts and ledgers)", () => {
+  const ship = readFileSync(join(root, "prompts", "ship.md"), "utf8");
+  for (const pattern of [
+    /agents[.]spawn/,
+    /agents[.]status/,
+    /agents[.]steer/,
+    /agents[.]wait/,
+    /worktree: true/,
+    /waitGoverned/,
+    /schema[.]hypothesize/,
+    /schema[.]verify/,
+    /schema[.]commit/,
+    /state[.]transition/,
+    /ledgerReceipt/,
+  ])
+    assert.match(ship, pattern, "ship: " + pattern);
+  for (const name of ["audit", "research"]) {
+    const text = readFileSync(join(root, "prompts", name + ".md"), "utf8");
+    for (const pattern of [
+      /agents[.]spawn/,
+      /agents[.]status/,
+      /agents[.]steer/,
+      /agents[.]wait/,
+      /waitGoverned/,
+      /status !== ['"]completed['"]/,
+      /spawnLeaf/,
+    ])
+      assert.match(text, pattern, name + ": " + pattern);
+    assert.doesNotMatch(
+      text,
+      /schema[.]commit|worktree: true/,
+      name + ": read-only fan-out never transacts or takes worktrees",
+    );
+  }
+});
+
+test("audit and research bind real named inputs and return nonempty fan-out evidence", () => {
+  const audit = readFileSync(join(root, "prompts", "audit.md"), "utf8");
+  assert.match(audit, /π[.]pattern/);
+  assert.match(audit, /return { pattern, discovery/);
+  assert.ok(!audit.includes("PATTERN_FROM_ARGUMENTS"));
+  assert.ok(!audit.includes("const clusters = []"));
+
+  const research = readFileSync(join(root, "prompts", "research.md"), "utf8");
+  assert.match(research, /π[.]question/);
+  assert.match(research, /π[.]angles/);
+  assert.match(research, /return { question, findings/);
+  for (const placeholder of [
+    "TOPIC_FROM_ARGUMENTS",
+    "const angles = []",
+    "<the aggregated Phase 1 reports>",
+  ])
+    assert.ok(!research.includes(placeholder), "research placeholder removed: " + placeholder);
+});
+
+test("all ten lifecycle prompts contain executable Fabric programs", () => {
+  const names = [
+    "audit",
+    "create",
+    "fix",
+    "gc",
+    "init",
+    "plan",
+    "research",
+    "ship",
+    "team",
+    "verify",
+  ];
+  for (const name of names) {
+    const text = readFileSync(join(root, "prompts", name + ".md"), "utf8");
+    assert.match(text, /fabric_exec/, name + ": names the Fabric execution surface");
+    const blocks = [...text.matchAll(/```typescript\n([\s\S]*?)\n```/g)].map((m) => m[1]);
+    const programs = blocks.filter((code) => /(?:pi[.]|tools[.]call)/.test(code));
+    assert.ok(programs.length > 0, name + ": contains a Pi/Fabric TypeScript program");
+    for (const [index, code] of programs.entries())
+      assert.doesNotThrow(
+        () =>
+          new Function(
+            "pi",
+            "tools",
+            "π",
+            "skill",
+            "question",
+            "write",
+            "return async function () {\n" + code + "\n}",
+          ),
+        name + ": program " + (index + 1) + " parses as an async function",
+      );
+  }
+});
+
+test("fix runs a governed transactional fix-and-verify loop with durable receipts", () => {
+  const fix = readFileSync(join(root, "prompts", "fix.md"), "utf8");
+  for (const pattern of [
+    /agents[.]spawn/,
+    /agents[.]status/,
+    /agents[.]steer/,
+    /agents[.]wait/,
+    /worktree: true/,
+    /waitGoverned/,
+    /schema[.]hypothesize/,
+    /schema[.]verify/,
+    /schema[.]commit/,
+    /state[.]transition/,
+    /ledgerReceipt/,
+    /allowlist[.]includes[(]verifyCommand[)]/,
+    /π[.]verifyAllowlist/,
+    /normalizeRepoPath/,
+    /shellQuote/,
+    /shell control operators are not allowed/,
+    /primary-approved project commands/,
+  ])
+    assert.match(fix, pattern, "fix: " + pattern);
+});
+
+test("verify and gc use governed read-only fan-out with primary synthesis", () => {
+  for (const name of ["verify", "gc"]) {
+    const text = readFileSync(join(root, "prompts", name + ".md"), "utf8");
+    for (const pattern of [
+      /agents[.]spawn/,
+      /agents[.]status/,
+      /agents[.]steer/,
+      /agents[.]wait/,
+      /waitGoverned/,
+      /status !== ['"]completed['"]/,
+      /spawnLeaf/,
+      /primary synthesizes/,
+    ])
+      assert.match(text, pattern, name + ": " + pattern);
+    assert.doesNotMatch(
+      text,
+      /schema[.]commit|worktree: true/,
+      name + ": read-only fan-out never transacts or takes worktrees",
+    );
+  }
+});
+
+test("create writes spec and tasks artifacts with ledger receipts", () => {
+  const create = readFileSync(join(root, "prompts", "create.md"), "utf8");
+  for (const pattern of [
+    /pi[.]write/,
+    /state[.]transition/,
+    /ledgerReceipt/,
+    /spec-write/,
+    /tasks-write/,
+  ])
+    assert.match(create, pattern, "create: " + pattern);
+  assert.doesNotMatch(create, /agents[.]spawn|schema[.]commit|worktree: true/);
 });
 
 test("every workflow binds general-only implementation, current models, canonical board states, no legacy paths, and an external-action guard", () => {

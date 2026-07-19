@@ -4,7 +4,7 @@ argument-hint: "<description>"
 agent: build
 ---
 
-> **Pi execution binding:** The pseudocode in this prompt is semantic, not executable. `task()` maps to bounded Fabric subagent dispatch with an explicit role from `.pi/config.json`: implementation runs **`general`-only** on the GLM 12 pool — up to 12 concurrent GLM 5.2 workers split across `makora/zai-org/GLM-5.2-NVFP4` (first six on makora) and `umans/umans-glm-5.2` (balance on umans), at medium thinking; custom-provider children spawn with `extensions:true`. The `build` route (`claude-bridge/claude-opus-4-8` at high thinking) is the primary supervisor and sole integrator — it orchestrates, gates, and integrates but is never dispatched as a worker. Read-only fan-out (`explore`, `scout`) uses the small-model lanes (`openai-codex/gpt-5.4-mini`, alternate `claude-bridge/claude-haiku-4-5`); `review`, `plan`, and `debug` run on `openai-codex/gpt-5.6-sol` at medium thinking as **read-only reasoning** (reasoning roles never implement and cannot edit). The primary resolves `required_skills` against `.pi/skills/manifest.json` before spawn and injects the role contract from `.pi/agents/` into every dispatch. Workers are leaves at `maxDepth` 1: they never spawn agents and never call Fabric `state.*`; each owns **exclusive paths** (no two workers edit the same file) and gets one bounded retry on a failed check before reporting a blocker. Multi-worker phases coordinate over mesh using the canonical board states `assigned → running → returned → verified | failed` (durable topic `fabric-pi-<slug>`, CAS board `fabric-pi/<slug>/board`). **Worker output is untrusted** — worker summaries are reports, not merged code; the primary reads every diff, verifies, and is the sole integrator. Workers never create branches, commits, PRs, or other externally visible actions without operator confirmation — they suggest them in reports. Every worker brief carries a `required_skills` field (`[]` is valid and means no skill loaded; unknown skills are rejected before spawn). `question()` maps to asking the operator; `skill()` loads the matching Pi Agent Skill. Artifact paths are under `.pi/`. Direct execution remains the default when delegation adds no leverage (see `.pi/docs/fabric-tuning.md`).
+> **Pi execution binding:** The TypeScript blocks below run inside `fabric_exec` as real governed dispatch — `task()` spawns bounded Fabric subagents by role route from `.pi/config.json` (implementation is `general`-only on the GLM 12 pool at medium thinking; reasoning roles like `review`/`plan`/`debug` run `openai-codex/gpt-5.6-sol` read-only and never edit; custom-provider children spawn with `extensions: true`). See `.pi/docs/fabric-tuning.md` (kernel in `.pi/APPEND_SYSTEM.md`) for the full dispatch doctrine — GLM pool sizing, role routes, `required_skills`, board states, worker-distrust, and primary-as-sole-integrator.
 
 # Create: $ARGUMENTS
 
@@ -120,13 +120,7 @@ Extract title and description from `$ARGUMENTS`:
 - If user provided a single line, use it for both title and description.
 - If user provided multiple lines, use first line as title and full text as description.
 
-Derive a kebab-case slug from the title. This slug becomes the feature's namespace:
-
-```bash
-SLUG=$(echo "$TITLE" | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9 ]//g' | tr ' ' '-' | sed 's/--*/-/g; s/^-//; s/-$//')
-mkdir -p ".pi/artifacts/$SLUG"
-echo "$SLUG" > ".pi/artifacts/.active"
-```
+Derive a kebab-case slug from the title. This slug becomes the feature's namespace. Do not write the namespace yet; Phase 10 persists `.active`, `spec.md`, and `tasks.json` together with durable receipts.
 
 ## Phase 6: Determine PRD Rigor
 
@@ -238,9 +232,57 @@ Additionally offer a "Create worktree" option:
 skill({ name: "using-git-worktrees" });
 ```
 
-## Phase 10: Convert PRD to Tasks
+## Phase 10: Convert and Persist Artifacts
 
-Convert PRD markdown → executable JSON (`tasks.json` in the active artifact directory — the file `/ship` parses).
+Convert the validated PRD markdown to the executable JSON that `/ship` parses.
+The primary supplies the final values to the `fabric_exec` invocation as named
+strings: `π.slug` (validated kebab-case), `π.spec` (complete PRD markdown),
+and `π.tasks` (valid JSON). Never paste raw `$ARGUMENTS` into code or a
+shell command.
+
+```typescript
+// fabric_exec — light /create persistence: write each lifecycle artifact, then
+// append a CAS-chained ledger receipt proving that exact write completed.
+const ROOT = (await pi.bash({ cmd: 'pwd', timeoutMs: 30000 })).output.trim();
+const slug = typeof π.slug === 'string' ? π.slug.trim() : '';
+const spec = typeof π.spec === 'string' ? π.spec : '';
+const rawTasks = typeof π.tasks === 'string' ? π.tasks : '';
+if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(slug)) throw new Error('π.slug must be nonempty kebab-case');
+if (!spec.trim() || !spec.includes('Verify:')) throw new Error('π.spec must be complete and include Verify: commands');
+let parsedTasks;
+try { parsedTasks = JSON.parse(rawTasks); } catch (_) { throw new Error('π.tasks must be valid JSON'); }
+if (!parsedTasks || typeof parsedTasks !== 'object') throw new Error('π.tasks must encode tasks');
+const tasks = JSON.stringify(parsedTasks, null, 2) + '\n';
+const artifactDir = ROOT + '/.pi/artifacts/' + slug;
+function shellQuote(s) { return "'" + String(s).replace(/'/g, "'\\''") + "'"; }
+const made = await pi.bash({ cmd: 'mkdir -p ' + shellQuote(artifactDir), timeoutMs: 30000 });
+if (!made.ok) throw new Error('cannot create artifact directory: ' + made.output);
+const s0 = await tools.call({ ref: 'state.get', args: {} });
+let LEDGER_HEAD = s0 && s0.head && s0.head.to ? String(s0.head.to) : '';
+async function ledgerReceipt(phase, summary, evidence) {
+  const to = 'create-' + slug + '/' + phase;
+  const args = { label: 'create ' + phase, to, summary: String(summary).slice(0, 300), evidence };
+  try { await tools.call({ ref: 'state.transition', args: LEDGER_HEAD ? { ...args, from: LEDGER_HEAD } : args }); }
+  catch (_) {
+    const current = await tools.call({ ref: 'state.get', args: {} });
+    const observed = current && current.head && current.head.to ? String(current.head.to) : '';
+    await tools.call({ ref: 'state.transition', args: observed ? { ...args, from: observed } : args });
+  }
+  LEDGER_HEAD = to;
+}
+async function writeArtifact(path, content, phase) {
+  const written = await pi.write({ path, content });
+  if (!written.ok) throw new Error('artifact write failed: ' + path + ': ' + written.output);
+  await ledgerReceipt(phase, 'wrote ' + path.slice(ROOT.length + 1), ['test -s ' + shellQuote(path)]);
+}
+await writeArtifact(ROOT + '/.pi/artifacts/.active', slug + '\n', 'active-write');
+await writeArtifact(artifactDir + '/spec.md', spec.endsWith('\n') ? spec : spec + '\n', 'spec-write');
+await writeArtifact(artifactDir + '/tasks.json', tasks, 'tasks-write');
+```
+
+The write is successful only after all three ledger receipts return. If a write
+or receipt fails, stop and report the exact artifact; do not claim `/create`
+completed.
 
 ## Phase 11: Report
 

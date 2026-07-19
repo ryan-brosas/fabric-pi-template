@@ -3,7 +3,7 @@ description: Ship a plan - implement specs, verify, review, close
 agent: build
 ---
 
-> **Pi execution binding:** The pseudocode in this prompt is semantic, not executable. `task()` maps to bounded Fabric subagent dispatch with an explicit role from `.pi/config.json`.
+> **Pi execution binding:** The TypeScript blocks below run inside `fabric_exec` — like `/team`, this prompt executes real Fabric machinery: governed dispatch (`agents.spawn` + status poll + deadline steer), CAS-chained `state.transition` phase receipts, and schema-transaction integration for parallel waves. Surrounding pseudocode remains semantic. `task()` maps to bounded Fabric subagent dispatch with an explicit role from `.pi/config.json`.
 > The implementation role `general` (only) runs on the GLM 12 pool (`makora/zai-org/GLM-5.2-NVFP4` + `umans/umans-glm-5.2`, up to 12 concurrent; first six on makora, balance on umans) with `extensions: true`; the primary (`build`, supervisor + sole integrator) runs `claude-bridge/claude-opus-4-8` at high thinking.
 > Read-only fan-out (`explore`, `scout`) uses the small-model lanes (`openai-codex/gpt-5.4-mini`, alternate `claude-bridge/claude-haiku-4-5`); `review` runs on `openai-codex/gpt-5.6-sol` at medium thinking.
 > The primary resolves `required_skills` against `.pi/skills/manifest.json` before spawn and injects the role contract from `.pi/agents/` into every dispatch. Multi-worker phases coordinate over the canonical mesh (topic `fabric-pi-<slug>`, CAS board `fabric-pi/<slug>/board`); the primary steers drift, reads every diff, and verifies before integrating.
@@ -58,6 +58,36 @@ Verify:
 Check what artifacts exist:
 
 Read `.pi/artifacts/$(cat .pi/artifacts/.active)/` to check what artifacts exist (spec.md, plan.md, etc.).
+
+### Run Ledger
+
+```typescript
+// fabric_exec — durable phase ledger for this /ship run. Every phase records a
+// CAS-chained state.transition (from = observed head; on a from-mismatch the
+// primary re-observes the real head once and chains from it — never force,
+// never fork). Evidence entries are trusted shell commands state.verify can
+// re-run after the run ends.
+const ROOT = (await pi.bash({ cmd: 'pwd', timeoutMs: 30000 })).output.trim();
+const cfg = JSON.parse(String(await pi.read(ROOT + '/.pi/config.json')));
+const slug = String(await pi.read(ROOT + '/.pi/artifacts/.active')).trim();
+const topic = 'fabric-pi-' + slug;
+const board = 'fabric-pi/' + slug + '/board';
+const s0 = await tools.call({ ref: 'state.get', args: {} });
+let LEDGER_HEAD = s0 && s0.head && s0.head.to ? String(s0.head.to) : '';
+async function ledgerReceipt(phase, summary, evidence) {
+  const to = 'ship-' + slug + '/' + phase;
+  const args = { label: 'ship ' + phase, to, summary: String(summary).slice(0, 300) };
+  if (Array.isArray(evidence) && evidence.length) args.evidence = evidence.map(String);
+  try { await tools.call({ ref: 'state.transition', args: LEDGER_HEAD ? { ...args, from: LEDGER_HEAD } : args }); }
+  catch (_) {
+    const s = await tools.call({ ref: 'state.get', args: {} });
+    const observed = s && s.head && s.head.to ? String(s.head.to) : '';
+    await tools.call({ ref: 'state.transition', args: observed ? { ...args, from: observed } : args });
+  }
+  LEDGER_HEAD = to;
+}
+await ledgerReceipt('guards', 'spec/plan present; workspace inspected');
+```
 
 ### Workspace Setup
 
@@ -133,12 +163,14 @@ If `plan.md` exists with dependency graph:
 **Parallel safety:** Only tasks within same wave run in parallel. Tasks must NOT share files. Tasks in Wave N+1 wait for Wave N.
 
 ```typescript
-// fabric_exec — one wave: parallel general-route workers on the GLM 12 pool
-// resolve the role and inject its contract (contract injection is the dispatcher's job)
+// fabric_exec — one wave: governed general-route workers (GLM 12) in isolated
+// worktrees. The primary gates every worktree diff, then integrates the gated
+// bytes into ROOT through an atomic schema transaction (a FILE transaction with
+// pre-image guards and rollback — never a git commit).
 const route = cfg.role_routes.general;            // model, thinking, tools, contract
 const contract = String(await pi.read(ROOT + '/' + route.contract));
 const lanes = ['makora/zai-org/GLM-5.2-NVFP4', 'umans/umans-glm-5.2'];
-const handles = [];
+const spawned = [];
 wave.tasks.slice(0, 12).forEach((t, i) => {
   const model = i < 6 ? lanes[0] : lanes[1];      // first six makora, then umans
   const skills = resolveSkills(t.id, t.required_skills); // resolved before spawn
@@ -146,25 +178,67 @@ wave.tasks.slice(0, 12).forEach((t, i) => {
     ? '\n\nrequired_skills: ' + JSON.stringify(skills) +
       '\nBefore other work, read every .pi/skills/<name>/SKILL.md listed above and follow it.'
     : '\n\nrequired_skills: [] (load no skill)';
-  handles.push(tools.call({
+  spawned.push(tools.call({
     ref: 'agents.spawn',
     args: {
       name: t.id,
       task: contract + '\n\n---\n\n' + t.brief + skillInstruction +
+        '\n\nYou run inside an isolated Git worktree (your cwd). Edit only your owned files; never commit.' +
         '\n\nEnd your report with a JSON object matching .pi/schemas/worker-result.json (status, changed_paths, checks_run, stop_reason).',
       model,                                       // role_routes.general (GLM 5.2)
       thinking: route.thinking,                     // medium
       tools: route.tools,                           // role_routes.general
       extensions: true,                             // custom providers (makora/umans) need this
+      worktree: true,                               // isolated change set; ROOT stays clean until integration
+      timeoutMs: 900000,
     }
   }));
 });
 await tools.call({
   ref: 'mesh.publish',
-  args: { topic: 'fabric-pi-<slug>', kind: 'assignment', text: 'wave dispatched', data: { tasks: wave.tasks.map(t => t.id) } }
+  args: { topic, kind: 'assignment', text: 'wave dispatched', data: { tasks: wave.tasks.map(t => t.id) } }
 });
-for (const h of handles) { const r = await h; await tools.call({ ref: 'agents.wait', args: { id: r.id } }); }
-// then: read every diff, run gates, update the CAS mesh board before the next wave
+
+// Governed join: status-poll each child and steer it near its deadline so
+// agents.steer/agents.compact remain live mid-flight controls, then wait.
+async function waitGoverned(id, timeoutMs) {
+  const started = Date.now(); let steered = false;
+  for (;;) {
+    const st = await tools.call({ ref: 'agents.status', args: { id } });
+    const s = String((st && st.status) || '');
+    if (s && s !== 'running' && s !== 'pending' && s !== 'starting') break;
+    if (!steered && Date.now() - started > timeoutMs * 0.8) {
+      steered = true;
+      try { await tools.call({ ref: 'agents.steer', args: { id,
+        message: 'Deadline near: wrap up and return the worker-result envelope now.' } }); } catch (_) {}
+    }
+    await new Promise(resolve => setTimeout(resolve, 15000));
+  }
+  return tools.call({ ref: 'agents.wait', args: { id } });
+}
+const results = [];
+for (const h of spawned) { const r = await h; results.push(await waitGoverned(r.id, 900000)); }
+
+// Primary gate (worker output is untrusted): derive each worktree's actual
+// change set from git, reject out-of-scope paths, read every changed file, and
+// run the task's verification inside the worktree — team.md's gate recipe.
+// Then integrate atomically: build write ops with per-file expected pre-images
+// (sha256, or absent for new files), sha256 postconditions from the gated
+// bytes, hypothesize the pre-images, verify (short-lived certificate — commit
+// immediately), and commit. A drifted target or partial write rolls back.
+const hyp = await tools.call({ ref: 'schema.hypothesize', args: {
+  label: 'ship-wave-' + slug,
+  summary: 'Integrate the gated wave into clean ROOT; every target matches its pre-image.',
+  evidence: preImages } });
+const cert = await tools.call({ ref: 'schema.verify', args: { hypothesisId: hyp.hypothesisId } });
+if (!cert || cert.verified !== true) throw new Error('pre-image drift: ROOT changed since gating');
+await tools.call({ ref: 'schema.commit', args: {
+  hypothesisId: hyp.hypothesisId, certificate: cert.certificate,
+  operations: ops, postconditions: posts } });
+await ledgerReceipt('execute', 'wave integrated: ' + wave.tasks.length + ' task(s)',
+  wave.tasks.map(t => t.verify).filter(Boolean));
+// then update the CAS mesh board (assigned -> running -> returned -> verified)
+// before dispatching the next wave
 ```
 
 ### Phase 3A: PRD Task Loop (Sequential Fallback)
@@ -294,6 +368,10 @@ Follow the [Verification Protocol](../skills/verification-before-completion/refe
 - Also run PRD `Verify:` commands
 
 If the PRD requires local web, browser, OAuth callback, webhook, or multi-service verification, use stable URLs as verification evidence.
+
+```typescript
+await ledgerReceipt('verify', 'all four gates green', [/* the exact gate commands run above */]);
+```
 
 ## Phase 5: Review
 
@@ -434,6 +512,10 @@ When spawning, include:
 | Stalled (same score 2x) | Escalate with accumulated findings |
 | Max rounds | Escalate with full finding log |
 
+```typescript
+await ledgerReceipt('review', 'review clean (critical: 0)'); // record after findings are resolved
+```
+
 ### Goal-Backward Verification (if plan.md exists)
 
 Verify that tasks completed ≠ goals achieved:
@@ -491,6 +573,10 @@ If confirmed:
 Update `.pi/artifacts/todo.md` to mark all tasks complete and append summary to `.pi/artifacts/$(cat .pi/artifacts/.active)/progress.md`.
 
 Record significant learnings in `.pi/artifacts/MEMORY.md` (Decisions / Gotchas) after closing.
+
+```typescript
+await ledgerReceipt('close', 'operator confirmed close for ' + slug);
+```
 
 ## Output
 

@@ -4,7 +4,7 @@ argument-hint: "<pattern>"
 agent: build
 ---
 
-> **Pi execution binding:** The pseudocode in this prompt is semantic, not executable. `task()` maps to bounded Fabric subagent dispatch with an explicit role from `.pi/config.json`: implementation runs **`general`-only** on the GLM 12 pool — up to 12 concurrent GLM 5.2 workers split across `makora/zai-org/GLM-5.2-NVFP4` (first six on makora) and `umans/umans-glm-5.2` (balance on umans), at medium thinking; custom-provider children spawn with `extensions:true`. The `build` route (`claude-bridge/claude-opus-4-8` at high thinking) is the primary supervisor and sole integrator — it orchestrates, gates, and integrates but is never dispatched as a worker. Read-only fan-out (`explore`, `scout`) uses the small-model lanes (`openai-codex/gpt-5.4-mini`, alternate `claude-bridge/claude-haiku-4-5`); `review`, `plan`, and `debug` run on `openai-codex/gpt-5.6-sol` at medium thinking as **read-only reasoning** (reasoning roles never implement and cannot edit). The primary resolves `required_skills` against `.pi/skills/manifest.json` before spawn and injects the role contract from `.pi/agents/` into every dispatch. Workers are leaves at `maxDepth` 1: they never spawn agents and never call Fabric `state.*`; each owns **exclusive paths** (no two workers edit the same file) and gets one bounded retry on a failed check before reporting a blocker. Multi-worker phases coordinate over mesh using the canonical board states `assigned → running → returned → verified | failed` (durable topic `fabric-pi-<slug>`, CAS board `fabric-pi/<slug>/board`). **Worker output is untrusted** — worker summaries are reports, not merged code; the primary reads every diff, verifies, and is the sole integrator. Workers never create branches, commits, PRs, or other externally visible actions without operator confirmation — they suggest them in reports. Every worker brief carries a `required_skills` field (`[]` is valid and means no skill loaded; unknown skills are rejected before spawn). `question()` maps to asking the operator; `skill()` loads the matching Pi Agent Skill. Artifact paths are under `.pi/`. Direct execution remains the default when delegation adds no leverage (see `.pi/docs/fabric-tuning.md`).
+> **Pi execution binding:** The TypeScript block runs inside `fabric_exec` as real governed dispatch (`agents.spawn` + status poll + deadline steer), not described pseudocode; implementation dispatches the GLM 12 pool (`general`-only, custom-provider children spawn with `extensions: true`), read-only fan-out (`explore`/`scout`) uses the small-model lanes, and `review`/`plan`/`debug` run on `openai-codex/gpt-5.6-sol` at medium thinking as read-only reasoning. The primary is the sole integrator and worker output is untrusted — see `.pi/docs/fabric-tuning.md` (kernel in `APPEND_SYSTEM.md`) for the full dispatch doctrine (GLM pool, role routes, required_skills, board states, worker-distrust / primary-sole-integrator).
 
 # Audit: $ARGUMENTS
 
@@ -30,16 +30,74 @@ This command invokes the `audit-pattern` workflow for multi-agent parallel execu
 
 ### Workflow Execution
 
-1. **Read the workflow:** `.pi/workflows/audit-pattern.md`
-2. **Execute all phases:**
-   - Phase 1: Spawn 1 @explore agent to discover all occurrences
-   - Phase 2: Spawn multiple @review agents (dynamic count based on occurrences)
-   - Final synthesis: performed directly by the main agent from {phase_2_output}, per audit-pattern.md — no @general worker is spawned
-3. **Replace placeholders:**
-   - `{pattern}` → the pattern from $ARGUMENTS
-   - `{phase_N_output}` → actual output from completed phases
-4. **Aggregate results** between phases
-5. **Write final report** to `.pi/artifacts/$(cat .pi/artifacts/.active)/audit.md`
+Read `.pi/workflows/audit-pattern.md` for phase semantics, then execute the
+fan-out as a real Fabric program. Size Phase 2 to the discovered occurrence
+clusters — never the 12-worker ceiling. The primary supplies the parsed argument
+as the named string `π.pattern`; raw `$ARGUMENTS` is never pasted into code. Final
+synthesis is performed directly by the main agent from the returned reports; no
+@general worker is spawned.
+
+```typescript
+// fabric_exec — executable audit fan-out (read-only leaves; primary synthesizes)
+const ROOT = (await pi.bash({ cmd: 'pwd', timeoutMs: 30000 })).output.trim();
+const cfg = JSON.parse(String(await pi.read(ROOT + '/.pi/config.json')));
+const pattern = typeof π.pattern === 'string' ? π.pattern.trim() : '';
+if (!pattern) throw new Error('π.pattern is required');
+async function spawnLeaf(role, brief, name) {
+  const route = cfg.role_routes[role];
+  const contract = String(await pi.read(ROOT + '/' + route.contract));
+  return tools.call({ ref: 'agents.spawn', args: {
+    name, model: route.model, thinking: route.thinking, tools: route.tools,
+    extensions: true, timeoutMs: 600000,
+    task: contract + '\n\n---\n\nrequired_skills: [] (load no skill)\n' + brief } });
+}
+// Governed join: status-poll with a deadline steer, then wait.
+async function waitGoverned(id, timeoutMs) {
+  const started = Date.now(); let steered = false;
+  for (;;) {
+    const st = await tools.call({ ref: 'agents.status', args: { id } });
+    const s = String((st && st.status) || '');
+    if (s && s !== 'running' && s !== 'pending' && s !== 'starting') break;
+    if (!steered && Date.now() - started > timeoutMs * 0.8) {
+      steered = true;
+      try { await tools.call({ ref: 'agents.steer', args: { id,
+        message: 'Deadline near: wrap up and return your findings now.' } }); } catch (_) {}
+    }
+    await new Promise(resolve => setTimeout(resolve, 15000));
+  }
+  const result = await tools.call({ ref: 'agents.wait', args: { id } });
+  if (!result || result.status !== 'completed')
+    throw new Error('read-only worker did not complete: ' + String(result && result.status));
+  return result;
+}
+// Phase 1 — discovery: one explore leaf lists every occurrence with file:line.
+const d = await spawnLeaf('explore',
+  'Find every occurrence of this code pattern: ' + JSON.stringify(pattern) +
+  '. Read-only. Report a complete file:line list grouped by directory, with a one-line context per hit.',
+  'audit-discover');
+const discovery = await waitGoverned(d.id, 600000);
+// Phase 2 — review: split the real discovery report into bounded evidence chunks.
+const discoveryText = String(discovery.text || '').trim();
+if (!discoveryText) throw new Error('audit discovery returned no evidence');
+if (discoveryText.length > 120000)
+  throw new Error('audit discovery evidence too large; narrow the pattern');
+const boundedDiscovery = discoveryText;
+const clusterCount = Math.ceil(boundedDiscovery.length / 20000);
+const clusters = Array.from({ length: clusterCount }, (_, i) =>
+  boundedDiscovery.slice(i * 20000, (i + 1) * 20000));
+const reviewers = [];
+for (const [i, cluster] of clusters.entries()) {
+  const h = await spawnLeaf('review',
+    'Review these discovered occurrences of ' + JSON.stringify(pattern) + ' for correctness, security, and consistency. ' +
+    'Classify each as correct or an issue (critical/important/minor) with file:line and a concrete fix.\n' + cluster,
+    'audit-review-' + (i + 1));
+  reviewers.push(waitGoverned(h.id, 600000));
+}
+const reviews = await Promise.all(reviewers);
+// Final synthesis: the primary verifies citations and writes the report itself.
+return { pattern, discovery: { id: discovery.id, text: discoveryText },
+  reviews: reviews.map(r => ({ id: r.id, status: r.status, text: r.text })) };
+```
 
 **Announce:** "Auditing codebase for pattern: [pattern]. Invoking audit-pattern workflow."
 
