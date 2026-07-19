@@ -6,7 +6,7 @@ agent: build
 
 > **Pi execution binding:** The TypeScript blocks below run inside `fabric_exec`.
 > `pi.*` are core tools; `tools.call({ ref, args })` invokes Fabric providers
-> (`agents.*`, `mesh.*`, `state.*`). This prompt drives a real team: the primary
+> (`agents.*`, `mesh.*`, `state.*`, `schema.*`). This prompt drives a real team: the primary
 > session (Opus 4.8 high, the supervisor + sole integrator) plans, dispatches
 > teammates, steers drift, gates every phase, and integrates only after reading
 > diffs and verifying. Implementation teammates run GLM 5.2 (the `general` route:
@@ -202,6 +202,43 @@ async function run(role, assignment, modelOverride, label, worktree) {
   } });
 }
 
+// Governed implementation dispatch: agents.spawn returns a handle immediately,
+// the primary polls agents.status on a bounded interval (coordination
+// poll_interval_ms, capped at 15s for responsiveness) and steers a child still
+// running near its deadline ("wrap up now") — making agents.steer (and
+// agents.compact, for a context-heavy child) reachable MID-FLIGHT instead of
+// prose-only kill switches — then agents.wait joins the same completed run
+// record agents.run would return. Reasoning roles keep the synchronous run();
+// only implementation children (general, isolated worktree) are governed.
+async function runGoverned(role, assignment, modelOverride, label) {
+  const { route, body } = await contractFor(role);
+  const task = body + '\n\n---\n\n' + assignment +
+    '\n\nEnd your report with a JSON object matching .pi/schemas/worker-result.json' +
+    ' (status, changed_paths, checks_run, stop_reason).';
+  const TIMEOUT_MS = 900000;
+  const spawned = await tools.call({ ref: 'agents.spawn', args: {
+    name: (label || role) + '-' + slug, runner: 'pi',
+    model: modelOverride || route.model,
+    thinking: route.thinking, tools: route.tools, schema: workerSchema,
+    extensions: true, worktree: true, timeoutMs: TIMEOUT_MS, task,
+  } });
+  const started = Date.now();
+  let steered = false;
+  const poll = Math.min(Number(cfg.coordination.poll_interval_ms) || 60000, 15000);
+  for (;;) {
+    const st = await tools.call({ ref: 'agents.status', args: { id: spawned.id } });
+    const s = String((st && st.status) || '');
+    if (s && s !== 'running' && s !== 'pending' && s !== 'starting') break;
+    if (!steered && Date.now() - started > TIMEOUT_MS * 0.8) {
+      steered = true;
+      try { await tools.call({ ref: 'agents.steer', args: { id: spawned.id,
+        message: 'Deadline near: stop exploring, wrap up, and end with the required worker-result JSON envelope now.' } }); } catch (_) {}
+    }
+    await new Promise(resolve => setTimeout(resolve, poll));
+  }
+  return await tools.call({ ref: 'agents.wait', args: { id: spawned.id } });
+}
+
 // Extract the last JSON object from a worker/report text, even when it is
 // wrapped in a markdown ``` fence. Scans forward with string/escape awareness so
 // braces inside strings do not confuse depth, and returns the LAST balanced
@@ -228,8 +265,12 @@ function trailingJson(text) {
   if (lastStart < 0) throw new Error('no trailing JSON object in report');
   return JSON.parse(s.slice(lastStart, lastEnd + 1));
 }
-// Host-normalized same-cycle evidence ledger. The board mirrors this ledger for
-// observability, but only this primary-owned object authorizes transitions.
+// Same-cycle receipts (in-memory) plus a durable state ledger. The board
+// mirrors receipts for observability; receipts authorize same-cycle phase
+// advancement, and every recorded receipt is ALSO chained into the durable
+// Fabric state ledger (state.transition, CAS-guarded via from/to labels) so
+// the phase history survives the invocation and is auditable and re-runnable
+// across cycles and runs (state.history / state.verify).
 let phaseEvidence = { cycle: 0, receipts: {} };
 const PHASE_DEPS = {
   plan: ['research', 'collaboration'],
@@ -255,12 +296,37 @@ function requireEvidence(nextPhase) {
   }
 }
 
-async function recordEvidence(phase, receipt) {
+// Durable CAS-guarded phase ledger. Each receipt chains a state.transition
+// whose `from` must equal the observed head label; on a from-mismatch (a
+// concurrent session moved the head) the primary re-observes the real head
+// once and chains from it — never force, never fork. Evidence entries are
+// trusted shell commands that state.verify can re-run later.
+let LEDGER_HEAD = '';
+async function ledgerInit() {
+  const s = await tools.call({ ref: 'state.get', args: {} });
+  LEDGER_HEAD = s && s.head && s.head.to ? String(s.head.to) : '';
+}
+async function ledgerTransition(phase, summary, evidence) {
+  const to = slug + '/c' + phaseEvidence.cycle + '/' + phase;
+  const args = { label: 'team ' + phase, to, summary: String(summary).slice(0, 400) };
+  if (Array.isArray(evidence) && evidence.length) args.evidence = evidence.map(String);
+  try {
+    await tools.call({ ref: 'state.transition', args: LEDGER_HEAD ? { ...args, from: LEDGER_HEAD } : args });
+  } catch (_) {
+    const s = await tools.call({ ref: 'state.get', args: {} });
+    const observed = s && s.head && s.head.to ? String(s.head.to) : '';
+    await tools.call({ ref: 'state.transition', args: observed ? { ...args, from: observed } : args });
+  }
+  LEDGER_HEAD = to;
+}
+
+async function recordEvidence(phase, receipt, ledgerEvidence) {
   const normalized = { ...receipt, cycle: phaseEvidence.cycle, pass: receipt.pass === true };
   phaseEvidence.receipts[phase] = normalized;
   const cur = await tools.call({ ref: 'mesh.get', args: { key: board } });
   await tools.call({ ref: 'mesh.put', args: { key: board, ifVersion: cur.version,
     value: { ...cur.value, phase, evidence: { ...(cur.value.evidence || {}), [phase]: normalized } } } });
+  await ledgerTransition(phase, phase + ' receipt cycle ' + phaseEvidence.cycle + ': pass=' + normalized.pass, ledgerEvidence);
   return normalized;
 }
 
@@ -742,7 +808,7 @@ async function implementWave(units, attempt = 1) {
       ', unit_id=' + u.id + ', attempt=' + attempt +
       ', owned_paths=' + JSON.stringify(u.paths) +
       '\nYou run inside an isolated Git worktree (your cwd). Edit only your owned paths; do not commit, push, branch, delete, or run destructive ops.';
-    handles.push({ u, model, attempt, p: run('general', brief, model, 'impl-' + (i + 1), true) });
+    handles.push({ u, model, attempt, p: runGoverned('general', brief, model, 'impl-' + (i + 1)) });
   });
   return await Promise.all(handles.map(async h => ({
     unit: h.u, model: h.model, attempt: h.attempt, result: await h.p,
@@ -830,6 +896,7 @@ async function overBudget() {
 let cycle = 0;
 let met = false;
 await cleanupStaleBoards(board);   // retire finished prior /team boards (never the active one)
+await ledgerInit();                // observe the durable state head; receipts chain from it
 let replanContext = '';
 while (cycle < MAX_CYCLES && !met) {
   cycle++;
@@ -1084,18 +1151,56 @@ while (cycle < MAX_CYCLES && !met) {
   await recordEvidence('review', { pass: true, run_id: review.id, blocking_findings: [] });
   requireEvidence('integrate');
 
-  // BOTH GATES PASS — primary integrates by writing the EXACT worktree files to
-  // ROOT (primary is sole integrator), then re-runs the allowlisted checks in
-  // ROOT. ROOT was clean; it now carries only this gated integration.
-  // For each file, freshly read the existing ROOT target when present (new files
-  // may be created), then pi.write({path, text} — never {content}). Deletions
-  // remain rejected (caught earlier at the worktree gate).
+  // BOTH GATES PASS — primary integrates the EXACT worktree files into ROOT
+  // (primary is sole integrator) through the Fabric schema transaction:
+  // schema.hypothesize binds per-file pre-image evidence, schema.verify mints a
+  // short-lived single-use certificate (commit must follow immediately), and
+  // schema.commit performs the bounded declared writes atomically — each write
+  // carries its expected pre-image (sha256, or absent for a new file) and a
+  // byte-exact sha256 postcondition, with host-side rollback — so a drifted
+  // target or partial write can never leave ROOT half-integrated. This is a
+  // FILE transaction, not a Git commit; per AGENTS.md the primary still never
+  // commits. Deletions remain rejected (caught earlier at the worktree gate).
+  const sha256File = async (abs) => {
+    const h = await pi.bash({ cmd: 'sha256sum ' + shellQuote(abs), timeoutMs: 30000 });
+    if (!h.ok) throw new Error('sha256sum failed: ' + abs);
+    const hex = String(h.output).trim().slice(0, 64);
+    if (!/^[a-f0-9]{64}$/.test(hex)) throw new Error('malformed sha256 for ' + abs);
+    return 'sha256:' + hex;
+  };
+  const ops = []; const posts = []; const preImages = []; const restoreOps = [];
   for (const c of captured) {
     for (const f of c.files) {
-      const abs = ROOT + '/' + f.path;
-      try { await pi.read({ path: abs }); } catch (_) { /* new file: create below */ }
-      await pi.write({ path: abs, text: f.content });
+      const rel = normalizeRepoPath(f.path);
+      let preContent = null; let preSha = null;
+      try { preContent = String(await pi.read({ path: ROOT + '/' + rel })); preSha = await sha256File(ROOT + '/' + rel); } catch (_) { /* new file */ }
+      const postSha = await sha256File(safeWorktree(c.worktree) + '/' + rel);
+      ops.push({ kind: 'write', path: rel, content: f.content, expected: preSha ? { sha256: preSha } : { absent: true } });
+      posts.push({ kind: 'file_sha256', path: rel, sha256: postSha });
+      preImages.push(preSha ? { kind: 'file_sha256', path: rel, sha256: preSha } : { kind: 'file_absent', path: rel });
+      restoreOps.push(preSha
+        ? { kind: 'write', path: rel, content: preContent, expected: { sha256: postSha } }
+        : { kind: 'delete', path: rel, expectedSha256: postSha });
     }
+  }
+  try {
+    const hyp = await tools.call({ ref: 'schema.hypothesize', args: {
+      label: 'integrate-c' + cycle + '-' + slug,
+      summary: 'Integrate ' + captured.length + ' gated unit(s) into clean ROOT; every target must match its pre-image (or be absent) and every write must land byte-exact.',
+      evidence: preImages,
+    } });
+    const cert = await tools.call({ ref: 'schema.verify', args: { hypothesisId: hyp.hypothesisId } });
+    if (!cert || cert.verified !== true) throw new Error('pre-image verification failed: ROOT drifted from the state the gates reviewed');
+    await tools.call({ ref: 'schema.commit', args: {
+      hypothesisId: hyp.hypothesisId, certificate: cert.certificate,
+      operations: ops, postconditions: posts,
+    } });
+  } catch (e) {
+    // Atomic commit means no partial write landed: ROOT is NOT mutated.
+    const curTx = await tools.call({ ref: 'mesh.get', args: { key: board } });
+    await tools.call({ ref: 'mesh.put', args: { key: board, ifVersion: curTx.version,
+      value: { ...curTx.value, cycle, phase: 'integration-failed', status: 'integration transaction failed (ROOT unchanged): ' + String(e.message || e) } } });
+    break;   // ROOT integrity is in question (drift/transaction fault); require operator attention
   }
   // Re-run checks in ROOT (exact allowlisted verify commands, cwd=ROOT).
   let rootRecheckOk = true; let rootRecheckErr = '';
@@ -1112,12 +1217,36 @@ while (cycle < MAX_CYCLES && !met) {
     if (!(qp && qp.ok)) { rootRecheckOk = false; rootRecheckErr = 'quality-pack: ' + String((qp && qp.output) || '').slice(0, 300); }
   }
   if (!rootRecheckOk) {
+    // Roll ROOT back atomically through the same schema-transaction machinery:
+    // restore writes for pre-existing files (expected = the integrated bytes),
+    // deletes for files this integration created, postconditions = the exact
+    // pre-integration images. A successful rollback returns ROOT byte-identical
+    // to clean HEAD, so the loop can safely re-plan; only a failed rollback
+    // leaves a mutated ROOT and stops for operator recovery.
+    let restored = false;
+    try {
+      const rhyp = await tools.call({ ref: 'schema.hypothesize', args: {
+        label: 'rollback-c' + cycle + '-' + slug,
+        summary: 'ROOT re-check failed after integration; restore every integrated path to its pre-integration state.',
+        evidence: posts,
+      } });
+      const rcert = await tools.call({ ref: 'schema.verify', args: { hypothesisId: rhyp.hypothesisId } });
+      if (!rcert || rcert.verified !== true) throw new Error('rollback pre-image drift');
+      await tools.call({ ref: 'schema.commit', args: {
+        hypothesisId: rhyp.hypothesisId, certificate: rcert.certificate,
+        operations: restoreOps, postconditions: preImages,
+      } });
+      restored = true;
+    } catch (_) { restored = false; }
     const curB = await tools.call({ ref: 'mesh.get', args: { key: board } });
     await tools.call({ ref: 'mesh.put', args: { key: board, ifVersion: curB.version,
-      value: { ...curB.value, cycle, phase: 'integration-failed', status: 'ROOT re-check failed: ' + rootRecheckErr + ' — stop on the mutated ROOT; do not re-plan from stale HEAD' } } });
-    break;   // ROOT is mutated; fail closed and require operator recovery/checkpoint
+      value: { ...curB.value, cycle, phase: 'integration-failed', status: 'ROOT re-check failed: ' + rootRecheckErr + (restored ? ' — ROOT rolled back to pre-integration state; re-planning' : ' — rollback also failed; stop on the mutated ROOT') } } });
+    if (!restored) break;   // ROOT is mutated; fail closed and require operator recovery/checkpoint
+    replanContext = 'ROOT re-check failed after integration: ' + rootRecheckErr + '. ROOT was rolled back to clean HEAD; plan a smaller or corrected increment.';
+    if (await overBudget()) break;
+    continue;
   }
-  await recordEvidence('integrate', { pass: true, root_recheck: true, unit_ids: captured.map(c => c.unit.id) });
+  await recordEvidence('integrate', { pass: true, root_recheck: true, unit_ids: captured.map(c => c.unit.id) }, captured.map(c => c.unit.verify));
   await stageArtifact('ship', cycle, 'Ship — cycle ' + cycle,
     '## Shipped increment\n\n' + captured.map(c => '### ' + c.unit.id + '\n- paths: ' + JSON.stringify(c.unit.paths) + '\n- verify: `' + c.unit.verify + '`\n\n**verify output**\n```\n' + String(c.verifyOut || '').slice(0, 4000) + '\n```\n\n**diff**\n```diff\n' + String(c.diff || '').slice(0, 20000) + '\n```').join('\n\n'));
   requireEvidence('goal');
@@ -1127,7 +1256,7 @@ while (cycle < MAX_CYCLES && !met) {
   //    It remains sole success stop.
   const g = await tools.call({ ref: 'state.checkGoal', args: {} });
   met = !!(g && (g.met ?? g.passed ?? g.ok));
-  await recordEvidence('goal', { pass: met, predicate_result: met });
+  await recordEvidence('goal', { pass: met, predicate_result: met }, [GOAL_CHECK]);
   await stageArtifact('verify', cycle, 'Verify — cycle ' + cycle,
     '## Independent verification + review\n\n- goal predicate met: ' + met + '\n- Sol verify gate: ' + (solGate && solGate.pass ? 'pass' : 'fail') + '\n- Opus review gate: ' + (opusGate && opusGate.pass ? 'pass' : 'fail') + '\n\n### Sol verify report\n' + String(verify.text || '').slice(0, 8000) + '\n\n### Opus review report\n' + String(review.text || '').slice(0, 8000));
 
@@ -1176,6 +1305,17 @@ while (cycle < MAX_CYCLES && !met) {
 ## Notes
 
 - `/team` is supervisor-driven but no longer mesh-passive: the fixed architect and risk actors receive addressed run-topic requests and perform exactly one cross-review hop. `triggerTurn` remains disabled; the primary reads every response and drives transitions.
+- Three Fabric mechanisms carry the run's integrity. (1) The durable phase
+  ledger: every receipt chains a CAS-guarded `state.transition` (from = observed
+  head), so `state.history` shows the full phase trail and `state.verify` can
+  re-run the attached verify/goal commands after the invocation ends. (2)
+  Transactional integration: ROOT writes go through `schema.hypothesize` →
+  `schema.verify` → `schema.commit` with pre-image expectations, sha256
+  postconditions, and atomic rollback — a file transaction, never a Git commit.
+  (3) Governed dispatch: implementation children are `agents.spawn`ed and
+  status-polled, with a deadline steer ("wrap up now") making `agents.steer`/
+  `agents.compact` live mid-flight controls rather than prose-only kill
+  switches.
 - The goal predicate is the contract. A vague predicate makes the loop
   meaningless - make it a command that genuinely fails until the goal is real.
 - Worktrees branch from `HEAD` (committed state). The primary integrates by
@@ -1187,7 +1327,8 @@ while (cycle < MAX_CYCLES && !met) {
   on it. The same invocation never continues mutating cycles on a now-dirty ROOT.
 - Internal Fabric `pi.*` bypasses the outer project guard, so the primary reads
   worktree files directly via `pi.read` on the validated absolute worktree path
-  (no `cat`, no shell) and integrates via `pi.write({path, text})` to ROOT. The
+  (no `cat`, no shell) and integrates through the atomic `schema.commit` file
+  transaction (pre-image-guarded writes to ROOT; rollback on failure). The
   primary captures a bounded unified `git diff` per unit (untracked files via
   `git add -N -- <path>` then `git diff HEAD -- <paths>`; binary or overlarge
   diffs are rejected) and supplies those diffs to Sol/Opus, who gate the diffs

@@ -109,6 +109,9 @@ Poll `govern` on `coordination.poll_interval_ms`; lane budgets come from
 `dispatch.token_budgets`; retries follow `dispatch.retry_policy` (at most one,
 fallback per `fallback_order`). The completion envelope is advisory input —
 the primary still reads diffs and verifies before marking `verified`.
+`/team` applies this pattern: its implementation wave is `agents.spawn`ed and
+status-polled with a deadline steer ("wrap up now"); the budget clauses stay
+inert while `token_budgets` are 0 (unlimited by operator decision).
 
 ### Required skills (dispatcher-side resolution)
 
