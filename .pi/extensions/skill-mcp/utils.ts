@@ -50,6 +50,7 @@ export function parseYamlFrontmatter(content: string): {
   let serverName = "";
   let serverConfig: any = {};
   let currentArrayKey = "";
+  let inEnv = false;
 
   for (const line of yamlStr.split("\n")) {
     const trimmed = line.trim();
@@ -75,24 +76,37 @@ export function parseYamlFrontmatter(content: string): {
         mcpConfig[serverName] = serverConfig;
         currentArrayKey = "";
       } else if (serverConfig && indent === 4) {
+        inEnv = false;
         if (key === "command") {
-          serverConfig.command = value;
+          serverConfig.command = value.replace(/^["']|["']$/g, "");
           currentArrayKey = "";
         } else if (key === "args" || key === "includeTools") {
           if (value.startsWith("[")) {
             try {
               serverConfig[key] = JSON.parse(value);
             } catch {
-              serverConfig[key] = [];
+              // Unquoted YAML flow sequence (e.g. [--foo, bar]): lenient split
+              // instead of silently dropping the entries.
+              serverConfig[key] = value
+                .replace(/^\[|\]$/g, "")
+                .split(",")
+                .map((s) => s.trim().replace(/^["']|["']$/g, ""))
+                .filter(Boolean);
             }
             currentArrayKey = "";
           } else {
             serverConfig[key] = [];
             currentArrayKey = key;
           }
+        } else if (key === "env" && !value) {
+          serverConfig.env = {};
+          inEnv = true;
+          currentArrayKey = "";
         } else {
           currentArrayKey = "";
         }
+      } else if (serverConfig && serverConfig.env && inEnv && indent === 6) {
+        serverConfig.env[key] = value.replace(/^["']|["']$/g, "");
       }
     } else if (
       trimmed.startsWith("- ") &&

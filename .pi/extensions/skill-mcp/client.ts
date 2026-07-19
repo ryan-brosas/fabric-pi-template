@@ -139,11 +139,18 @@ export async function connectServer(
     }
   });
 
+  // Drain stderr so a chatty server cannot fill the pipe buffer and stall.
+  proc.stderr?.on("data", () => {});
+
   proc.on("error", (err) => {
     console.error(`MCP server error [${key}]:`, err.message);
   });
 
   proc.on("exit", () => {
+    for (const pending of client.pendingRequests.values()) {
+      pending.reject(new Error("MCP server exited"));
+    }
+    client.pendingRequests.clear();
     state.clients.delete(key);
   });
 

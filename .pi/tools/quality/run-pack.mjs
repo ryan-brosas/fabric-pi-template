@@ -7,7 +7,8 @@ const MAX_BYTES = 512000;
 const JS_EXTS = new Set([".js", ".jsx", ".ts", ".tsx", ".mjs", ".cjs", ".mts", ".json", ".jsonc"]);
 const OPEN_RE = /^<{7}( |$)/;
 const CLOSE_RE = /^>{7}( |$)/;
-const TRUNC_RE = /\[Showing lines \d+-\d+ of \d+ \([^)]*limit\)\. Use offset=\d+ to continue\.\]/;
+const TRUNC_RE =
+  /\[Showing lines \d+-\d+ of \d+ \([^)]*limit\)\. Use offset=\d+ to continue\.\]|\[\d+ more lines in file\. Use offset=\d+ to continue\.\]/;
 
 function gitFiles(mode) {
   try {
@@ -83,11 +84,11 @@ for (const file of files) {
   } catch {
     continue;
   }
-  if (text.includes("\u0000")) continue;
   if (size > MAX_BYTES) {
     findings.push(`${file}:1 oversized ${size} bytes (max ${MAX_BYTES})`);
     continue;
   }
+  if (text.includes("\u0000")) continue;
   universal(file, text, findings);
   if (JS_EXTS.has(extname(file))) jsTs(file, findings);
 }

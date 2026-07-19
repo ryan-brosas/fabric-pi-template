@@ -68,7 +68,8 @@ export function resolveParams(
     typeof raw.changedSince === "string" && raw.changedSince.trim()
       ? raw.changedSince.trim()
       : env.PI_DIAGNOSTICS_CHANGED_SINCE?.trim() || "main";
-  const languages = Array.isArray(raw.languages) ? raw.languages.filter(isLanguage) : undefined;
+  const languageFilter = Array.isArray(raw.languages) ? raw.languages.filter(isLanguage) : undefined;
+  const languages = languageFilter?.length ? languageFilter : undefined;
   const includeFallow =
     typeof raw.includeFallow === "boolean"
       ? raw.includeFallow
@@ -187,17 +188,7 @@ function fallowPlans(params: ResolvedDiagnosticsParams, command?: string): Runne
       id: "fallow-health",
       label: "Fallow (health)",
       command,
-      args: [
-        "health",
-        "--format",
-        "json",
-        "--quiet",
-        "--changed-since",
-        params.changedSince,
-        "--score",
-        "--hotspots",
-        "--targets",
-      ],
+      args: ["health", "--format", "json", "--quiet", "--score", "--hotspots", "--targets"],
       formatter: "fallow-health",
       unavailableReason,
     },
@@ -205,7 +196,7 @@ function fallowPlans(params: ResolvedDiagnosticsParams, command?: string): Runne
       id: "fallow-dead-code",
       label: "Fallow (dead code)",
       command,
-      args: ["dead-code", "--format", "json", "--quiet", "--changed-since", params.changedSince],
+      args: ["dead-code", "--format", "json", "--quiet"],
       formatter: "fallow-dead",
       unavailableReason,
     },

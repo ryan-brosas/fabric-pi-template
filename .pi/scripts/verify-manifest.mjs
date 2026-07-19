@@ -39,7 +39,8 @@
 //                 top-level (direct children of rootDir) `runtime/` (runtime
 //                 cache, gitignored), `artifacts/` (per-feature runtime state),
 //                 `git/` and `npm/` (Pi provider package caches created at
-//                 project load), and `fabric/` (Fabric mesh state, mode 700);
+//                 project load), `state/` (extension-local session state), and
+//                 `fabric/` (Fabric mesh state, mode 700);
 //                 `.git/` and `node_modules/` anywhere in the tree; and the
 //                 manifest file `.template-manifest.json` at the root of
 //                 rootDir. The shipped static surface (scripts/, extensions/,
@@ -50,7 +51,7 @@
 //                 something the verifier cannot hash (a directory, a symlink
 //                 pointing outside rootDir, or a broken symlink), OR falls
 //                 under an excluded runtime/non-shipped dir (runtime/,
-//                 artifacts/, git/, npm/, fabric/, .git/,
+//                 artifacts/, git/, npm/, fabric/, state/, .git/,
 //                 node_modules/) — the shipped manifest carries no runtime
 //                 mesh state.
 //

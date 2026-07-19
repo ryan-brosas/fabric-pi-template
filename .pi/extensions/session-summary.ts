@@ -13,7 +13,15 @@ interface Summary {
   next: string[];
 }
 
-const fresh = (): Summary => ({ intent: "", state: "unknown", read: new Map(), modified: new Map(), created: new Set(), decisions: [], next: [] });
+const fresh = (): Summary => ({
+  intent: "",
+  state: "unknown",
+  read: new Map(),
+  modified: new Map(),
+  created: new Set(),
+  decisions: [],
+  next: [],
+});
 
 function normalized(path: string, cwd: string): string {
   const absolute = isAbsolute(path) ? path : resolve(cwd, path);
@@ -24,10 +32,16 @@ function normalized(path: string, cwd: string): string {
 function parse(raw: string): Summary {
   const out = fresh();
   for (const line of raw.split("\n")) {
-    const kind = line.slice(0, 1); const value = line.slice(3).trim(); if (!value) continue;
+    const kind = line.slice(0, 1);
+    const value = line.slice(3).trim();
+    if (!value) continue;
     const [left, right = ""] = value.split(" | ", 2);
     if (kind === "I") out.intent = value;
-    else if (kind === "S" && ["exploring", "implementing", "verifying", "done", "unknown"].includes(value)) out.state = value as Summary["state"];
+    else if (
+      kind === "S" &&
+      ["exploring", "implementing", "verifying", "done", "unknown"].includes(value)
+    )
+      out.state = value as Summary["state"];
     else if (kind === "R") out.read.set(left, right);
     else if (kind === "M") out.modified.set(left, right || "Modified");
     else if (kind === "C") out.created.add(value);
@@ -37,14 +51,27 @@ function parse(raw: string): Summary {
   return out;
 }
 
+// The durable format is line-oriented ("K: left | right"); flatten newlines
+// and the field delimiter out of free text so parse() can never misread a
+// continuation line as a record or drop a split(" | ", 2) remainder.
+function flat(t: string): string {
+  return t
+    .replace(/\s*[\r\n]+\s*/g, " · ")
+    .split(" | ")
+    .join(" ¦ ");
+}
+
 function serialize(s: Summary): string {
   return [
-    `I: ${s.intent}`, `S: ${s.state}`,
-    ...[...s.created].slice(-10).map((p) => `C: ${p}`),
-    ...[...s.modified].slice(-20).map(([p, d]) => `M: ${p} | ${d}`),
-    ...[...s.read].slice(-30).map(([p, d]) => `R: ${p}${d ? ` | ${d}` : ""}`),
-    ...s.decisions.slice(-10).map((d) => `D: ${d.what}${d.rationale ? ` | ${d.rationale}` : ""}`),
-    ...s.next.slice(-8).map((n) => `N: ${n}`),
+    `I: ${flat(s.intent)}`,
+    `S: ${s.state}`,
+    ...[...s.created].slice(-10).map((p) => `C: ${flat(p)}`),
+    ...[...s.modified].slice(-20).map(([p, d]) => `M: ${flat(p)} | ${flat(d)}`),
+    ...[...s.read].slice(-30).map(([p, d]) => `R: ${flat(p)}${d ? ` | ${flat(d)}` : ""}`),
+    ...s.decisions
+      .slice(-10)
+      .map((d) => `D: ${flat(d.what)}${d.rationale ? ` | ${flat(d.rationale)}` : ""}`),
+    ...s.next.slice(-8).map((n) => `N: ${flat(n)}`),
   ].join("\n");
 }
 
@@ -57,7 +84,11 @@ function format(s: Summary): string {
     for (const [p, d] of [...s.read].slice(-12)) lines.push(`read: ${p}${d ? ` — ${d}` : ""}`);
   }
   if (s.decisions.length) {
-    lines.push("", "== decisions ==", ...s.decisions.slice(-10).map((d) => `- ${d.what}${d.rationale ? ` | ${d.rationale}` : ""}`));
+    lines.push(
+      "",
+      "== decisions ==",
+      ...s.decisions.slice(-10).map((d) => `- ${d.what}${d.rationale ? ` | ${d.rationale}` : ""}`),
+    );
   }
   if (s.next.length) lines.push("", "== next ==", ...s.next.slice(-8).map((n) => `- ${n}`));
   const result = lines.join("\n");
@@ -79,7 +110,12 @@ export default function sessionSummary(pi: ExtensionAPI) {
   });
 
   pi.on("input", (event) => {
-    if (event.source !== "extension" && !summary.intent && !event.text.startsWith("/") && event.text.trim().length > 10) {
+    if (
+      event.source !== "extension" &&
+      !summary.intent &&
+      !event.text.startsWith("/") &&
+      event.text.trim().length > 10
+    ) {
       summary.intent = event.text.trim().replace(/\s+/g, " ").slice(0, 240);
       save();
     }
@@ -88,7 +124,8 @@ export default function sessionSummary(pi: ExtensionAPI) {
 
   pi.on("tool_call", (event, ctx) => {
     if (!["read", "edit", "write"].includes(event.toolName)) return;
-    const raw = String(event.input.path ?? event.input.filePath ?? "").trim(); if (!raw) return;
+    const raw = String(event.input.path ?? event.input.filePath ?? "").trim();
+    if (!raw) return;
     const path = normalized(raw, ctx.cwd);
     if (event.toolName === "read") summary.read.set(path, "");
     else if (event.toolName === "edit") summary.modified.set(path, "Edited");
@@ -101,17 +138,30 @@ export default function sessionSummary(pi: ExtensionAPI) {
   });
 
   pi.on("before_agent_start", (event) => {
-    if (!summary.intent && !summary.modified.size && !summary.decisions.length && !summary.next.length) return;
-    return { systemPrompt: `${event.systemPrompt}\n\n<session_summary>\n${format(summary)}\n</session_summary>` };
+    if (
+      !summary.intent &&
+      !summary.modified.size &&
+      !summary.decisions.length &&
+      !summary.next.length
+    )
+      return;
+    return {
+      systemPrompt: `${event.systemPrompt}\n\n<session_summary>\n${format(summary)}\n</session_summary>`,
+    };
   });
 
-  pi.on("session_before_compact", () => { save(); });
-  pi.on("session_shutdown", () => { save(); });
+  pi.on("session_before_compact", () => {
+    save();
+  });
+  pi.on("session_shutdown", () => {
+    save();
+  });
 
   pi.registerTool({
     name: "session_summary_update",
     label: "Session Summary",
-    description: "Update durable session state, decisions, and next steps used across compaction and reload.",
+    description:
+      "Update durable session state, decisions, and next steps used across compaction and reload.",
     parameters: Type.Object({
       state: Type.Optional(Type.String()),
       decision: Type.Optional(Type.String()),
@@ -121,10 +171,16 @@ export default function sessionSummary(pi: ExtensionAPI) {
       readFinding: Type.Optional(Type.String()),
     }),
     async execute(_id, args, _signal, _update, ctx) {
-      if (args.state && ["exploring", "implementing", "verifying", "done", "unknown"].includes(args.state)) summary.state = args.state as Summary["state"];
-      if (args.decision) summary.decisions.push({ what: args.decision, rationale: args.rationale ?? "" });
+      if (
+        args.state &&
+        ["exploring", "implementing", "verifying", "done", "unknown"].includes(args.state)
+      )
+        summary.state = args.state as Summary["state"];
+      if (args.decision)
+        summary.decisions.push({ what: args.decision, rationale: args.rationale ?? "" });
       if (args.nextStep) summary.next.push(args.nextStep);
-      if (args.readPath) summary.read.set(normalized(args.readPath, ctx.cwd), args.readFinding ?? "");
+      if (args.readPath)
+        summary.read.set(normalized(args.readPath, ctx.cwd), args.readFinding ?? "");
       save();
       return { content: [{ type: "text", text: format(summary) }], details: { path: summaryPath } };
     },

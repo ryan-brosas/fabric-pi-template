@@ -89,7 +89,7 @@ function formatFallow(
   ];
   const legacyFiles = array(data.unusedFiles ?? data.result?.unusedFiles ?? data.files);
   const categorized = keys.flatMap((key) => array(data[key]).map((finding) => ({ key, finding })));
-  const total = issueCount(data, categorized.length || legacyFiles.length);
+  const total = issueCount(data, categorized.length || legacyFiles.length) || categorized.length + legacyFiles.length;
   const recognized =
     data.kind === "dead-code" ||
     "total_issues" in data ||

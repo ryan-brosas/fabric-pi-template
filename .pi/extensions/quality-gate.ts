@@ -5,13 +5,24 @@ import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 
 const RUNNER = resolve(dirname(fileURLToPath(import.meta.url)), "../tools/quality/run-pack.mjs");
 const COMMIT_RE =
-  /\bgit(\s+(?:-C|-c|--git-dir|--work-tree|--namespace)(?:=\S+|\s+\S+)|\s+-\S+)*\s+commit\b/;
+  /\bgit(\s+(?:-C|-c|--git-dir|--work-tree|--namespace)(?:=\S+|\s+\S+)|\s+-\S+)*\s+commit(?![\w-])/;
 
-function runPack(args: string[], cwd: string): Promise<{ code: number; out: string }> {
+function runPack(
+  args: string[],
+  cwd: string,
+  failClosed = false,
+): Promise<{ code: number; out: string }> {
   return new Promise((done) => {
     execFile("node", [RUNNER, ...args], { cwd, timeout: 10000 }, (err, stdout, stderr) => {
-      // timeout: fail open, never wedge a session
-      if (err && (err as { killed?: boolean }).killed) return done({ code: 0, out: "" });
+      // Timeout: the L1 annotation path fails open (never wedge a session), but
+      // the L2 blocking path fails closed — an unverifiable staged set must not
+      // slip past the commit gate.
+      if (err && (err as { killed?: boolean }).killed)
+        return done(
+          failClosed
+            ? { code: 124, out: "quality-pack: staged check timed out (fail closed)" }
+            : { code: 0, out: "" },
+        );
       const status = err ? (err as { code?: number | string }).code : 0;
       const code = typeof status === "number" ? status : err ? 1 : 0;
       done({ code, out: `${stdout ?? ""}${stderr ?? ""}`.trim() });
@@ -37,7 +48,7 @@ export default function qualityGate(pi: ExtensionAPI) {
     if (event.toolName !== "bash") return;
     const command = String(event.input.command ?? "");
     if (!COMMIT_RE.test(command)) return;
-    const { code, out } = await runPack(["--staged"], process.cwd());
+    const { code, out } = await runPack(["--staged"], process.cwd(), true);
     if (code !== 0) {
       return {
         block: true,

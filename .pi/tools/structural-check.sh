@@ -54,7 +54,7 @@ check_file_imports() {
 		[ "$other" = "$plugin" ] && continue
 		# Relative import whose first real path segment is another plugin.
 		# Matches ./other, ./other.js, ./other/sub, ../other, ../other/sub, …
-		if grep -qE "from ['\"]((\.\./)+(\./)?|\./)$other((/[^'\"]*)|\.js)?['\"]" "$file" 2>/dev/null; then
+		if grep -qE "from ['\"]((\.\./)+(\./)?|\./)$other((/[^'\"]*)|\.(js|ts))?['\"]" "$file" 2>/dev/null; then
 			fail "$(basename "$file") (plugin $plugin) imports from plugin $other — use SDK instead"
 			cross_violation=1
 		fi

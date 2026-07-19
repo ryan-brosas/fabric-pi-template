@@ -32,6 +32,17 @@ test("defaults enable installed-only quality analysis without creating npx plans
     ["typescript", "fallow-health", "fallow-dead-code", "aislop"],
   );
   assert.ok(plans.every((plan) => plan.command !== "npx"));
+  for (const plan of plans.filter((p) => p.id.startsWith("fallow-")))
+    assert.ok(
+      !plan.args.includes("--changed-since"),
+      `${plan.id}: full scope scans the whole project`,
+    );
+});
+
+test("empty languages array means no filter, same as omitted", () => {
+  const exists = has("tsconfig.json");
+  const params = resolveParams({ languages: [] }, root, {}, exists);
+  assert.equal(params.languages, undefined);
 });
 
 test("changed scope applies changedSince to the single Fallow changed plan", () => {

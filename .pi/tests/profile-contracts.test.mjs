@@ -475,6 +475,23 @@ test("/team mechanically requires research, addressed mesh peers, and same-cycle
     /JSON[.]parse[(]line[)]/,
     /REVIEW_PAYLOAD_LIMIT/,
     /review-payload-too-large/,
+    // durable state ledger
+    /ledgerTransition/,
+    /state[.]transition/,
+    // schema-transaction integration + rollback
+    /schema[.]hypothesize/,
+    /schema[.]verify/,
+    /schema[.]commit/,
+    /restoreOps/,
+    // governed dispatch
+    /runGoverned/,
+    /agents[.]spawn/,
+    /agents[.]wait/,
+    /agents[.]steer/,
+    // skill resolution enforcement
+    /function resolveSkills/,
+    /unknown skill [(]reject, do not spawn[)]/,
+    /leaf-denied skill/,
   ])
     assert.match(team, pattern);
 

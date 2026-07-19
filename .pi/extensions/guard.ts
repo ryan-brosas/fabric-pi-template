@@ -1,19 +1,27 @@
 import { resolve } from "node:path";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 
-const CONVENTIONAL_RE = /^(feat|fix|docs|style|refactor|perf|test|build|ci|chore|revert)(\([a-z0-9._/-]+\))?!?: .+/;
+const CONVENTIONAL_RE =
+  /^(feat|fix|docs|style|refactor|perf|test|build|ci|chore|revert)(\([a-z0-9._/-]+\))?!?: .+/;
 const FABRIC_TOOL_NAMES = new Set(["fabric_exec"]);
 
 function isFabricTool(toolName: string): boolean {
   return FABRIC_TOOL_NAMES.has(toolName) || toolName.startsWith("fabric_");
 }
-const secretPatterns = [/\.env(?:\..*)?$/i, /\.(?:key|pem)$/i, /credentials/i, /password/i, /secret/i, /token/i];
+const secretPatterns = [
+  /\.env(?:\..*)?$/i,
+  /\.(?:key|pem)$/i,
+  /credentials/i,
+  /password/i,
+  /secret/i,
+  /token/i,
+];
 const hardDeny = [
-  /(?:^|[;&|]\s*)rm\s/i,
+  /(?:^|[;&|(\n`]\s*)rm\s/i,
   /\brm\s+-rf\b/i,
-  /\bsudo\b/i,
+  /(?:^|[;&|(\n`]\s*)sudo\s/i,
   /npm\s+run\s+db:reset/i,
-  /git\s+add\s+(?:\.|-A)(?:\s|$)/i,
+  /git\s+add\s+(?:\.|-A)(?:[\s;&|]|$)/i,
   /--no-verify\b/i,
   /(?:^|[;&|])\s*(?:curl|wget)\s.*\|\s*(?:ba)?sh\b/i,
 ];
@@ -43,8 +51,15 @@ export default function guard(pi: ExtensionAPI) {
       }
       const cwd = resolve(ctx.cwd);
       if (!normalized.startsWith(`${cwd}/`) && normalized !== cwd) {
-        if (!ctx.hasUI) return { block: true, reason: "External-directory access blocked without interactive confirmation" };
-        const ok = await ctx.ui.confirm("External path", `Allow ${event.toolName} outside the project?\n${normalized}`);
+        if (!ctx.hasUI)
+          return {
+            block: true,
+            reason: "External-directory access blocked without interactive confirmation",
+          };
+        const ok = await ctx.ui.confirm(
+          "External path",
+          `Allow ${event.toolName} outside the project?\n${normalized}`,
+        );
         if (!ok) return { block: true, reason: "External-directory access declined" };
       }
       return;
@@ -57,16 +72,24 @@ export default function guard(pi: ExtensionAPI) {
 
     const commit = command.match(/git\s+commit\b/);
     if (commit) {
-      const msg = command.match(/(?:-m|--message=?)\s*"([^"]*)"/)?.[1]
-        ?? command.match(/(?:-m|--message=?)\s*'([^']*)'/)?.[1]
-        ?? command.match(/(?:-m|--message=?)\s+(\S+)/)?.[1];
+      const msg =
+        command.match(/(?:-m|--message=?)\s*"([^"]*)"/)?.[1] ??
+        command.match(/(?:-m|--message=?)\s*'([^']*)'/)?.[1] ??
+        command.match(/(?:-m|--message=?)\s+(\S+)/)?.[1];
       if (!msg || !CONVENTIONAL_RE.test(msg)) {
-        return { block: true, reason: "Commit message must use Conventional Commits: type(scope): subject" };
+        return {
+          block: true,
+          reason: "Commit message must use Conventional Commits: type(scope): subject",
+        };
       }
     }
 
     if (confirmPatterns.some((pattern) => pattern.test(command))) {
-      if (!ctx.hasUI) return { block: true, reason: "Confirmation-required command blocked without interactive UI" };
+      if (!ctx.hasUI)
+        return {
+          block: true,
+          reason: "Confirmation-required command blocked without interactive UI",
+        };
       const ok = await ctx.ui.confirm("Confirm command", command);
       if (!ok) return { block: true, reason: "Command declined by operator" };
     }
