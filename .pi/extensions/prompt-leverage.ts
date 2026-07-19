@@ -24,15 +24,10 @@ const keywords: Record<string, string[]> = {
 
 function detectTask(prompt: string): string {
   const lower = prompt.toLowerCase();
-  return Object.entries(keywords)
-    .map(([task, terms]) => [task, terms.filter((term) => lower.includes(term)).length] as const)
-    .sort((a, b) => b[1] - a[1])[0]?.[1]
-    ? Object.entries(keywords)
-        .map(
-          ([task, terms]) => [task, terms.filter((term) => lower.includes(term)).length] as const,
-        )
-        .sort((a, b) => b[1] - a[1])[0]![0]
-    : "analysis";
+  const [task, hits] = Object.entries(keywords)
+    .map(([name, terms]) => [name, terms.filter((term) => lower.includes(term)).length] as const)
+    .sort((a, b) => b[1] - a[1])[0]!;
+  return hits > 0 ? task : "analysis";
 }
 
 function upgradePrompt(original: string): string {

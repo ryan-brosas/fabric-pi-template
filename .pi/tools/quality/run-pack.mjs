@@ -7,6 +7,7 @@ const MAX_BYTES = 512000;
 const JS_EXTS = new Set([".js", ".jsx", ".ts", ".tsx", ".mjs", ".cjs", ".mts", ".json", ".jsonc"]);
 const OPEN_RE = /^<{7}( |$)/;
 const CLOSE_RE = /^>{7}( |$)/;
+const TRUNC_RE = /\[Showing lines \d+-\d+ of \d+ \([^)]*limit\)\. Use offset=\d+ to continue\.\]/;
 
 function gitFiles(mode) {
   try {
@@ -35,6 +36,9 @@ function universal(file, text, findings) {
   lines.forEach((line, i) => {
     if (OPEN_RE.test(line) || CLOSE_RE.test(line) || (line === "=======" && conflict)) {
       findings.push(`${file}:${i + 1} merge-marker conflict marker present`);
+    }
+    if (TRUNC_RE.test(line)) {
+      findings.push(`${file}:${i + 1} truncation-marker pi-read truncation banner captured in content`);
     }
   });
   if (text.length > 0 && !text.endsWith("\n")) {

@@ -21,6 +21,12 @@ test("clean file passes", () => {
   assert.equal(r.status, 0);
 });
 
+test("pi-read truncation banner fails", () => {
+  const r = run([join(FIX, "bad-truncation.txt")]);
+  assert.notEqual(r.status, 0);
+  assert.match(r.stdout, /truncation-marker/);
+});
+
 test("missing eof newline fails", () => {
   const r = run([join(FIX, "no-eof.txt")]);
   assert.notEqual(r.status, 0);

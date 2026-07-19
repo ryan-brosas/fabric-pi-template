@@ -111,6 +111,10 @@ node .pi/scripts/verify-manifest.mjs
 pi --approve --list-models
 ```
 
+After editing any shipped template file, reseal the release surface with
+`node .pi/scripts/generate-manifest.mjs` (it composes the verifier's walk),
+then re-run `verify-manifest.mjs` to confirm a clean boundary.
+
 ## Known Pi boundary
 
 Pi project settings do not own user-global keybindings. The profile registers
