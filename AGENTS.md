@@ -166,6 +166,29 @@ A failing check may encode a superseded decision rather than a defect. Before ch
 - Preserve unrelated user changes.
 - Use absolute paths for file operations.
 
+## Standing Authorization — /night runs
+
+The following are pre-approved WITHOUT per-run confirmation, and only during
+`/night` runs (the autonomous night pipeline; see `.pi/artifacts/night-pipeline/`):
+
+- `git push origin night/<slug>` — pushing night-pipeline branches to origin.
+- `gh pr create --draft` from a `night/*` branch — opening draft PRs.
+
+NEVER pre-approved (always require explicit human action):
+
+- Merging a PR — merge remains permanently human. No auto-merge, ever.
+- Pushing to `main` or `master`.
+- Closing PRs.
+- Force pushes (`--force`, `--force-with-lease`, `-f`) of any kind.
+
+The push carve-out is encoded in `.pi/extensions/guard.ts` (night-branch push
+allowance); `gh pr create --draft` already passes the guard. Enforcement note:
+the guard mechanically enforces the ref scope (any `night/*` push passes
+unconfirmed; force pushes are rejected; non-`night/*` pushes stay confirm-gated)
+and confirm-gates `gh pr merge` / `gh pr close`; the "/night-only" scoping and
+the remainder of the NEVER list are behavioral rules agents must honor. All
+other Safety and Git rules above still apply in full.
+
 ---
 
 Note for Codex/GPT:

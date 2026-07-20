@@ -29,7 +29,33 @@ const confirmPatterns = [
   /git\s+(?:checkout|clean|commit|merge|push|rebase|reset)\b/i,
   /npm\s+publish\b/i,
   /npm\s+run\s+db:push\b/i,
+  /gh\s+pr\s+(?:merge|close)\b/i,
 ];
+
+// Scoped allowance for the autonomous night pipeline: `git push origin night/<slug>`
+// proceeds without operator confirmation. Force pushes, colon refspecs (which
+// can rewrite main/master, e.g. `night/x:main`), and any non-night ref stay
+// confirm-gated by falling through to confirmPatterns below.
+function isNightBranchPush(command: string): boolean {
+  const head = command.match(/^\s*git\s+push\b(.*)$/i);
+  if (!head) return false;
+  const rest = head[1];
+  if (/:/.test(rest)) return false; // reject any colon refspec
+  if (/(?:^|\s)--force/i.test(rest)) return false; // --force, --force-with-lease, ...
+  const shortFlags = rest.match(/(?:^|\s)-([a-zA-Z]+)/g) ?? [];
+  if (shortFlags.some((g) => g.toLowerCase().includes("f"))) return false; // -f force, incl. -uf
+  const tokens = rest.trim().split(/\s+/).filter(Boolean);
+  let i = 0;
+  while (i < tokens.length && tokens[i].startsWith("-")) i++;
+  if (tokens[i] !== "origin") return false;
+  const refs = tokens.slice(i + 1);
+  if (refs.length === 0) return false;
+  return refs.every((r) => {
+    if (!r.startsWith("night/")) return false;
+    const segments = r.slice("night/".length).split("/");
+    return segments.length > 0 && segments.every((s) => s !== ".." && /^[A-Za-z0-9._-]+$/.test(s));
+  });
+}
 
 function pathArg(event: { input: Record<string, unknown> }): string {
   return String(event.input.path ?? event.input.filePath ?? "");
@@ -83,6 +109,8 @@ export default function guard(pi: ExtensionAPI) {
         };
       }
     }
+
+    if (isNightBranchPush(command)) return; // unattended night/* branch push
 
     if (confirmPatterns.some((pattern) => pattern.test(command))) {
       if (!ctx.hasUI)
