@@ -9,8 +9,10 @@ lifecycle prompts ported from `.opencode/command/*.md` (took all of each body, s
 OpenCode-only syntax, re-pointed to `.pi/artifacts/<slug>/`). Milestone 4 implementation done:
 canonical-artifact hardening — `/create` sole namespace owner (established = PLAN+TODO,
 downstream fail-closed), `/gc` project-wide slugless response-only, two-surface contract
-(ADR-007: lifecycle state vs optional project memory). Verification fingerprint tools and
-runtime smoke remain.
+(ADR-007: lifecycle state vs optional project memory). Milestone 5 implementation done — verification pending: worker topology + distrust hardened — `subagents.extensions:false`
+safe default + ADR-009, canonical Makora `agents.run` dispatch block + 1-Makora enforcement,
+host-derived candidate intake in `/ship`, milestone-6 observational worker-policy smoke.
+Verification fingerprint tools and runtime smoke remain (milestone 6).
 
 This pass:
 - `AGENTS.md` + `.opencode/{tech-stack,roadmap,state,user}.md` + `.pi/.gitignore` +

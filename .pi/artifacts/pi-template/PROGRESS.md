@@ -170,6 +170,54 @@ Verification fingerprint (candidate; final no-write verification is Task C3):
   runtime smoke (prompt discovery, slug validation, `/ship` no-completion, `/verify`
   external-only) — pending `/trust` + restart; structural fingerprint tools — pending `.pi/tools/`.
 
+### 2026-07-22 - Roadmap milestone 5 — worker topology + distrust
+status: done (implementation; final no-write verification PENDING — not VERIFIED)
+
+Audit + hardening pass on the worker-topology + distrust contract. Two operator
+resolutions binding: (1) pin `subagents.extensions:false` (safe read-only default;
+Makora overrides `extensions:true` per-call); (2) exclude `bash` from the Makora
+allowlist (exact writable tools: read, grep, find, ls, edit, write — no shell, no
+network).
+
+Changes (commits `eac416c`, `bd1a746`, `bcbbda4` + this pass):
+- A1 `bd1a746`: `.pi/fabric.json` `subagents.extensions:false`; AGENTS.md states the
+  default is false with Makora per-call true; DECISIONS.md ADR-009 (safe default +
+  per-call exception, mirroring ADR-003).
+- A2 `bcbbda4`: PLAN.md canonical Makora `agents.run` dispatch block (model
+  `makora/zai-org/GLM-5.2-NVFP4`, thinking max, extensions true, recursive false,
+  tools read/grep/find/ls/edit/write, worktree false) + 1-Makora enforcement (Main's
+  one-blocking-writable-run discipline, not maxConcurrent); AGENTS.md mirrors.
+- B1: `ship.md` host-derived candidate intake (Main derives candidate paths/bytes
+  from the worktree, never worker self-report; pre-task baseline + post-settlement
+  intake); PLAN.md milestone-6 observational worker-policy smoke.
+- B2: this PROGRESS entry + TODO.md entry + state.md update.
+
+Candidate evidence (pending final no-write verification):
+- V1 (safe default + ADR-009): `subagents.extensions:false` PASS; AGENTS sentence
+  PASS; ADR-009 heading PASS. `git diff --exit-code HEAD -- .pi/fabric.json` shows a
+  diff from concurrent pi-fabric 0.23.0 upgrade work (compaction.engine, executor
+  block, subagents.model/thinking) — preserved per multi-agent policy, not reverted;
+  A1's `extensions:false` pin is intact. The full-file-clean assertion is stale under
+  the 0.23.0 upgrade and will be relaxed in C1.
+- V2 (canonical dispatch block): all 8 dispatch fields present, no `bash`/`fabric_exec`.
+- V3 (one writable run policy): AGENTS + PLAN both contain the exact one-blocking-run
+  sentence.
+- V4 (host-derived candidate intake): all 10 required phrases present in ship.md.
+- V5 (milestone-6 smoke): all 7 required phrases present in PLAN.md.
+- V6 (source preservation): source commands byte-unchanged vs `bebd044`; ship.md
+  baseline headings preserved.
+- V7 (candidate evidence): TODO + PROGRESS dated entries; state.md implementation-done.
+- V8 (binding doc + graph): prd.json valid; 6-task serial graph A:2/B:2/C:2; C1 owns
+  prd.json; C2 no-write `/verify`-owned. Roadmap milestone-5 implementation status.
+- Forbidden-token + slug regression: CLEAN; slug 5/5; ship no-completion; verify
+  sole-authority — all PASS.
+
+Not yet run: final no-write verification (Task C2 — `/verify`-owned, external
+declaration only, no repository write after the final before/after fingerprint).
+Runtime smoke (milestone 6) — two concurrent writable requests yield one running
+Makora; read-only GPT work overlaps; Main does not edit until the run settles —
+requires `/trust` + restart, deferred to milestone 6.
+
 ### Verification fingerprint
 - HEAD pre-init-deep-pass: `dbf74b7`
 - HEAD post-init-deep-pass: `912b2db` (pushed to `origin/main` + `origin/master`,

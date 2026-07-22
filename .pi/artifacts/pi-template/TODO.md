@@ -63,6 +63,20 @@ status: done (implementation; final no-write verification pending)
       source immutability against `bebd044`; heading preservation 6/6; `git diff --check` exit=0.
 - [ ] C3: Final no-write static verification (external declaration only) — pending.
 
+### 2026-07-22 - Roadmap milestone 5 — worker topology + distrust
+status: done (implementation; final no-write verification pending)
+- [x] A1: Pin `subagents.extensions:false` safe default + ADR-009 (fabric.json, AGENTS,
+      DECISIONS) (commit `bd1a746`).
+- [x] A2: Pin canonical Makora `agents.run` dispatch block + 1-Makora enforcement in
+      PLAN + AGENTS (commit `bcbbda4`).
+- [x] B1: Encode host-derived candidate intake in ship.md + milestone-6 observational
+      worker-policy smoke in PLAN.md.
+- [x] B2: Record candidate evidence (TODO.md, PROGRESS.md, state.md — this entry).
+- [ ] C1: Align binding spec/prd/roadmap (implementation done — verification pending).
+- [ ] C2: Final no-write static verification (external declaration only) — pending.
+- [ ] Runtime smoke (milestone 6): two concurrent writable → one runs; read-only overlaps;
+      Main edit refused. Requires `/trust` + restart.
+
 ### 2026-07-22 - Milestone 5: Verification fingerprint
 status: pending
 - [ ] Add `.pi/tools/` fingerprint capture (HEAD, staged/unstaged digests, untracked
