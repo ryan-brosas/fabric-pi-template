@@ -230,10 +230,10 @@ describe("launcher.ts — launch() construction", () => {
   test("launch() builds the exact A1 argv (provider/model/thinking/print/no-session present)", () => {
     const l = launch({ manifestPath: MANIFEST_PATH, profileId: "writer" });
     const argv = l.argv;
-    // A1 argv shape: pi_path, --no-approve ... --tools fabric_exec, -e lane-ext,
+    // A1 argv shape: pi_path, --approve ... --tools fabric_exec, -e pi-fabric, -e lane-ext,
     // [-e provider_source], --mode rpc, --provider, --model, --thinking, --print, --no-session.
     assert.equal(argv[0], JSON.parse(readFileSync(MANIFEST_PATH, "utf8")).pinned_versions.pi_path);
-    assert.ok(argv.includes("--no-approve"));
+    assert.ok(argv.includes("--approve"));
     assert.ok(argv.includes("--no-extensions"));
     assert.ok(argv.includes("--tools"));
     assert.ok(argv.includes("fabric_exec"));

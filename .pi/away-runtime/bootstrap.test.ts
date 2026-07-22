@@ -222,7 +222,7 @@ describe("bootstrap exact RPC argv", () => {
     assert.equal(a[0], "/home/ryan/.local/bin/pi", "argv[0] is the pinned pi binary");
     const flags = new Set(a);
     for (const f of [
-      "--no-approve",
+      "--approve",
       "--no-context-files",
       "--no-extensions",
       "--no-skills",
@@ -240,16 +240,22 @@ describe("bootstrap exact RPC argv", () => {
     assert.equal(a[a.indexOf("--provider") + 1], "makora");
     assert.equal(a[a.indexOf("--model") + 1], "makora/zai-org/GLM-5.2-NVFP4");
     assert.equal(a[a.indexOf("--thinking") + 1], "max");
-    // exactly two -e: the lane extension (repo-resolved) + the makora provider source
+    // exactly three -e: pi-fabric (so fabric_exec registers under --no-extensions) +
+    // the lane extension (repo-resolved) + the makora provider source
     const ePaths = a.filter((_, i) => a[i - 1] === "-e");
-    assert.equal(ePaths.length, 2, "writer loads lane extension + makora provider");
+    assert.equal(ePaths.length, 3, "writer loads pi-fabric + lane extension + makora provider");
     assert.equal(
       ePaths[0],
+      resolve(REPO_ROOT, ".pi/npm/node_modules/pi-fabric", "dist/index.js"),
+      "pi-fabric entry resolved against repo root",
+    );
+    assert.equal(
+      ePaths[1],
       resolve(REPO_ROOT, ".pi/away-runtime/lane-extension.ts"),
       "lane extension resolved against repo root",
     );
     assert.equal(
-      ePaths[1],
+      ePaths[2],
       "/home/ryan/.pi/agent/git/github.com/monotykamary/pi-makora-provider/index.ts",
       "makora provider source pinned",
     );
@@ -262,8 +268,9 @@ describe("bootstrap exact RPC argv", () => {
       processEnv: cleanEnv(),
     });
     const ePaths = r.argv.filter((_, i) => r.argv[i - 1] === "-e");
-    assert.equal(ePaths.length, 1, "only the lane extension -e; openai-codex is built-in");
-    assert.equal(ePaths[0], resolve(REPO_ROOT, ".pi/away-runtime/lane-extension.ts"));
+    assert.equal(ePaths.length, 2, "pi-fabric + lane extension -e; openai-codex is built-in");
+    assert.equal(ePaths[0], resolve(REPO_ROOT, ".pi/npm/node_modules/pi-fabric", "dist/index.js"));
+    assert.equal(ePaths[1], resolve(REPO_ROOT, ".pi/away-runtime/lane-extension.ts"));
     assert.equal(r.argv[r.argv.indexOf("--provider") + 1], "openai-codex");
     assert.equal(r.argv[r.argv.indexOf("--model") + 1], "openai-codex/gpt-5.6-sol");
   });

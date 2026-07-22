@@ -259,9 +259,14 @@ function buildArgv(
   manifest: Manifest,
   repoRoot: string,
 ): string[] {
+  // --approve trusts the inert control cwd non-interactively (projectTrustOverride,
+  // project-trust.js:19 returns it before any UI prompt) so pi-fabric reads the
+  // synthetic <controlCwd>/.pi/fabric.json (config.js:380 reads the project fabric.json
+  // only when projectTrusted). The control cwd is host-owned and inert; --no-approve
+  // would leave it untrusted and the per-lane config inert.
   const argv: string[] = [
     manifest.pinned_versions.pi_path,
-    "--no-approve",
+    "--approve",
     "--no-context-files",
     "--no-extensions",
     "--no-skills",
@@ -270,6 +275,11 @@ function buildArgv(
     "--tools",
     "fabric_exec",
   ];
+  // pi-fabric must be loaded explicitly: --no-extensions keeps only explicit -e paths
+  // (resource-loader.js:267) and drops the packages-discovered npm:pi-fabric, so without
+  // this the fabric_exec tool never registers. Entry is dist/index.js (package main).
+  const piFabricPath = manifest.pinned_versions.pi_fabric_path;
+  argv.push("-e", resolve(repoRoot, piFabricPath, "dist/index.js"));
   // Lane extension (always; resolved against the host repo root).
   const laneExt = manifest.extensions.lane_extension;
   argv.push("-e", isAbsolute(laneExt) ? laneExt : resolve(repoRoot, laneExt));
@@ -316,7 +326,11 @@ export function bootstrap(profileId: string, opts: BootstrapOptions = {}): Boots
   mkdirSync(controlCwd, { recursive: true });
 
   const fabricConfig = buildFabricConfig(lane, model, manifest);
-  const fabricJsonPath = join(controlCwd, "fabric.json");
+  // pi-fabric reads the project config from <cwd>/.pi/fabric.json (config.js:380),
+  // never the bare control-cwd root. The .pi dir is created here; --approve (buildArgv)
+  // makes the inert control cwd trusted so this file is actually read.
+  mkdirSync(join(controlCwd, ".pi"), { recursive: true });
+  const fabricJsonPath = join(controlCwd, ".pi", "fabric.json");
   const fabricJsonBytes = Buffer.from(JSON.stringify(fabricConfig, null, 2) + "\n", "utf8");
   writeFileSync(fabricJsonPath, fabricJsonBytes);
   const fabricJsonHash = createHash("sha256").update(fabricJsonBytes).digest("hex");
