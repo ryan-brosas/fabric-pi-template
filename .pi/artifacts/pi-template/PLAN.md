@@ -96,7 +96,7 @@ No file-routed roles.
 | Lane | `runner` | `model` | `thinking` | `extensions` | `tools` | `worktree` |
 |---|---|---|---|---|---|---|
 | GPT read-only (plan/review/debug/explore/scout) | `pi` | `openai-codex/gpt-5.6-sol` or `gpt-5.4-mini` | `max` | `false` | `read,grep,find,ls` | `false` |
-| Makora implement | `pi` | `makora/zai-org/GLM-5.2-NVFP4` | `max` | **`true`** | `read,grep,find,ls,edit,write,bash` (exact allowlist) | `true` for isolated impl; `false` for in-place |
+| Makora implement | `pi` | `makora/zai-org/GLM-5.2-NVFP4` | `max` | **`true`** | `read,grep,find,ls,edit,write` (exact, no `bash`) | `false` (in-place; a Fabric worktree breaks host-derived intake) |
 | Supervisor (ambient) | `pi` | `openai-codex/gpt-5.6-sol` | `max` | `false` | `read,grep,find,ls` | N/A (persistent actor rejects `worktree`) |
 
 **Extension split (load-bearing):** `extensions:false` → Fabric passes Pi `--no-extensions`
@@ -106,6 +106,31 @@ writable tool allowlist.
 
 **Writable work is blocking:** use `agents.run()` (not `spawn`/`parallel`) for the Makora
 lane. No writable fan-out. Main does not edit until the run settles.
+
+### Canonical Makora implementation dispatch
+
+Every Makora implementation run uses this identical dispatch shape — no per-call variation:
+
+```typescript
+await agents.run({
+  task: "<bounded implementation task>",
+  runner: "pi",
+  model: "makora/zai-org/GLM-5.2-NVFP4",
+  thinking: "max",
+  extensions: true,
+  recursive: false,
+  tools: ["read", "grep", "find", "ls", "edit", "write"],
+  worktree: false,
+});
+```
+
+- `extensions:true` resolves the Makora provider (see Extension split above); `extensions:false` would fail.
+- `recursive:false` keeps the worker a leaf — Fabric forces `extensions:true` for recursive Pi runs (`pi-fabric/dist/subagents/manager.js:332-337`), so pinning `false` is the leaf guardrail.
+- `worktree:false` keeps the worker in the current worktree; a Fabric worktree (`true`) is a separate checkout the host-derived candidate intake cannot observe.
+- `tools` is the exact, pinned non-shell allowlist — no `bash`, no network. The worker edits and reads; Main runs all verification after settlement.
+- Main issues at most one blocking writable `agents.run()` at a time, does not issue the next writable run until settlement, and makes no edit or write call while it is active.
+- `maxConcurrent` is shared child headroom bounding total concurrent children across writable and read-only tiers — it is not the writable pool. Read-only `spawn`/`parallel` children may overlap the writable run up to `maxConcurrent`.
+- If an implementation genuinely needs an intermediate command, Main splits the work into serial worker runs around a Main-owned command; there is no general exact-argv child command runner (`schema.trustedCommands` is schema-verification machinery only).
 
 ## Advisory Supervisor
 
