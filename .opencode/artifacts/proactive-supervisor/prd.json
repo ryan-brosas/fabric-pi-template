@@ -1,0 +1,215 @@
+{
+  "title": "Proactive Supervisor — ambient senior engineer with boundary-proactive direction steer",
+  "slug": "proactive-supervisor",
+  "created": "2026-07-22",
+  "id": "ps-001",
+  "approach": "Partially supersede ADR-008's 'steers Main ONLY on drift' clause (narrower than ADR-011's supersession) while preserving ADR-008's single supervisor, no mailbox panel, no standalone /gate, ABSOLUTE never-dispatches (not 'never-dispatches-writable'), never-edits, extensions:false read-only posture, per-session scope, and Main-sole-integrator. Extend the supervisor from reactive-only to reactive + boundary-proactive via an EXPLICIT BLOCKING HANDSHAKE in each lifecycle prompt (user-approved, replacing unreliable best-effort agent_settled inference): /create Phase 10B, /plan Phase 8B, /research Phase 5, /ship Phase 6A — all after the phase's writes/review/close settle and before Output. /verify gets NO handshake (supervisor is opener-only; verify remains closer + sole terminal-verified authority per ADR-006). At each boundary the supervisor scouts for direction/strategy (prior art, cross-slug redundancy, superseded decisions, gold-plating, a better path) and steers as the OPENER for the next phase, leaving the ADR-011 review gate as the CLOSER that audits the just-finished artifact (past vs future object split, no overlap). Add a read-only research-request capability that is Main-mediated via a two-round blocking handshake: the supervisor is extensions:false so it cannot spawn (pi-fabric 0.23.0 docs/agents.md:214: extensions:false opts out of agents.*); round 1 Main sends agents.ask({id,message,data:{protocol:'proactive-supervisor/v1',kind:'phase-complete',requestId,...}}), the actor responds with action:'silent' + data (kind:no-advice|direction-steer|research-request); if research-request, Main runs ONE agents.run on gpt-5.4-mini (read-only, extensions:false, recursive:false, read/grep/find/ls, worktree:false), synthesizes a <=8KiB non-secret summary with source paths, and sends round 2 agents.ask({...,kind:'research-result',requestId,...}); the actor responds with action:'silent' + final direction-steer/no-advice. CRITICAL: direct protocol responses MUST use action:'silent' with payload in data — action:'message' is auto-delivered by delivery:'steer' BEFORE agents.ask resolves (manager.js:734-758), bypassing Main validation; action:'message' is reserved for ambient reactive steering only. The agents.ask/agents.run schema is object-form with message required (agents.tell(supervisorId, results) positional form is INVALID). agents.ask resolves reliably even on action:silent (manager.js:362-399,684-758). Main resolves exactly one session-local 'supervisor' actor by exact id from agents.actors(); never address by canonical name over mesh; absent/stopped/ambiguous -> warn and continue (supervisor optional, advisory). Run model is V2: ambient gpt-5.6-sol thinking-max on every agent_settled wake (highest cost, accepted over tiered V4 for steering quality); research on gpt-5.4-mini (fast). Authority is advisory always BUT independently validated Critical/High defects and binding-authority (ADR/AGENTS) violations retain their EXISTING blocking semantics under Main (not because actor self-declares blocking). No mid-writable-run injection: the handshake fires between phases only. Single FIFO semaphore (no auto-yield) but contention is naturally avoided since the handshake is between phases. Research candidates derive from namespace state: absent->['create'], established->['plan','ship'], partial->[]+operator-recovery. Actor configuration is UNCHANGED (same model/tools/events/responseMode/scope); only the instructions and the lifecycle prompt phases change. ADR-012 records the partial supersession; ADR-008 gets a forward reference. Ships after lifecycle-review-gates (ADR-011) settled at HEAD dd0bf96; ADR-012 is next available. The stale pi-fabric 0.22.4 field matrix in supervise.md:29,40-42 is NOTICED BUT NOT TOUCHING (not load-bearing; the actor config is unchanged).",
+  "blocks": [
+    "lifecycle-review-gates (ADR-011) must settle for shared files (supervise.md was protected by that feature; AGENTS/DECISIONS/PLAN/tech-stack/roadmap/state/create/plan/ship) — SETTLED at HEAD dd0bf96; ADR-011 present at DECISIONS.md:304",
+    "ADR-012 is next available (ADR-010 = prewalk handoff, ADR-011 = lifecycle review gates)",
+    "The supervisor actor configuration is UNCHANGED (extensions:false read-only posture preserved; ADR-008's ABSOLUTE never-dispatches preserved via Main-mediated research)",
+    "No new agent lane or model tier; no capability widening (supervisor stays extensions:false, read/grep/find/ls, no bash, non-recursive; research on existing gpt-5.4-mini explore/scout lane)",
+    "No change to .pi/fabric.json, .pi/settings.json, .opencode/command/*.md source bodies, /verify.md (no handshake), or historical milestone artifacts",
+    "No mid-writable-run injection; handshake fires between phases only"
+  ],
+  "manifests": {
+    "write_paths": [
+      ".pi/prompts/supervise.md",
+      ".pi/prompts/create.md",
+      ".pi/prompts/plan.md",
+      ".pi/prompts/research.md",
+      ".pi/prompts/ship.md",
+      ".pi/artifacts/pi-template/DECISIONS.md",
+      ".pi/artifacts/pi-template/PLAN.md",
+      "AGENTS.md",
+      ".opencode/tech-stack.md",
+      ".opencode/roadmap.md",
+      ".opencode/state.md",
+      ".opencode/artifacts/proactive-supervisor/spec.md",
+      ".opencode/artifacts/proactive-supervisor/prd.json",
+      ".opencode/artifacts/proactive-supervisor/plan.md",
+      ".opencode/artifacts/.active"
+    ],
+    "protected_source_paths": [
+      ".opencode/command/audit.md",
+      ".opencode/command/create.md",
+      ".opencode/command/fix.md",
+      ".opencode/command/gc.md",
+      ".opencode/command/init.md",
+      ".opencode/command/plan.md",
+      ".opencode/command/research.md",
+      ".opencode/command/ship.md",
+      ".opencode/command/verify.md",
+      ".pi/fabric.json",
+      ".pi/settings.json",
+      ".pi/prompts/verify.md"
+    ],
+    "verified_paths": [
+      ".pi/prompts/supervise.md",
+      ".pi/prompts/create.md",
+      ".pi/prompts/plan.md",
+      ".pi/prompts/research.md",
+      ".pi/prompts/ship.md",
+      ".pi/artifacts/pi-template/DECISIONS.md",
+      ".pi/artifacts/pi-template/PLAN.md",
+      "AGENTS.md",
+      ".opencode/tech-stack.md",
+      ".opencode/roadmap.md",
+      ".opencode/state.md",
+      ".opencode/artifacts/proactive-supervisor/spec.md",
+      ".opencode/artifacts/proactive-supervisor/prd.json",
+      ".opencode/artifacts/proactive-supervisor/plan.md",
+      ".opencode/artifacts/.active"
+    ],
+    "baseline_oid": "dd0bf9605bb9968b42768a9b5017650f5a6199cd",
+    "shared_serial_ownership": [
+      {
+        "path": ".pi/prompts/supervise.md",
+        "owners": ["lifecycle-review-gates-settled (protected, untouched)", "A2"]
+      },
+      {
+        "path": ".pi/prompts/create.md",
+        "owners": ["lifecycle-review-gates-settled (ADR-011 Phase 10A)", "B1"]
+      },
+      {
+        "path": ".pi/prompts/plan.md",
+        "owners": ["lifecycle-review-gates-settled (ADR-011 Phase 8A)", "B1"]
+      },
+      {
+        "path": ".pi/prompts/ship.md",
+        "owners": [
+          "milestone-5-settled",
+          "prewalk-extension-settled",
+          "lifecycle-review-gates-settled (ADR-011 Tier-Gated Diff Review)",
+          "B2"
+        ]
+      },
+      { "path": "AGENTS.md", "owners": ["lifecycle-review-gates-settled", "C1"] },
+      {
+        "path": ".pi/artifacts/pi-template/DECISIONS.md",
+        "owners": ["lifecycle-review-gates-settled (ADR-011)", "C1 (ADR-012)"]
+      },
+      {
+        "path": ".pi/artifacts/pi-template/PLAN.md",
+        "owners": ["lifecycle-review-gates-settled", "C1"]
+      },
+      { "path": ".opencode/tech-stack.md", "owners": ["lifecycle-review-gates-settled", "C2"] },
+      { "path": ".opencode/roadmap.md", "owners": ["lifecycle-review-gates-settled", "C2"] },
+      { "path": ".opencode/state.md", "owners": ["lifecycle-review-gates-settled", "C2"] }
+    ]
+  },
+  "success_criteria": [
+    {
+      "criterion": "A1: spec/prd rebased to the corrected 7-task handshake design; .active=proactive-supervisor; prd is a 7-task bounded graph (A/B/C = 2/2/3); no stale 'consistent with ADR-008' or invalid 'agents.tell(supervisorId' or best-effort inference framing in spec",
+      "verify": "test \"$(cat .opencode/artifacts/.active)\" = 'proactive-supervisor' && node -e 'const p=require(\"./.opencode/artifacts/proactive-supervisor/prd.json\");const ids=new Map(p.tasks.map((t,i)=>[t.id,i]));const counts={};if(p.tasks.length!==7||ids.size!==7)process.exit(1);for(const [i,t] of p.tasks.entries()){if(t.files.length>3)process.exit(1);counts[t.child_plan]=(counts[t.child_plan]||0)+1;for(const d of t.depends_on){if(!ids.has(d)||ids.get(d)>=i)process.exit(1)}}if(counts.A!==2||counts.B!==2||counts.C!==3)process.exit(1)' && ! rg -n 'consistent with ADR-008|agents\\.tell\\(supervisorId|ambient event snapshot indicates' .opencode/artifacts/proactive-supervisor/spec.md && rg -n 'Explicit Boundary Handshake|proactive-supervisor/v1|action:\"silent\"' .opencode/artifacts/proactive-supervisor/spec.md && git diff --check"
+    },
+    {
+      "criterion": "A2: supervise.md has ### Boundary-Proactive Direction Steer and ### Main-Mediated Research Protocol sections; ADR-008 'steers ONLY on drift' clause replaced; Main-mediated + ABSOLUTE never-dispatches present; EACH hard limit (never dispatch / never edit / never certify / never self-stop) present independently; actor config unchanged (model/tools/events/responseMode/extensions); frontmatter + forbidden-token clean",
+      "verify": "rg -n '^### Boundary-Proactive Direction Steer$' .pi/prompts/supervise.md && rg -n '^### Main-Mediated Research Protocol$' .pi/prompts/supervise.md && rg -n 'Main-mediated|proactive-supervisor/v1|action:\"silent\"' .pi/prompts/supervise.md && ! rg -n 'steers Main ONLY on material drift' .pi/prompts/supervise.md && rg -ni 'never dispatch' .pi/prompts/supervise.md && rg -ni 'never.*edit|never edit' .pi/prompts/supervise.md && rg -ni 'never certify' .pi/prompts/supervise.md && rg -ni 'never.*self-stop|never \\{action:\"stop\"\\}' .pi/prompts/supervise.md && node -e 'const s=require(\"fs\").readFileSync(\".pi/prompts/supervise.md\",\"utf8\");for(const x of [\"openai-codex/gpt-5.6-sol\",\"extensions: false\",\"responseMode: \\\"directive\\\"\",\"delivery\",\"triggerTurn\",\"tools: [\\\"read\\\",\\\"grep\\\",\\\"find\\\",\\\"ls\\\"]\"]){if(!s.includes(x))process.exit(1)}' && node -e 'const s=require(\"fs\").readFileSync(\".pi/prompts/supervise.md\",\"utf8\");const m=/^---\\n([\\s\\S]*?)\\n---\\n/.exec(s);if(!m||!/description:/.test(m[1]))process.exit(1)' && ! rg -n 'agent:|task\\(|question\\(|skill\\(|write\\(|\\.active|spec\\.md|prd\\.json|review-state\\.json' .pi/prompts/supervise.md && git diff --check"
+    },
+    {
+      "criterion": "B1: /create has Phase 10B Supervisor Boundary Handshake after Phase 10A before Phase 11; /plan has Phase 8B after Phase 8A before Phase 9; both use the versioned protocol, agents.ask object form, gpt-5.4-mini research, action:silent direct responses; ADR-011 markers (Phase 10A, Phase 8A) preserved",
+      "verify": "rg -n '^## Phase 10A: Spec Review Gate$' .pi/prompts/create.md && rg -n '^## Phase 10B: Supervisor Boundary Handshake$' .pi/prompts/create.md && rg -n '^## Phase 11: Report$' .pi/prompts/create.md && rg -n '^## Phase 8A: Planning Review Gate$' .pi/prompts/plan.md && rg -n '^## Phase 8B: Supervisor Boundary Handshake$' .pi/prompts/plan.md && rg -n '^## Phase 9: Report$' .pi/prompts/plan.md && rg -n 'proactive-supervisor/v1|agents\\.ask|gpt-5\\.4-mini|action:\"silent\"' .pi/prompts/create.md .pi/prompts/plan.md && node -e 'const fs=require(\"fs\");for(const [f,h] of [[\".pi/prompts/create.md\",[\"## Phase 10A: Spec Review Gate\",\"## Phase 10B: Supervisor Boundary Handshake\",\"## Phase 11: Report\"]],[\".pi/prompts/plan.md\",[\"## Phase 8A: Planning Review Gate\",\"## Phase 8B: Supervisor Boundary Handshake\",\"## Phase 9: Report\"]]]){const s=fs.readFileSync(f,\"utf8\");let p=-1;for(const x of h){const n=s.indexOf(x);if(n<=p)process.exit(1);p=n}}' && git diff --check"
+    },
+    {
+      "criterion": "B2: /research has Phase 5 Supervisor Boundary Handshake after Phase 4 Document before Output with namespace-state candidates (absent->create, established->plan/ship, partial->recovery); /ship has Phase 6A after Phase 6 Close before Output advertising verify only; ship 'cannot declare verified' phrase preserved; ADR-011 markers preserved",
+      "verify": "rg -n '^### Phase 4: Document$' .pi/prompts/research.md && rg -n '^### Phase 5: Supervisor Boundary Handshake$' .pi/prompts/research.md && rg -n '^## Output$' .pi/prompts/research.md && rg -n 'namespaceState|absent|established|partial' .pi/prompts/research.md && rg -n '^## Phase 6: Close$' .pi/prompts/ship.md && rg -n '^## Phase 6A: Supervisor Boundary Handshake$' .pi/prompts/ship.md && rg -n 'proactive-supervisor/v1|agents\\.ask|gpt-5\\.4-mini' .pi/prompts/research.md .pi/prompts/ship.md && rg -q 'cannot declare (terminal )?(verified status|completion)' .pi/prompts/ship.md && rg -n '^### Tier-Gated Diff Review$' .pi/prompts/ship.md && node -e 'const fs=require(\"fs\");for(const [f,h] of [[\".pi/prompts/research.md\",[\"### Phase 4: Document\",\"### Phase 5: Supervisor Boundary Handshake\",\"## Output\"]],[\".pi/prompts/ship.md\",[\"## Phase 6: Close\",\"## Phase 6A: Supervisor Boundary Handshake\",\"## Output\"]]]){const s=fs.readFileSync(f,\"utf8\");let p=-1;for(const x of h){const n=s.indexOf(x);if(n<=p)process.exit(1);p=n}}' && git diff --check"
+    },
+    {
+      "criterion": "C1: ADR-012 present (## ADR-012: Proactive supervisor boundary handshake) and references ADR-008 supersession; ADR-008 has forward reference 'Superseded in part by ADR-012'; ADR-011 untouched; AGENTS supervisor paragraph updated (reactive + boundary-proactive, Main-mediated, ABSOLUTE never-dispatches, extensions:false preserved); PLAN.md has Proactive Supervisor (ADR-012) section with opener/closer + Main-mediated + round-trip; validated Critical/High block semantics documented",
+      "verify": "rg -n '^## ADR-012: Proactive supervisor boundary handshake$' .pi/artifacts/pi-template/DECISIONS.md && rg -n 'supersed.*ADR-008|ADR-012' .pi/artifacts/pi-template/DECISIONS.md && rg -n 'Superseded in part by ADR-012' .pi/artifacts/pi-template/DECISIONS.md && rg -n '^## ADR-011: Tier-gated lifecycle review gates$' .pi/artifacts/pi-template/DECISIONS.md && rg -n 'boundary-proactive|Main-mediated|never dispatches' AGENTS.md && rg -n 'extensions: false|extensions:false' AGENTS.md && rg -n 'Proactive Supervisor|ADR-012' .pi/artifacts/pi-template/PLAN.md && rg -n 'opener|closer' .pi/artifacts/pi-template/PLAN.md && rg -n 'Main-mediated|research-request|round-trip' .pi/artifacts/pi-template/PLAN.md && rg -n 'Critical/High.*block|validated.*block' AGENTS.md .pi/artifacts/pi-template/PLAN.md && git diff --check"
+    },
+    {
+      "criterion": "C2: tech-stack/roadmap/state synchronized to ADR-012 + proactive-supervisor (boundary-proactive, Main-mediated, gpt-5.4-mini research); mini gatherer exact read-only dispatch documented",
+      "verify": "rg -n 'ADR-012|boundary-proactive|Main-mediated|proactive-supervisor' .opencode/tech-stack.md .opencode/roadmap.md .opencode/state.md && rg -n 'openai-codex/gpt-5.4-mini' .opencode/tech-stack.md && git diff --check"
+    },
+    {
+      "criterion": "C3: static closure — pi-fabric 0.23.0, list-models resolve gpt-5.6-sol AND gpt-5.4-mini AND zai-org/GLM-5.2-NVFP4 (model-column grep), slug in 5 prompts, forbidden-token clean across .pi/prompts/*.md (incl supervise.md), git diff --check, protected files unchanged from A1 baseline; runtime protocol smoke proves ordered ask->mini->ask->silent with unchanged fingerprint",
+      "verify": "git diff --check && node -p 'require(\"./.pi/npm/node_modules/pi-fabric/package.json\").version' | rg -x '0\\.23\\.0' && pi --approve --list-models | rg -F 'gpt-5.6-sol' && pi --approve --list-models | rg -F 'gpt-5.4-mini' && pi --approve --list-models | rg -F 'zai-org/GLM-5.2-NVFP4' && ! rg -n 'agent:|task\\(|question\\(|skill\\(|write\\(|\\.active|spec\\.md|prd\\.json|review-state\\.json' .pi/prompts/*.md && git diff --exit-code dd0bf9605bb9968b42768a9b5017650f5a6199cd -- .pi/fabric.json .pi/settings.json .pi/prompts/verify.md .opencode/command"
+    },
+    {
+      "criterion": "milestone-5 + lifecycle regression invariants preserved: supervise.md frontmatter, EACH supervisor hard limit intact, ADR-011 review-gate markers in create/plan/ship/verify still present, ship 'cannot declare verified' phrase, verify 'sole verified/transcript only/no repository write' phrase and NO handshake added to verify",
+      "verify": "node -e 'const s=require(\"fs\").readFileSync(\".pi/prompts/supervise.md\",\"utf8\");const m=/^---\\n([\\s\\S]*?)\\n---\\n/.exec(s);if(!m||!/description:/.test(m[1]))process.exit(1)' && rg -ni 'never dispatch' .pi/prompts/supervise.md && rg -ni 'never.*edit|never edit' .pi/prompts/supervise.md && rg -ni 'never certify' .pi/prompts/supervise.md && rg -ni 'never.*self-stop|never \\{action:\"stop\"\\}' .pi/prompts/supervise.md && rg -n '^## Phase 10A: Spec Review Gate$' .pi/prompts/create.md && rg -n '^## Phase 8A: Planning Review Gate$' .pi/prompts/plan.md && rg -n '^### Tier-Gated Diff Review$' .pi/prompts/ship.md && rg -n '^### Phase 5A: Advisory Evidence Review$' .pi/prompts/verify.md && rg -q 'cannot declare (terminal )?(verified status|completion)' .pi/prompts/ship.md && rg -qi 'sole.*verified|transcript only|no repository write' .pi/prompts/verify.md && ! rg -n 'Supervisor Boundary Handshake' .pi/prompts/verify.md"
+    }
+  ],
+  "tasks": [
+    {
+      "id": "A1",
+      "child_plan": "A",
+      "title": "Rebase and correct the binding specification",
+      "category": "contract",
+      "end_state": "spec.md records a deliberate partial supersession of ADR-008 (not 'consistent, not a reversal'), the explicit blocking handshake (replacing best-effort inference), the silent-response rule (action:silent for direct protocol responses, action:message reserved for ambient steering), the Main-mediated two-round research-request protocol with the docs/agents.md:214 source citation and valid agents.ask object form, the past/future split vs the ADR-011 review gates, advisory-always authority with existing Critical/High blocking semantics preserved, the V2 cost trade-off, namespace-state research candidates, and the single-FIFO-semaphore (no auto-yield) correction; prd.json is the seven-task bounded graph with the settled baseline OID dd0bf96 and exact paths (create/plan/research/ship moved to write_paths; verify remains protected); plan.md written to disk; .active points to proactive-supervisor.",
+      "depends_on": [],
+      "files": [
+        ".opencode/artifacts/proactive-supervisor/spec.md",
+        ".opencode/artifacts/proactive-supervisor/prd.json",
+        ".opencode/artifacts/proactive-supervisor/plan.md"
+      ],
+      "verify": "test \"$(cat .opencode/artifacts/.active)\" = 'proactive-supervisor' && node -e 'const p=require(\"./.opencode/artifacts/proactive-supervisor/prd.json\");const ids=new Map(p.tasks.map((t,i)=>[t.id,i]));const counts={};if(p.tasks.length!==7||ids.size!==7)process.exit(1);for(const [i,t] of p.tasks.entries()){if(t.files.length>3)process.exit(1);counts[t.child_plan]=(counts[t.child_plan]||0)+1;for(const d of t.depends_on){if(!ids.has(d)||ids.get(d)>=i)process.exit(1)}}if(counts.A!==2||counts.B!==2||counts.C!==3)process.exit(1)' && ! rg -n 'consistent with ADR-008|ambient event snapshot indicates' .opencode/artifacts/proactive-supervisor/spec.md && rg -n 'Explicit Boundary Handshake|proactive-supervisor/v1|action:\"silent\"' .opencode/artifacts/proactive-supervisor/spec.md && git diff --check"
+    },
+    {
+      "id": "A2",
+      "child_plan": "A",
+      "title": "Revise supervise.md instructions — boundary-proactive opener + Main-mediated research protocol",
+      "category": "implement",
+      "end_state": "supervise.md Supervisor Instructions revised: reactive steering (drift/blocker/missing-verification) kept; boundary-proactive direction/strategy steer added as opener for the next lifecycle phase; ADR-008 'steers ONLY on drift' wording replaced; Main-mediated two-round read-only research-request convention added (supervisor requests via action:silent data, Main runs agents.run on gpt-5.4-mini, feeds back via second agents.ask, supervisor responds action:silent with final direction); direct protocol responses MUST use action:silent (action:message auto-delivered before ask resolves, reserved for ambient steering); each hard limit preserved independently (never dispatch [absolute], never edit, never certify, never self-stop); new ### Boundary-Proactive Direction Steer and ### Main-Mediated Research Protocol sections; frontmatter and forbidden-token cleanliness preserved; the actor configuration block is unchanged (model/tools/events/responseMode/extensions/delivery/triggerTurn all preserved verbatim).",
+      "depends_on": ["A1"],
+      "files": [".pi/prompts/supervise.md"],
+      "verify": "rg -n '^### Boundary-Proactive Direction Steer$' .pi/prompts/supervise.md && rg -n '^### Main-Mediated Research Protocol$' .pi/prompts/supervise.md && rg -n 'Main-mediated|proactive-supervisor/v1|action:\"silent\"' .pi/prompts/supervise.md && ! rg -n 'steers Main ONLY on material drift' .pi/prompts/supervise.md && rg -ni 'never dispatch' .pi/prompts/supervise.md && rg -ni 'never.*edit|never edit' .pi/prompts/supervise.md && rg -ni 'never certify' .pi/prompts/supervise.md && rg -ni 'never.*self-stop|never \\{action:\"stop\"\\}' .pi/prompts/supervise.md && node -e 'const s=require(\"fs\").readFileSync(\".pi/prompts/supervise.md\",\"utf8\");for(const x of [\"openai-codex/gpt-5.6-sol\",\"extensions: false\",\"responseMode: \\\"directive\\\"\",\"delivery\",\"triggerTurn\",\"tools: [\\\"read\\\",\\\"grep\\\",\\\"find\\\",\\\"ls\\\"]\"]){if(!s.includes(x))process.exit(1)}' && node -e 'const s=require(\"fs\").readFileSync(\".pi/prompts/supervise.md\",\"utf8\");const m=/^---\\n([\\s\\S]*?)\\n---\\n/.exec(s);if(!m||!/description:/.test(m[1]))process.exit(1)' && ! rg -n 'agent:|task\\(|question\\(|skill\\(|write\\(|\\.active|spec\\.md|prd\\.json|review-state\\.json' .pi/prompts/supervise.md && git diff --check"
+    },
+    {
+      "id": "B1",
+      "child_plan": "B",
+      "title": "Add create and plan boundary handshakes",
+      "category": "implement",
+      "end_state": "create.md has ## Phase 10B: Supervisor Boundary Handshake after Phase 10A Spec Review Gate and before Phase 11 Report; plan.md has ## Phase 8B: Supervisor Boundary Handshake after Phase 8A Planning Review Gate and before Phase 9 Report; both resolve exactly one session-local supervisor actor by exact id (never by canonical name over mesh; absent/stopped/ambiguous warns and continues), apply the versioned proactive-supervisor/v1 protocol with two-round blocking ask (phase-complete -> optional research-result -> final direction), use action:silent direct responses, run at most one gpt-5.4-mini read-only research hop, and state explicitly that the blocking wait orders transport only (the actor has no independent blocking authority); ADR-011 review-gate markers (Phase 10A, Phase 8A) preserved; create candidates = plan/research/ship, plan candidates = research/ship.",
+      "depends_on": ["A2"],
+      "files": [".pi/prompts/create.md", ".pi/prompts/plan.md"],
+      "verify": "rg -n '^## Phase 10A: Spec Review Gate$' .pi/prompts/create.md && rg -n '^## Phase 10B: Supervisor Boundary Handshake$' .pi/prompts/create.md && rg -n '^## Phase 11: Report$' .pi/prompts/create.md && rg -n '^## Phase 8A: Planning Review Gate$' .pi/prompts/plan.md && rg -n '^## Phase 8B: Supervisor Boundary Handshake$' .pi/prompts/plan.md && rg -n '^## Phase 9: Report$' .pi/prompts/plan.md && rg -n 'proactive-supervisor/v1|agents\\.ask|gpt-5\\.4-mini|action:\"silent\"' .pi/prompts/create.md .pi/prompts/plan.md && node -e 'const fs=require(\"fs\");for(const [f,h] of [[\".pi/prompts/create.md\",[\"## Phase 10A: Spec Review Gate\",\"## Phase 10B: Supervisor Boundary Handshake\",\"## Phase 11: Report\"]],[\".pi/prompts/plan.md\",[\"## Phase 8A: Planning Review Gate\",\"## Phase 8B: Supervisor Boundary Handshake\",\"## Phase 9: Report\"]]]){const s=fs.readFileSync(f,\"utf8\");let p=-1;for(const x of h){const n=s.indexOf(x);if(n<=p)process.exit(1);p=n}}' && git diff --check"
+    },
+    {
+      "id": "B2",
+      "child_plan": "B",
+      "title": "Add research and ship boundary handshakes",
+      "category": "implement",
+      "end_state": "research.md has ### Phase 5: Supervisor Boundary Handshake after Phase 4 Document and before ## Output, with research candidates derived from namespace state (absent->create, established->plan/ship, partial->[]+operator-recovery); ship.md has ## Phase 6A: Supervisor Boundary Handshake after Phase 6 Close and before ## Output, advertising only verify as the next phase (PR integration deferred); both reuse exactly the same versioned proactive-supervisor/v1 protocol and gpt-5.4-mini read-only mini dispatch as B1; ship.md preserves the 'cannot declare verified' phrase and the ADR-011 Tier-Gated Diff Review marker; research.md preserves Phase 4 Document.",
+      "depends_on": ["B1"],
+      "files": [".pi/prompts/research.md", ".pi/prompts/ship.md"],
+      "verify": "rg -n '^### Phase 4: Document$' .pi/prompts/research.md && rg -n '^### Phase 5: Supervisor Boundary Handshake$' .pi/prompts/research.md && rg -n '^## Output$' .pi/prompts/research.md && rg -n 'namespaceState|absent|established|partial' .pi/prompts/research.md && rg -n '^## Phase 6: Close$' .pi/prompts/ship.md && rg -n '^## Phase 6A: Supervisor Boundary Handshake$' .pi/prompts/ship.md && rg -n 'proactive-supervisor/v1|agents\\.ask|gpt-5\\.4-mini' .pi/prompts/research.md .pi/prompts/ship.md && rg -q 'cannot declare (terminal )?(verified status|completion)' .pi/prompts/ship.md && rg -n '^### Tier-Gated Diff Review$' .pi/prompts/ship.md && node -e 'const fs=require(\"fs\");for(const [f,h] of [[\".pi/prompts/research.md\",[\"### Phase 4: Document\",\"### Phase 5: Supervisor Boundary Handshake\",\"## Output\"]],[\".pi/prompts/ship.md\",[\"## Phase 6: Close\",\"## Phase 6A: Supervisor Boundary Handshake\",\"## Output\"]]]){const s=fs.readFileSync(f,\"utf8\");let p=-1;for(const x of h){const n=s.indexOf(x);if(n<=p)process.exit(1);p=n}}' && git diff --check"
+    },
+    {
+      "id": "C1",
+      "child_plan": "C",
+      "title": "Record ADR-012 and canonical authority",
+      "category": "contract",
+      "end_state": "DECISIONS.md has ## ADR-012: Proactive supervisor boundary handshake explicitly superseding ADR-008's 'steers ONLY on drift' clause and recording the Main-mediated read-only research-request capability and the explicit blocking handshake; ADR-008 has a forward reference ('Superseded in part by ADR-012'); ADR-011 untouched. AGENTS.md supervisor paragraph (94-97) updated: reactive + boundary-proactive triggers, Main-mediated research-request, ABSOLUTE never-dispatches / never-edits / extensions:false / per-session preserved, validated Critical/High block semantics documented. PLAN.md has ### Proactive Supervisor (ADR-012) section near the existing Advisory Supervisor block: opener role (steers next-phase direction/strategy), Main-mediated read-only research-request round-trip (two-round ask, action:silent direct responses), past/future sequencing vs the ADR-011 review gates (gate=closer audits bytes, supervisor=opener steers direction), advisory-always authority with existing Critical/High blocking semantics, no-mid-writable-run injection.",
+      "depends_on": ["B2"],
+      "files": [
+        ".pi/artifacts/pi-template/DECISIONS.md",
+        ".pi/artifacts/pi-template/PLAN.md",
+        "AGENTS.md"
+      ],
+      "verify": "rg -n '^## ADR-012: Proactive supervisor boundary handshake$' .pi/artifacts/pi-template/DECISIONS.md && rg -n 'supersed.*ADR-008|ADR-012' .pi/artifacts/pi-template/DECISIONS.md && rg -n 'Superseded in part by ADR-012' .pi/artifacts/pi-template/DECISIONS.md && rg -n '^## ADR-011: Tier-gated lifecycle review gates$' .pi/artifacts/pi-template/DECISIONS.md && rg -n 'boundary-proactive|Main-mediated|never dispatches' AGENTS.md && rg -n 'extensions: false|extensions:false' AGENTS.md && rg -n 'Proactive Supervisor|ADR-012' .pi/artifacts/pi-template/PLAN.md && rg -n 'opener|closer' .pi/artifacts/pi-template/PLAN.md && rg -n 'Main-mediated|research-request|round-trip' .pi/artifacts/pi-template/PLAN.md && rg -n 'Critical/High.*block|validated.*block' AGENTS.md .pi/artifacts/pi-template/PLAN.md && git diff --check"
+    },
+    {
+      "id": "C2",
+      "child_plan": "C",
+      "title": "Synchronize project summaries",
+      "category": "contract",
+      "end_state": "tech-stack.md supervisor tier note updated with boundary-proactive + Main-mediated read-only research on gpt-5.4-mini (exact read-only dispatch, local-resource scope); roadmap.md supervisor line updated to reflect the proactive supervisor and the explicit boundary handshake; state.md records proactive-supervisor status and ADR-012; ADR-011 lifecycle-review-gate block in tech-stack.md (50-59) untouched.",
+      "depends_on": ["C1"],
+      "files": [".opencode/tech-stack.md", ".opencode/roadmap.md", ".opencode/state.md"],
+      "verify": "rg -n 'ADR-012|boundary-proactive|Main-mediated|proactive-supervisor' .opencode/tech-stack.md .opencode/roadmap.md .opencode/state.md && rg -n 'openai-codex/gpt-5.4-mini' .opencode/tech-stack.md && git diff --check"
+    },
+    {
+      "id": "C3",
+      "child_plan": "C",
+      "title": "Static closure and runtime protocol smoke",
+      "category": "verify",
+      "end_state": "No-write static verification: 7-task prd graph valid; pi-fabric 0.23.0; list-models resolves gpt-5.6-sol AND gpt-5.4-mini AND zai-org/GLM-5.2-NVFP4 (model-column grep, not joined); every new heading exists exactly once and in order; exact actor config preserved (model/tools/events/responseMode/extensions); each hard limit present independently; ADR-011 headings + ship/verify authority phrases preserved; verify.md has NO handshake; protected files unchanged from baseline dd0bf96; forbidden-token clean; git diff --check. Runtime protocol smoke: /reload then /supervise; one direct two-round ask->mini->ask->silent smoke with a unique requestId; assert action:silent and matching protocol/requestId; assert mini run status=completed and actual model gpt-5.4-mini; synthesize <=8KiB allowlisted summary; assert final silent direction-steer/no-advice with same requestId; fingerprint unchanged before==after. Do not invoke mutating lifecycle commands during the no-write smoke.",
+      "depends_on": ["C2"],
+      "files": [],
+      "verify": "git diff --check && node -p 'require(\"./.pi/npm/node_modules/pi-fabric/package.json\").version' | rg -x '0\\.23\\.0' && pi --approve --list-models | rg -F 'gpt-5.6-sol' && pi --approve --list-models | rg -F 'gpt-5.4-mini' && pi --approve --list-models | rg -F 'zai-org/GLM-5.2-NVFP4' && ! rg -n 'agent:|task\\(|question\\(|skill\\(|write\\(|\\.active|spec\\.md|prd\\.json|review-state\\.json' .pi/prompts/*.md && rg -n '^## Phase 10A: Spec Review Gate$' .pi/prompts/create.md && rg -n '^### Tier-Gated Diff Review$' .pi/prompts/ship.md && rg -n '^### Phase 5A: Advisory Evidence Review$' .pi/prompts/verify.md && ! rg -n 'Supervisor Boundary Handshake' .pi/prompts/verify.md && git diff --exit-code dd0bf9605bb9968b42768a9b5017650f5a6199cd -- .pi/fabric.json .pi/settings.json .pi/prompts/verify.md .opencode/command"
+    }
+  ]
+}
