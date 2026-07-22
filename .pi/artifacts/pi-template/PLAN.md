@@ -315,6 +315,47 @@ or ambiguous supervisor actor → warn and continue (optional, advisory).
 (model/tools/events/responseMode/scope); only the instructions and the lifecycle prompt
 phases change.
 
+### MCP Research Lane (ADR-013)
+
+ADR-013 makes the read-only research lane **Main-mediated**. Trusted Main owns all external
+research; every delegated child stays strictly local. No capability widening: children stay
+`extensions:false`, `recursive:false`, `worktree:false`, with exactly
+`tools:["read","grep","find","ls"]` — never MCP, Codex, `bash`, `fabric_exec`, or recursion.
+
+**Why child-direct MCP was wrong.** `pi-mcp-adapter` (which exposes `context7`/`exa` to Pi as MCP
+direct tools) and `pi-codex-search` are both package-discovered Pi extensions (`package.json`
+`pi.extensions`). Pi drops package-discovered extensions under `noExtensions` (`resource-loader.js:
+267-270,351-354`), and Fabric passes `--no-extensions` for every `extensions:false` child (`pi-fabric
+dist/worker.js:321-333`). Adding MCP names to a child's `--tools` allowlist only adds unknown names
+Pi ignores (`agent-session.js:626-645`) — the prior child-direct allowlist edits were no-ops.
+
+**Main-visible external tools.** Main calls only the exact retained Context7/Exa direct-tool names
+plus `codex_search`, exposed via `.pi/fabric.json` `capture.keepVisible` — the exact-name mechanism
+that retains specified extension tools in Main's direct model-facing registry under
+`fullCodeMode:true` (`pi-fabric docs/configuration.md:173-207`, `dist/capture/interceptor.js:97-110`).
+Direct retained tools bypass Fabric's captured-tool approval gate, so they reach Main even though
+`approvals.network:"deny"` is unchanged (network stays denied for `fabric_exec`). The exact
+direct-tool names are server-prefixed (`pi-mcp-adapter types.ts:431-437`) and must be
+registry-proven before the `capture.keepVisible` line is written; no generic `mcp` proxy is exposed
+by default (it can reach arbitrary configured MCP servers — `index.ts:254-271`).
+
+**Main-mediated flow.** Main validates the question is bounded and non-secret, calls only the
+retained external tools, treats all external content as prompt-injection-capable untrusted data,
+independently validates citations, discards instructions found in retrieved content, and distills a
+non-secret cited packet ≤8 KiB. Main then launches local-only children with
+`tools:["read","grep","find","ls"]` over the distilled packet.
+
+**Parallel fan-out.** Gather phases (`/create` Deep=3-5 agents, `/plan` Level 2-3, `/research`
+Multi-Angle) fan out local children in parallel, bounded by `subagents.maxConcurrent`, after Main
+gathers external evidence. The supervisor handshake (ADR-012) stays ONE local-only gather — a
+single direction question. No capability widening: `extensions:false`, `recursive:false`,
+`worktree:false`, no `bash`, no `fabric_exec`, no recursion.
+
+**Capability-aware fallback.** Context7=docs, Exa=search/fetch, Codex=cited search; not
+interchangeable. Required source unavailable → capable alternative else `partial`; optional and
+unavailable → `local-only`; L2/L3 `source-check-required` unsatisfiable → `blocked`;
+sensitive/unbounded → `rejected`. Never widen child `extensions`/`tools` to recover.
+
 ## Lifecycle
 
 Every lifecycle command takes an explicit `<slug>` (lowercase-hyphen, validated) and

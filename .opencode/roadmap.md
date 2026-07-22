@@ -46,6 +46,12 @@ Each milestone is independently verifiable. Authority/topology decisions are rec
       (reactive, ADR-008) and proactively at lifecycle boundaries via the explicit
       `proactive-supervisor/v1` handshake (ADR-012), with Main-mediated read-only research on
       `openai-codex/gpt-5.4-mini`; stays silent otherwise.
+     - **MCP research lane (ADR-013):** the research lane is Main-mediated — `pi-mcp-adapter`/
+       `pi-codex-search` are package-discovered Pi extensions removed by `--no-extensions`, so
+       children stay `read/grep/find/ls`-only and Main acquires external evidence (Context7/Exa
+       direct tools + `codex_search`) directly via `capture.keepVisible`, distills a ≤8 KiB cited
+       packet, and feeds it to local-only children. Runtime gate (exact tool names + codex
+       compatibility) + final verify pending operator.
 3. **Lifecycle prompts** — Main-owned prompts under `.pi/prompts/` porting **all nine**
    `.opencode/command/*.md` bodies (`audit`, `create`, `fix`, `gc`, `init`, `plan`,
    `research`, `ship`, `verify`): take all of each body, strip only OpenCode-only syntax,

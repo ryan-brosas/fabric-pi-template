@@ -429,3 +429,76 @@ widening that breaks the read-only safety posture. (c) Make the supervisor a blo
 boundaries — rejected: it would turn the supervisor into a second lifecycle gate and edge toward the
 ADR-008 advisor panel; ADR-011 review gates own blocking at L2-3. Chosen the explicit handshake with
 Main-mediated read-only research, superseding ADR-008's "steers ONLY on drift" clause only.
+
+## ADR-013: Main-mediated MCP research lane
+
+**Status:** accepted · **Date:** 2026-07-23
+
+**Context:** The read-only research lane (the supervisor's Main-mediated `gpt-5.4-mini` gather in
+ADR-012, plus the `/create`/`/plan`/`/research` gather phases) needed current documentation and web
+search. The original design (committed in `2c0dad9`, `1a6b9c0`, `7201882`) extended the
+`extensions:false` children's `tools` allowlist with four MCP names — `context7` `resolve-library-id`+
+`query-docs` and `exa` `web_search_exa`+`web_fetch_exa` — on the premise that "MCP loads under
+`extensions:false` via the MCP config because `--no-extensions` only blocks extension discovery, not
+MCP." Exact-version source inspection disproved this premise:
+
+- `pi-mcp-adapter` (which exposes `context7`/`exa` to Pi as MCP direct tools) declares itself a Pi
+  extension in its `package.json` `pi.extensions` (`package.json:32-35`).
+- Pi's `DefaultResourceLoader` drops package-discovered extensions under `noExtensions:true`
+  (`resource-loader.js:267-270,351-354`); only explicit CLI `-e` extension paths survive.
+- Fabric passes `--no-extensions` for every `extensions:false` child and passes `--tools`
+  (`pi-fabric dist/worker.js:321-333`); there is no explicit-extension-path field in `agents.run`
+  (the API supports only a boolean `extensions`).
+- Pi ignores unknown active tool names — `setActiveTools` keeps only names already in the registry
+  (`agent-session.js:626-645`). Adding MCP names to an `extensions:false` child's allowlist therefore
+  adds unknown names that resolve to nothing: the committed allowlist edits were functionally
+  no-ops, granting children zero new capability.
+- `pi-codex-search` is likewise a package-discovered Pi extension (`package.json` `pi.extensions`),
+  registered via `pi.registerTool` on `session_start` (`index.ts:687-705`), so it is also removed by
+  `--no-extensions`.
+
+**Decision:** Make research **Main-mediated**. Trusted Main owns all external research; every
+delegated child stays strictly local. Main calls only the exact retained Context7/Exa direct-tool
+names plus `codex_search`, exposed via `.pi/fabric.json` `capture.keepVisible` — the exact-name
+mechanism that retains specified extension tools in Main's direct model-facing registry under
+`fullCodeMode:true` (`pi-fabric docs/configuration.md:173-207`, `dist/capture/interceptor.js:97-110`).
+Direct retained tools bypass Fabric's captured-tool approval gate, so they are reachable from Main
+even though Fabric's `approvals.network:"deny"` is unchanged (network stays denied for
+`fabric_exec`). Main treats all external content as prompt-injection-capable untrusted data,
+independently validates citations, discards instructions found in retrieved content, and distills a
+non-secret cited packet ≤8 KiB. Main then launches children with exactly
+`tools:["read","grep","find","ls"]`, `extensions:false`, `recursive:false`, `worktree:false`,
+supplying only the distilled packet. Gather phases may fan out local children in parallel (bounded by
+`subagents.maxConcurrent`) after Main gathers external evidence; the supervisor handshake stays ONE
+local-only gather. The exact direct-tool names are server-prefixed per `pi-mcp-adapter`
+(`types.ts:431-437`) and must be registry-proven before the `capture.keepVisible` line is written.
+Capability-aware fallback (Context7=docs, Exa=search/fetch, Codex=cited search; not interchangeable):
+required source unavailable → capable alternative else `partial`; optional and unavailable →
+`local-only`; L2/L3 `source-check-required` unsatisfiable → `blocked`; sensitive/unbounded →
+`rejected`. Never widen child `extensions`/`tools` to recover.
+
+**Consequences:** Easier: the security boundary is honest — children never receive network or
+extension tools, so there is no reliance on an unproven allowlist-vs-`fabric_exec` filter on the
+`agents.run` child path. The committed child-direct edits are reworked to the Main-mediated protocol
+(across `supervise.md`, `create.md`, `plan.md`, `research.md`, `ship.md`). Harder: Main becomes the
+single point for external acquisition, so research parallelism is local-child fan-out only, not
+parallel external calls (Main may still fire `codex_search` + Context7 + Exa in one turn for a quick
+lookup). The exact direct-tool names and `pi-codex-search@0.1.5` compatibility with Pi 0.81.1 (its
+declared `^0.79.10` peers exclude 0.81.1) are runtime-gated; if Codex cannot register, scope shrinks to
+MCP-only (operator disposition). No generic `mcp` proxy is exposed by default — it can connect,
+authenticate, discover, and invoke arbitrary configured MCP servers (`pi-mcp-adapter index.ts:254-
+271`) and is broader than this feature; exposing it would require a separate explicit operator
+acceptance and ADR.
+
+**Authority:** Main's direct-network trust boundary is narrowly scoped to the exact tools named in
+`capture.keepVisible`. Children retain no network/extension authority. "Local-only child" is
+capability policy, not secret isolation — the configured model provider can still receive repository
+data sent in a prompt; Main's ≤8 KiB non-secret cited-packet discipline bounds what enters a child.
+
+**Alternatives:** (a) Child-direct MCP (the original design) — rejected: invalidated by the exact-
+version evidence above; the allowlist edits were no-ops. (b) Flip children to `extensions:true` so
+`codex_search`/MCP load — rejected: this also registers `fabric_exec` and grants `pi.bash`/`pi.write`/
+`agents.*`; safety would hinge on the `--tools` allowlist filtering `fabric_exec` on the `agents.run`
+child path, which is not runtime-proven, and a wrong assumption is a real ADR-008/009 boundary breach
+with high blast radius. (c) Expose the generic `mcp` proxy via `capture.keepVisible` — rejected for the
+primary plan: it is broader than this feature; only exact direct-tool names are exposed.

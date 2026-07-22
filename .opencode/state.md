@@ -81,4 +81,5 @@ in `.pi/artifacts/pi-template/DECISIONS.md`. Summary only — do not edit here f
 - Runtime child-spawn + prompt-discovery smoke pending `/trust` + restart.
 - Lifecycle review gates (ADR-011): shipped, verified, pushed (HEAD dd0bf96).
 - Proactive supervisor (ADR-012): implementation done — boundary-proactive handshake in /create//plan//research//ship + Main-mediated read-only research on gpt-5.4-mini; A2-C2 implementation done, C3 static verify pending.
+- MCP research lane (ADR-013): implementation done — 5 prompts + ADR-013 + PLAN + AGENTS + summaries corrected to Main-mediated research (children read/grep/find/ls-only; Main acquires external evidence directly via capture.keepVisible). Runtime gate (B/C: .pi/fabric.json capture.keepVisible + live Pi registry/smoke) + final verify (J) pending operator — requires live Pi session (MCP config keys), .pi/fabric.json mutation, /trust + restart.
 - Per-artifact commit+push standing policy active.

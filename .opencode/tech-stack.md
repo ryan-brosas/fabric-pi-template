@@ -71,6 +71,19 @@ independently validated Critical/High defects retain their existing blocking sem
 Main. Supersedes ADR-008's "steers ONLY on drift" clause only; the ABSOLUTE never-dispatches,
 single supervisor, no mailbox panel, and no standalone `/gate` remain.
 
+**MCP research lane (ADR-013):** research is **Main-mediated**. `pi-mcp-adapter` and
+`pi-codex-search` are package-discovered Pi extensions removed by `--no-extensions`, so
+`extensions:false` children cannot load MCP or Codex and adding those names to a child's `tools`
+array only adds unknown names Pi ignores. Main calls only the exact retained Context7/Exa direct
+tools and `codex_search` directly via `.pi/fabric.json` `capture.keepVisible` (the exact-name
+mechanism that retains extension tools in Main's direct registry under `fullCodeMode:true`),
+treats output as prompt-injection-capable untrusted data, validates citations, and distills a
+non-secret cited packet ≤8 KiB. Children stay `extensions:false`, `recursive:false`,
+`worktree:false`, `tools:["read","grep","find","ls"]` only. Fabric's `approvals.network:"deny"`
+is unchanged (direct retained tools bypass the captured-tool approval gate). Capability-aware
+fallback; the exact direct-tool names and `pi-codex-search@0.1.5`/Pi 0.81.1 compatibility are
+runtime-gated.
+
 **Extension split (load-bearing):** `extensions:false` makes Fabric pass Pi `--no-extensions`,
 which fails to resolve the Makora provider. GPT council and read-only children use
 `extensions:false`; Makora implementation workers MUST use `extensions:true` + `thinking:"max"`
