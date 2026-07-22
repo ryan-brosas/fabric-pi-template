@@ -56,7 +56,7 @@ AGENTS.md                 # authority + safety constitution (root)
   artifacts/<slug>/        # PLAN.md, TODO.md, PROGRESS.md, DECISIONS.md (lazy, tracked)
     pi-template/          # canonical implementation contract for this template (created)
   fabric/mesh/            # Fabric mesh runtime state (gitignored, exists)
-.opencode/                # inherited OpenCode scaffold (reference; /init outputs)
+.opencode/                # inherited OpenCode dev workspace; command bodies ported to .pi/prompts/
 ```
 
 No `.pi/config.json` and no `.pi/docs/` — dispatch params are per-call, not file-routed.
@@ -76,5 +76,7 @@ No application build/test/lint exists yet. Template-level validation:
 
 - This is a template, not a shipped app: no `src/`, `lib/`, or `app/` application code.
 - The deleted legacy `.pi` implementation is NOT a reference; do not restore or mine it.
-- `.opencode/` is an inherited scaffold for reference only, not the authoritative architecture.
+- `.opencode/` is the inherited OpenCode dev workspace; the `.opencode/command/*.md` bodies
+  are the lifecycle source being ported to `.pi/prompts/` (not the authoritative
+  architecture — authority lives in `AGENTS.md`).
 - Fabric is not a security sandbox; "read-only" tools are authority policy, not secret isolation.

@@ -6,8 +6,8 @@ A Pi-native coding template powered by `pi-fabric`: a thin, readable agent-drive
 development baseline that other repositories can adopt. GPT-5.6-sol Main is the sole
 scheduler, integrator, and commit authority; a small persistent advisory council steers
 on drift; a bounded GLM worker pool implements. Lifecycle ergonomics are inspired by
-`.opencode` (`/create` → optional `/plan` → `/ship` → `/verify`) but realized with thin
-Pi prompts and Markdown artifacts. Authority, routing, topology, and the council contract
+`.opencode` (`/create` → optional `/plan` → `/ship` → `/verify`) but realized with Pi
+prompts (full command bodies ported from `.opencode/command/`) and Markdown artifacts. Authority, routing, topology, and the council contract
 live in `AGENTS.md`; model wiring in `.opencode/tech-stack.md`; the canonical contract in
 `.pi/artifacts/pi-template/PLAN.md`.
 
@@ -18,8 +18,8 @@ live in `AGENTS.md`; model wiring in `.opencode/tech-stack.md`; the canonical co
 
 ## Success Criteria
 
-- **Maintainability** — thin, readable Pi prompts and config; no hidden lifecycle state
-  machines.
+- **Maintainability** — readable, self-contained Pi prompts (full command-body ports) and
+  config; no hidden lifecycle state machines.
 - **Stability / correctness** — host-derived evidence, worker distrust, verified commits;
   no silent model fallback across authority classes.
 - **Ergonomics** — direct-first routing with delegation as a tool, optional council per
@@ -39,19 +39,24 @@ Each milestone is independently verifiable. Authority/topology decisions are rec
      native tools; a review child's edit attempt fails; recursive delegation is rejected.
 2. **Advisory council (hybrid, session-scoped)** — native `agents.create` persistent actors
    per `AGENTS.md` (supervisor ambient + mailbox-only security/architecture advisors;
-   blocking `agents.ask()` gate mechanics). Create/inspect via `.pi/prompts/supervise.md`;
-   gate workflow via `.pi/prompts/gate.md`.
+   blocking `agents.ask()` gate mechanics). Create/inspect via `.pi/prompts/supervise.md`
+   (done — static); gate workflow via `.pi/prompts/gate.md` (deferred to a separate
+   milestone).
    - Acceptance: re-running setup reuses IDs; resume restores actors with correct immutable
      fields; a second session gets distinct IDs; failed/errored advisor blocks the gate.
-3. **Lifecycle prompts** — thin Main-owned phase prompts under `.pi/prompts/`:
-   `create`, `plan`, `ship`, `verify`, `research`; self-contained, no agent routing or
-   pseudo-tool calls; each takes an explicit `<slug>`.
+3. **Lifecycle prompts** — Main-owned prompts under `.pi/prompts/` porting **all nine**
+   `.opencode/command/*.md` bodies (`audit`, `create`, `fix`, `gc`, `init`, `plan`,
+   `research`, `ship`, `verify`): take all of each body, strip only OpenCode-only syntax,
+   re-point to `.pi/artifacts/<slug>/`. Self-contained, no agent routing or pseudo-tool
+   calls. The five lifecycle commands (`create`, `plan`, `ship`, `verify`, `research`)
+   take an explicit validated `<slug>`; the four operational commands keep natural args.
    - Acceptance: two concurrent sessions on different slugs stay disjoint; `/ship` cannot
-     write terminal verified status.
+     declare completion; `/verify` declares verified status externally only.
 4. **Canonical artifacts** — `.pi/artifacts/<slug>/{PLAN,TODO,PROGRESS,DECISIONS}.md` as
    the sole lifecycle record (lazy creation, tracked). No `.active` pointer, no "latest".
-   - Acceptance: only `/verify` writes verified status; PROGRESS records verification
-     fingerprints (HEAD, digests, file hashes).
+   - Acceptance: only `/verify` may declare verified status (externally); no repository
+     write after the final before/after fingerprint (candidate evidence may be written to
+     PROGRESS before the final pass).
 5. **Worker topology + distrust** — 1 Makora GLM worker per session (ceiling; host runs
    4-5 sessions); `extensions:true` + exact writable tool allowlist; host-derived candidate
    bytes; single writer per worktree (blocking `agents.run()`, no writable spawn/parallel).

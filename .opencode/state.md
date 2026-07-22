@@ -2,9 +2,11 @@
 
 ## Current Status
 
-Clean-slate at `90bb667` (local + remote `main`/`master`). Milestone 1 done: `.pi/settings.json`
-+ `.pi/fabric.json` created and verified. The advisory council, lifecycle prompts, and
-verification tools remain.
+Clean-slate. HEAD `bce5786` (local + remote `main`/`master`). Milestone 1 done: `.pi/settings.json`
++ `.pi/fabric.json` created and verified. Milestone 2 static done: `.pi/prompts/supervise.md`
+authored (council create/reconcile). Milestone 3 in progress: porting all nine
+`.opencode/command/*.md` bodies to `.pi/prompts/` (take all of each body, strip only
+OpenCode-only syntax). Lifecycle fingerprint tools and runtime smoke remain.
 
 This pass:
 - `AGENTS.md` + `.opencode/{tech-stack,roadmap,state,user}.md` + `.pi/.gitignore` +
@@ -30,15 +32,16 @@ in `.pi/artifacts/pi-template/DECISIONS.md`. Summary only — do not edit here f
 
 ## Next Priorities
 
-2. Advisory council — `.pi/prompts/supervise.md` (create/inspect supervisor + advisors,
-   session-scoped, custom supervisor instructions — never self-stop).
-3. Lifecycle gate workflow — `.pi/prompts/gate.md` (blocking `agents.ask()` to applicable
-   advisors, validate each, one blocking `agents.ask(supervisor)` on conflict).
-4. Lifecycle prompts — `.pi/prompts/{create,plan,ship,verify,research}.md` (explicit
-   `<slug>`; self-contained; no agent routing).
-5. Verification fingerprint — `.pi/tools/` capture (HEAD, digests, file hashes).
-6. Smoke — model resolution, Main native tools, review-child edit rejection, gate block
-   on errored advisor, freshness invalidation.
+3. Lifecycle prompts (in progress) — port **all nine** `.opencode/command/*.md` bodies to
+   `.pi/prompts/{audit,create,fix,gc,init,plan,research,ship,verify}.md` (take all of each
+   body, strip only OpenCode-only syntax, re-point to `.pi/artifacts/<slug>/`). The five
+   lifecycle commands take an explicit validated `<slug>`; the four operational commands
+   keep natural args. `/ship` cannot declare completion; `/verify` declares verified status
+   externally only.
+   - Gate workflow (`.pi/prompts/gate.md`) is a separate, deferred milestone.
+4. Verification fingerprint — `.pi/tools/` capture (HEAD, digests, file hashes).
+5. Smoke — model resolution, Main native tools, review-child edit rejection, gate block
+   on errored advisor, freshness invalidation. Requires `/trust` + restart.
 
 ## Verification Status
 
