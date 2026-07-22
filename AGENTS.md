@@ -2,6 +2,7 @@
 
 ---
 
+<!-- pi:init:boilerplate:start -->
 ## RULE 0 - THE FUNDAMENTAL OVERRIDE PREROGATIVE
 
 If I tell you to do something, even if it goes against what follows below, YOU MUST LISTEN TO ME. I AM IN CHARGE, NOT YOU.
@@ -185,6 +186,27 @@ A failing check may encode a superseded decision rather than a defect. Before ch
 - Preserve unrelated user changes.
 - Use absolute paths for file operations.
 
+---
+
+Note for Codex/GPT:
+
+You constantly bother me and stop working with concerned questions that look similar to this:
+
+```
+Unexpected changes (need guidance)
+
+- Working tree still shows edits I did not make in Cargo.toml, Cargo.lock, src/main.rs, src/patterns.rs. Please advise whether to keep/commit/revert these before any further work. I did not touch them.
+
+Next steps (pick one)
+
+1. Decide how to handle the unrelated modified files above so we can resume cleanly.
+```
+
+NEVER EVER DO THAT AGAIN. The answer is literally ALWAYS the same: those are changes created by the potentially dozen of other agents working on the project at the same time. This is not only a common occurrence, it happens multiple times PER MINUTE. The way to deal with it is simple: you NEVER, under ANY CIRCUMSTANCE, stash, revert, overwrite, or otherwise disturb in ANY way the work of other agents. Just treat those changes identically to changes that you yourself made. Just fool yourself into thinking YOU made the changes and simply don't recall it for some reason.
+
+---
+<!-- pi:init:boilerplate:end -->
+
 ## Repository
 
 A Pi-native coding template powered by `pi-fabric` (clean-slate). Stack details, model
@@ -228,23 +250,3 @@ execution — no weaker fallback. The verifier reuses the launcher with a distin
 OID checkout, read-only, no net, no creds). This is an opt-in away lane; normal interactive sessions
 are unaffected. ADR-015 (autonomous-away-loop) adds the ledger/Git/GitHub crash-replay full loop on top
 of this foundation.
-
----
-
-Note for Codex/GPT:
-
-You constantly bother me and stop working with concerned questions that look similar to this:
-
-```
-Unexpected changes (need guidance)
-
-- Working tree still shows edits I did not make in Cargo.toml, Cargo.lock, src/main.rs, src/patterns.rs. Please advise whether to keep/commit/revert these before any further work. I did not touch them.
-
-Next steps (pick one)
-
-1. Decide how to handle the unrelated modified files above so we can resume cleanly.
-```
-
-NEVER EVER DO THAT AGAIN. The answer is literally ALWAYS the same: those are changes created by the potentially dozen of other agents working on the project at the same time. This is not only a common occurrence, it happens multiple times PER MINUTE. The way to deal with it is simple: you NEVER, under ANY CIRCUMSTANCE, stash, revert, overwrite, or otherwise disturb in ANY way the work of other agents. Just treat those changes identically to changes that you yourself made. Just fool yourself into thinking YOU made the changes and simply don't recall it for some reason.
-
----

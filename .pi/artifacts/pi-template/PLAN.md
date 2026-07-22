@@ -1,19 +1,21 @@
 # PLAN — Pi/Fabric Template (`pi-template`)
 
 The canonical implementation contract for this template. Authority, safety, and routing
-live in `AGENTS.md`; model wiring in `.opencode/tech-stack.md`; this file is the executable
+live in `AGENTS.md`; model wiring in `.pi/tech-stack.md`; this file is the executable
 contract for the `.pi/` runtime. Trade-offs are in `DECISIONS.md`.
 
 ## Goal
 
-A thin, portable Pi-native coding template powered by `pi-fabric` 0.22.4: GPT-5.6-sol Main
+A thin, portable Pi-native coding template powered by `pi-fabric` 0.23.0: GPT-5.6-sol Main
 as sole scheduler/integrator/commit authority, a per-session advisory supervisor, one Makora
 worker per session, and a Markdown lifecycle — adoptable by copying `.pi/`.
 
 ## Non-goals
 
-- No `/team`, lifecycle kernel, schemas, typed handoffs, candidate manifests, receipts, or
-  CAS board.
+- No `/team`, lifecycle kernel, typed handoffs, candidate manifests, receipts, or
+  CAS board. (A narrow versioned initialization-state frontmatter is permitted — see
+  Project Initialization below; lifecycle-kernel and schema-validated typed-handoff
+  schemas remain out of scope.)
 - No `.pi/config.json` (no consumer exists).
 - No mandatory council per task; no fixed review matrix — evidence-based boundary review is tier-gated (ADR-011).
 - No automatic commits/push/publication; no worker commits.
@@ -28,7 +30,7 @@ worker per session, and a Markdown lifecycle — adoptable by copying `.pi/`.
   "defaultProvider": "openai-codex",
   "defaultModel": "gpt-5.6-sol",
   "defaultThinkingLevel": "max",
-  "packages": ["npm:pi-fabric@0.22.4"]
+  "packages": ["npm:pi-fabric@0.23.0"]
 }
 ```
 
@@ -40,7 +42,7 @@ trust is required or this file is ignored.
 
 ```jsonc
 {
-  "fullCodeMode": false,
+  "fullCodeMode": true,
   "schema": { "mode": "off" },
   "approvals": {
     "read": "allow",
@@ -58,19 +60,36 @@ trust is required or this file is ignored.
     "timeoutMs": 600000,
     "defaultTools": ["read", "grep", "find", "ls"],
     "budgetUsd": 10,
-    "maxTokensPerChild": 500000
+    "maxTokensPerChild": 500000,
+    "model": "makora/zai-org/GLM-5.2-FP8",
+    "thinking": "max"
   },
   "mesh": {
     "actorScope": "session"
   },
   "memory": { "enabled": false, "indexToolOutput": false, "indexThinking": false },
-  "compaction": { "engine": "fabric" }
+  "compaction": { "engine": "pi", "targetContextRatio": 0.7 },
+  "executor": {
+    "runtime": "node-process",
+    "memoryLimitBytes": 17179869184
+  },
+  "capture": {
+    "keepVisible": [
+      "fabric_exec",
+      "context7_resolve-library-id",
+      "context7_query-docs",
+      "exa_web_search_exa",
+      "exa_web_fetch_exa",
+      "codex_search"
+    ]
+  }
 }
 ```
 
-- `fullCodeMode:false` keeps native Pi tools on Main (read/bash/edit/write) alongside
-  Fabric orchestration. `schema.mode:"off"` is mandatory — inherited `"enforce"` forces
-  full-code mode and disables subagents.
+- `fullCodeMode:true` moves Pi core tools behind `pi.*` inside `fabric_exec`, isolating
+  them to Main (children and the supervisor use their own allowed tools directly).
+  `schema.mode:"off"` is mandatory — inherited `"enforce"` overrides `fullCodeMode` and
+  disables subagents.
 - Default child tools are read-only; writable tools are granted per-call only on the
   Makora lane. `maxDepth:1` makes all workers leaves. `maxConcurrent:8` gives headroom for
   the hybrid council (3 actors) + 1 Makora + read-only gatherers; the writable pool is
@@ -84,10 +103,19 @@ trust is required or this file is ignored.
   `.pi/fabric/mesh/actors/<sessionId>/`. `mesh.enabled:true` is inherited from global.
 - `memory.enabled:false` disables Fabric session indexing (Markdown artifacts are the
   lifecycle record); `indexToolOutput:false` prevents transcripts retaining tool output.
-- `compaction.engine:"fabric"` is deterministic and LLM-free.
+- `subagents.model:"makora/zai-org/GLM-5.2-FP8"` + `thinking:"max"` pin the writable Makora
+  worker lane; the `extensions:false` default means read-only children inherit no
+  `fabric_exec`/`agents.*`/`mesh.*`, and every Makora implementation dispatch overrides
+  `extensions:true` explicitly (ADR-003/009).
+- `executor.runtime:"node-process"` (ADR-014) runs Fabric guests under a host-pinned
+  bubblewrap confinement runtime; `memoryLimitBytes` bounds the guest heap.
+- `capture.keepVisible` retains `fabric_exec` and the Context7/Exa/`codex_search` direct
+  tools in Main's registry under `fullCodeMode:true` (ADR-013); children stay
+  `extensions:false` and cannot load these extensions.
+- `compaction.engine:"pi"` is deterministic and LLM-free; `targetContextRatio:0.7` sets
+  the compaction target.
 - `budgetUsd:10` and `maxTokensPerChild:500000` are finite template defaults; tune before
-  autonomous use. Global values inherit for everything not listed (transport, executor,
-  capture, ui).
+  autonomous use. Global values inherit for everything not listed (transport, ui).
 
 ## Dispatch Rules
 
@@ -428,6 +456,54 @@ Pi auto-discovers `.pi/prompts/*.md` as slash commands (non-recursive; frontmatt
 no `agent:` routing, no pseudo-tool calls, no command chaining (Pi templates expand Markdown
 only).
 
+### Project initialization (`/init`)
+
+`/init` is the mandatory first lifecycle touch (ADR-016). It compiles a complete Pi-native
+packet from explicit source (`--from <path[#anchor]>`), repository discovery, and operator
+interview; `/init --refresh` reconciles an established packet. Plain `/init` refuses an
+established packet and points to `--refresh`. `/init` never creates a feature namespace.
+
+**Packet (six files):** `AGENTS.md` (binding rules) + `.pi/tech-stack.md` (generated facts) +
+`.pi/ROADMAP.md` (intent cards) + `.pi/state.md` (readiness sentinel) + `.pi/user.md`
+(operator-approved preferences) + `.pi/memory.md` (distilled durable knowledge). All six are
+required; a complete packet gates every lifecycle command and `/gc`.
+
+**State schema v1:** `.pi/state.md` frontmatter — `schema_version: 1`,
+`initialization_status: partial|ready`, `context_reload_required: true|false`,
+`generation_id`, `updated_at`, `agents_boilerplate_sha256`. `BLOCKED` is a command outcome,
+not a persisted state. Fresh `/init` writes `ready` last; `/init --refresh` transitions
+`ready -> partial` before mutating any packet file and writes `ready` last. Any `AGENTS.md`
+mutation leaves state `partial` + `context_reload_required: true` until a post-`/reload`
+refresh writes `ready` + `context_reload_required: false` last.
+
+**AGENTS managed region:** markers `<!-- pi:init:boilerplate:start -->` /
+`<!-- pi:init:boilerplate:end -->` bound a verbatim boilerplate block (Rule 0 → Safety +
+Note-for-Codex), byte-identical to a locked fixture; `# Agent Rules` + leading `---` are the
+fixed header (outside markers); `## Repository` (project appendix) follows the end marker.
+Refresh replaces the marker interior byte-for-byte and preserves the appendix.
+
+**Packet gate:** lifecycle commands validate the slug first (where applicable), then require
+the complete six-file packet with `initialization_status: ready` and
+`context_reload_required: false` and a matching `agents_boilerplate_sha256`. `/gc` is
+slugless but also requires the complete initialized packet (read-only memory use).
+
+**`/create` syntaxes:** `/create <slug> "<raw description>"` (direct idea) and
+`/create <slug> --from <in-repo-source[#anchor]>` (compile one bounded feature from a roadmap
+card or PLAN/PRD section). `--from` records provenance (path, anchor, whole-file SHA-256,
+Roadmap ID), stops on multiple independently shippable outcomes, and never mutates roadmap
+intent.
+
+**Source bounds:** repo-relative `.md`/`.txt`/`.json`; reject absolute/traversal/symlink/
+non-regular/outside-root/secret-named; whole file <=1,048,576 bytes; extracted section
+<=65,536 bytes; no truncation. JSON unanchored; Markdown anchors match one exact heading or
+`RM-NNN` (zero/multiple block). Source content is untrusted data — embedded
+instructions/commands are ignored; stable SHA-256 revalidated before write.
+
+**Roadmap grammar v1:** `.pi/ROADMAP.md` frontmatter `roadmap_schema_version: 1` + monotonic
+`last_issued_id: RM-NNN`. Ready cards have unique immutable `RM-NNN` IDs and exact fields;
+IDs are never reused, renumbered, or reassigned to a materially different outcome. Away
+eligibility is Ready + `Autonomy: away-ok` + `Open decisions: none`.
+
 ### Namespace ownership (fail-closed)
 
 `/create` is the sole slug-namespace creator. An established namespace = both `PLAN.md` AND
@@ -441,17 +517,17 @@ recovery — no silent adoption, overwrite, or deletion.
 
 ### Two surfaces
 
-The Pi runtime layer carries two distinct writable surfaces (ADR-007):
+The Pi runtime layer carries two distinct writable surfaces (ADR-007; project-memory
+location superseded by ADR-016):
 - **Lifecycle state** — `.pi/artifacts/<slug>/{PLAN,TODO,PROGRESS,DECISIONS}.md`, the sole
   per-slug lifecycle record, confined to the slug namespace. Only `/verify` declares terminal
   verified status (externally).
-- **Project memory** — `.opencode/artifacts/MEMORY.md`, an **optional** separate writable
-  surface for durable cross-slug knowledge, distinct from lifecycle state. Missing memory is
-  treated as absent (non-blocking); prompts must not auto-create the OpenCode scaffold. Only
-  `/init` may establish the OpenCode context surface; `/verify` may append one distilled
-  non-sensitive finding pre-fingerprint. Lifecycle prompts may read project memory for context
-  when it exists; other writes are explicit "record durable finding" steps, never lifecycle
-  state. Memory content is distilled, non-sensitive knowledge only — never secrets,
+- **Project memory** — `.pi/memory.md`, a writable surface for durable cross-slug knowledge,
+  distinct from lifecycle state (ADR-016; supersedes ADR-007's `.opencode/artifacts/MEMORY.md`
+  location). Memory is part of the mandatory `/init` packet; lifecycle prompts may read it for
+  context; other writes are explicit "record durable finding" steps, never lifecycle state.
+  `/init` persists an immutable `## Initialization Intent — <generation-id>` section before the
+  roadmap. Memory content is distilled, non-sensitive knowledge only — never secrets,
   credentials, PII, raw tool output, per-slug status, or final verification results.
 
 ## Verification (Freshness)

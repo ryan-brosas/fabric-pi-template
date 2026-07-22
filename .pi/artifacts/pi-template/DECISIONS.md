@@ -133,7 +133,7 @@ adds an artifact outside the canonical four and the same exclusion machinery. Ch
 external declaration as the only self-consistent option.
 
 ## ADR-007: Two writable surfaces — lifecycle state vs project memory
-**Status:** accepted
+**Status:** accepted (superseded in part by ADR-016 — project-memory location and the `/init` context surface)
 **Date:** 2026-07-22
 **Context:** The roadmap says `.pi/artifacts/<slug>/{PLAN,TODO,PROGRESS,DECISIONS}.md` is the
 "sole lifecycle record," but several ported lifecycle prompts also read or write
@@ -605,3 +605,107 @@ children and broad risk grants. (b) Fail-open `--unshare-user-try` — rejected:
 run unconfined. (c) Pin a wrapper via Fabric config — rejected: no such field exists in 0.23.0; the
 writable-execPath seam is the only mechanism and it is host-owned and pre-boot. (d) Pass credentials
 into the sandbox env — rejected: an exfiltration channel; credentials stay in the parent.
+
+## ADR-016: Pi-native initialization packet and `/init` as the mandatory first lifecycle touch
+
+**Status:** accepted · **Date:** 2026-07-23
+
+**Context:** ADR-007 formalized two writable surfaces but located project memory at
+`.opencode/artifacts/MEMORY.md` and the context surface under `.opencode/`, outside the portable
+`.pi/` tree. A `.pi`-only adopter could therefore fail on a missing `.opencode` scaffold, and the
+away runtime (ADR-014/015) cannot depend on `.opencode`. Separately, `/init` (`.pi/prompts/init.md`)
+was a collection of optional setup flags (`--context`/`--user`/`--all`) producing `.opencode/tech-stack.md`
+and a capped `AGENTS.md`, with a stale handoff to `/plan` — not a coherent lifecycle opener. There
+was no observable readiness contract, no packet gate, and no crash-safe refresh. The canonical
+non-goal "no schemas" (PLAN.md) would forbid the machine-readable readiness state needed to make
+the packet gate deterministic.
+
+**Decision:** Establish a full Pi-native initialization packet and make `/init` the mandatory first
+lifecycle touch. `/init` compiles a complete packet from explicit source (`--from <path[#anchor]>`),
+repository discovery, and operator interview; `/init --refresh` reconciles an established packet.
+
+(1) **Packet (six files).** `AGENTS.md` (binding rules) + `.pi/tech-stack.md` (generated facts) +
+`.pi/ROADMAP.md` (intent cards) + `.pi/state.md` (readiness sentinel) + `.pi/user.md` (operator-approved
+preferences) + `.pi/memory.md` (distilled durable knowledge). All six live inside the portable `.pi/`
+tree except `AGENTS.md` at the repo root. A complete packet is REQUIRED before any lifecycle command
+(`/create`, `/plan`, `/ship`, `/verify`, `/research`) or `/gc` may access lifecycle state or project
+memory.
+
+(2) **State schema v1.** `.pi/state.md` carries frontmatter: `schema_version: 1`,
+`initialization_status: partial|ready`, `context_reload_required: true|false`, `generation_id`,
+`updated_at`, `agents_boilerplate_sha256`. `BLOCKED` is a command outcome, not a persisted state.
+This is the narrow versioned initialization-state frontmatter that the "no schemas" non-goal must
+permit; lifecycle-kernel and schema-validated typed-handoff schemas remain out of scope.
+
+(3) **AGENTS managed region (verbatim everywhere).** `AGENTS.md` carries a managed region bounded by
+`<!-- pi:init:boilerplate:start -->` / `<!-- pi:init:boilerplate:end -->` markers. The marker
+interior is byte-identical to a locked fixture (`.opencode/artifacts/pi-native-init/boilerplate.md`,
+SHA-256 recorded in `.pi/state.md`). `# Agent Rules` + the leading `---` are the fixed file header
+(outside markers); `## Repository` (project routing/topology appendix) is placed AFTER the end
+marker. `/init --refresh` replaces the marker interior byte-for-byte from the fixture and preserves
+the project appendix; conflicts outside managed regions block. The boilerplate includes Rule 0
+through Safety and the Note-for-Codex concurrent-agent note, verbatim — no deduplication, weakening,
+or conditionalization.
+
+(4) **Crash-safe refresh.** Fresh `/init` writes no state until all other packet files succeed, then
+writes `ready` last. `/init --refresh` first previews and revalidates hashes, transitions state
+`ready -> partial` BEFORE mutating any other packet file, reconciles serially, and writes final
+`ready` last. Any `AGENTS.md` mutation leaves state `partial` + `context_reload_required: true`; only
+a post-`/reload` (or restart) refresh with no drift writes `ready` + `context_reload_required: false`
+last — Pi 0.81.1 retains stale context until `/reload`. A crash therefore leaves lifecycle commands
+blocked.
+
+(5) **Packet gate.** Lifecycle commands validate the slug first (where applicable), then require the
+complete six-file packet with `initialization_status: ready` and `context_reload_required: false` and
+a matching `agents_boilerplate_sha256` before project-memory or lifecycle-state access. `/gc` is
+slugless but also requires the complete initialized packet; its memory use is read-only.
+
+(6) **`/create` syntaxes.** `/create <slug> "<raw description>"` (direct idea) and
+`/create <slug> --from <in-repo-source[#anchor]>` (compile one bounded feature from a roadmap card or
+PLAN/PRD section). `/init` never creates a feature namespace; `/create` remains the sole namespace
+creator. `/create --from` records provenance (path, anchor, whole-file SHA-256, Roadmap ID) in the
+feature `PLAN.md`, stops when a source has multiple independently shippable outcomes, and never
+mutates roadmap intent.
+
+(7) **Source bounds (untrusted data).** Sources are repo-relative `.md`/`.txt`/`.json`; reject
+absolute/traversal/symlink/non-regular/outside-root/secret-named. Whole file <=1,048,576 bytes;
+extracted section <=65,536 bytes; no truncation. JSON is unanchored in v1. Markdown anchors match one
+exact case-sensitive heading or `RM-NNN` ID; zero/multiple matches block. Source content is
+prompt-injection-capable untrusted data — embedded instructions/commands/tool requests are ignored
+and never trigger actions. Stable SHA-256 is revalidated before write; drift restarts extraction.
+
+(8) **Roadmap grammar v1.** `.pi/ROADMAP.md` frontmatter `roadmap_schema_version: 1` + monotonic
+`last_issued_id: RM-NNN`. Ready cards have unique immutable `RM-NNN` IDs and exact fields (outcome,
+why now, acceptance evidence, dependencies, candidate slug, autonomy, open decisions, source
+provenance). IDs are never reused, renumbered, or reassigned to a materially different outcome;
+moving horizons preserves ID; refresh matches by normalized outcome and allocates a new ID above the
+high-water mark for a materially changed/new outcome. Away eligibility is Ready + `Autonomy: away-ok`
++ `Open decisions: none`; reservations/completion live in the autonomous-loop ledger, not the roadmap.
+
+(9) **Pi-native memory.** Project memory moves from `.opencode/artifacts/MEMORY.md` to
+`.pi/memory.md`, inside the portable tree. `/init` persists an immutable `## Initialization Intent —
+<generation-id>` section in `.pi/memory.md` BEFORE the roadmap, so interview-derived cards carry
+truthful provenance. Memory excludes secrets, PII, raw tool output, per-slug status, and
+verification declarations.
+
+**Consequences:** Easier: the away runtime and `.pi`-only adopters have a complete, portable context
+surface with no `.opencode` runtime dependency; the packet gate makes "uninitialized" a deterministic
+block rather than a silent partial state; crash-safe refresh prevents mixed-generation packets;
+verbatim-everywhere boilerplate plus a project appendix lets refresh replace policy without losing
+project routing. Harder: six files to seed and keep coherent; the state schema is a narrow exception
+to the "no schemas" non-goal that must be kept narrow; managed-region refresh overwrites any
+in-flight edits inside the markers, so features that need to update boilerplate content must update
+the fixture (and its SHA references), not just `AGENTS.md`.
+
+**Supersedes:** ADR-007's project-memory LOCATION (`.opencode/artifacts/MEMORY.md` ->
+`.pi/memory.md`) and the `/init`-establishes-OpenCode-scaffold clause. ADR-007's namespace-ownership
+decisions (`/create` sole creator, established = PLAN+TODO, fail-closed downstream) are PRESERVED
+unchanged. ADR-007's historical text is retained as-is.
+
+**Alternatives:** (a) Keep memory under `.opencode` and make the away runtime depend on `.opencode` —
+rejected: violates the no-`.opencode`-runtime-dependency constraint and the `.pi`-portability goal.
+(b) Optional packet modes (`--context`/`--user`/`--all`) as in the old `/init` — rejected: a partial
+packet makes the gate non-deterministic; the full packet is always produced. (c) No state schema —
+rejected: without machine-readable readiness, the packet gate is prompt-enforced and cannot be
+crash-safe. Chosen the full Pi-native packet with the narrow versioned state schema and verbatim
+managed boilerplate.

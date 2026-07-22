@@ -10,7 +10,7 @@
 
 ## Boilerplate fixture
 
-- `BOILERPLATE_SHA256=dcaf935a9076cdbee8a95f17a8e8098d7b64db80f977faa0f2cb01df158eeece`
+- `BOILERPLATE_SHA256=6803a2a012ed2096c1107861400ed8db9c02a1c870d6a087bc6ea0b31438dd56`
 - Fixture path: `.opencode/artifacts/pi-native-init/boilerplate.md`
 - Managed markers: `<!-- pi:init:boilerplate:start -->` / `<!-- pi:init:boilerplate:end -->`
 - Content (generated order): root `AGENTS.md` `## RULE 0` (L5) through end of `## Safety` (L187) + the `---` / `Note for Codex/GPT:` block (L232) through the closing `---` (L250). The `# Agent Rules` H1 + leading `---` are the fixed file header (outside markers); `## Repository` (L188-231) is the project appendix (placed after the end marker in the generated AGENTS.md at P2.1).
@@ -60,4 +60,6 @@ pi-native-init's commits (P1.1 through P8.3) must not modify any `.opencode/comm
 
 ## P1.2 Freeze Stamp
 
-Frozen by P1.2. HEAD `e15881f` and the boilerplate fixture SHA-256 `dcaf935a...` above are the authoritative feature-scoped reference for drift detection. This baseline is not re-captured by later tasks. Protected-file edits owned by pi-native-init through its serial-ownership entries are expected drift, not defects: `AGENTS.md` at P2.1/P7.3 (managed boilerplate region pinned to the fixture), `DECISIONS.md`/`PLAN.md` at P2.1/P7.3 (ADR-016 + canonical contract), `structural-check.sh` at P3.1/P4.1/P5.1/P6.3/P8.3 (appended assertions), `.pi/state.md` at P8.3 (final `ready` promotion). Absolute byte-equality of protected files is not enforced under concurrent churn (see baseline mode note above); the binding check is feature-scoped: pi-native-init's own commits touch only owned paths.
+Frozen by P1.2. HEAD `e15881f` and the boilerplate fixture SHA-256 `6803a2a0...` above are the authoritative feature-scoped reference for drift detection. This baseline is not re-captured by later tasks. Protected-file edits owned by pi-native-init through its serial-ownership entries are expected drift, not defects: `AGENTS.md` at P2.1/P7.3 (managed boilerplate region pinned to the fixture), `DECISIONS.md`/`PLAN.md` at P2.1/P7.3 (ADR-016 + canonical contract), `structural-check.sh` at P3.1/P4.1/P5.1/P6.3/P8.3 (appended assertions), `.pi/state.md` at P8.3 (final `ready` promotion). Absolute byte-equality of protected files is not enforced under concurrent churn (see baseline mode note above); the binding check is feature-scoped: pi-native-init's own commits touch only owned paths.
+
+**P2.1 fixture regeneration (operator-authorized).** The fixture was captured at P1.1 (HEAD `e15881f`) with the ADR-013 paragraph as it then stood. A concurrent agent (mcp-research-lane, commit `1359cc1`) legitimately rewrote that one paragraph in the AGENTS.md boilerplate region after P1.1. P2.1 regenerated the fixture once to incorporate that update (treating the concurrent change as our own per the Note-for-Codex rule), moving the fixture SHA from `dcaf935a...` to `6803a2a0...` and pinning AGENTS.md to the updated fixture. This is the single authorized fixture re-capture; the freeze otherwise holds.
