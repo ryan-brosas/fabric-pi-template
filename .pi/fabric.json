@@ -5,8 +5,8 @@
   },
   "approvals": {
     "read": "allow",
-    "write": "deny",
-    "execute": "deny",
+    "write": "allow",
+    "execute": "allow",
     "network": "allow",
     "agent": "allow"
   },
