@@ -74,7 +74,8 @@ Wave 4: D, E, F  [done — executed on Task A, not Task C, since they describe t
 Wave 5: G-static  [done]
 Wave 6: H  [done]
 Wave 7: I  [done]
-Wave 8: G-live + J  [operator-gated]
+Wave 8: G-live  [operator-gated]
+Wave 9: J  [operator-gated]
 ```
 
 D, E, F are logically independent but must execute serially in this worktree (single-writer rule: Main does not edit while a writable run is active; one blocking writable `agents.run` at a time).
@@ -164,7 +165,7 @@ Context7 is documentation; Exa is search/fetch; Codex is general cited search. T
 - **Verify:**
   ```bash
   set -euo pipefail
-  jq -e empty .opencode/artifacts/mcp-research-lane/prd.json
+  jq empty .opencode/artifacts/mcp-research-lane/prd.json
   rg -nF 'Main-mediated' .opencode/artifacts/mcp-research-lane/spec.md .opencode/artifacts/mcp-research-lane/prd.json
   git diff --check
   ```
@@ -185,7 +186,7 @@ Context7 is documentation; Exa is search/fetch; Codex is general cited search. T
      - Assert its active set is exactly `read`, `grep`, `find`, `ls`.
      - `await runtime.dispose()` in `finally` so `session_shutdown` cleans up MCP processes (`agent-session-runtime.js:102-110`; `pi-mcp-adapter/index.ts:141-151`).
   4. Assert tool provenance with `getAllTools()` / `sourceInfo.path` — not model self-report.
-- **Verify:** probe script exits non-zero on current bytes (RED); child simulation active set equals exactly `["read","grep","find","ls"]`.
+- **Verify:** probe script exits non-zero on current bytes (RED); the limited resource-loader pre-check (noExtensions:true does NOT load the Fabric `-e` extension real children receive via worker.js:326-333) resolves exactly `["read","grep","find","ls"]` and nothing else — it proves the no-extension principle for MCP/Codex, while the exact child proof (fabric_exec filtered by `--tools`) is the operator's live `agents.run` smoke in Task C/G-live.
 - **Checkpoint:** if exact direct MCP tools are absent, operator must enable only those tools and restart Pi. Do not expose `mcp` automatically. STOP for operator disposition.
 
 #### Task C: Make Main visibility GREEN
@@ -219,7 +220,7 @@ Context7 is documentation; Exa is search/fetch; Codex is general cited search. T
 
 #### Task D: Correct `.pi/prompts/supervise.md`
 
-- **Needs:** Task C.
+- **Needs:** Task A.
 - **Creates:** corrected supervisor research protocol.
 - **Steps:**
   1. RED: assert existing `supervisor-research-*` dispatch contains external names (proves the defect exists).
@@ -230,7 +231,7 @@ Context7 is documentation; Exa is search/fetch; Codex is general cited search. T
 
 #### Task E: Correct `.pi/prompts/create.md` and `.pi/prompts/plan.md`
 
-- **Needs:** Task C.
+- **Needs:** Task A.
 - **Creates:** corrected gather + handshake text.
 - **Steps:**
   1. RED: existing gather/handshake text claims children call Context7/Exa.
@@ -244,7 +245,7 @@ Context7 is documentation; Exa is search/fetch; Codex is general cited search. T
 
 #### Task F: Correct `.pi/prompts/research.md` and `.pi/prompts/ship.md`
 
-- **Needs:** Task C.
+- **Needs:** Task A.
 - **Creates:** corrected research/ship text.
 - **Steps:**
   1. Apply the same Main-mediated acquisition + local-only handoff.
@@ -286,7 +287,7 @@ Context7 is documentation; Exa is search/fetch; Codex is general cited search. T
 
 #### Task H: Correct canonical authority
 
-- **Needs:** Task G.
+- **Needs:** Task G-static.
 - **Creates:** ADR-013 + corrected PLAN/AGENTS.
 - **Steps:**
   1. Append ADR-013 to `.pi/artifacts/pi-template/DECISIONS.md` (after ADR-012 ~`:395-431`) with: context, decision, consequences, rejected alternatives, exact-version evidence, Main's direct-network trust boundary.
@@ -312,7 +313,7 @@ Context7 is documentation; Exa is search/fetch; Codex is general cited search. T
 
 #### Task J: Review and final verification
 
-- **Needs:** Task I.
+- **Needs:** Task I + C + G-live.
 - **has_checkpoint:** yes (L3 review disposition).
 - **Creates:** terminal fingerprint.
 - **Steps:**
@@ -326,7 +327,7 @@ Context7 is documentation; Exa is search/fetch; Codex is general cited search. T
   set -euo pipefail
   node --version
   pi --approve --list-models
-  jq -e empty .pi/fabric.json .pi/settings.json .opencode/artifacts/mcp-research-lane/prd.json
+  jq empty .pi/fabric.json .pi/settings.json .opencode/artifacts/mcp-research-lane/prd.json
   jq -e '
     .fullCodeMode == true and
     .schema.mode == "off" and

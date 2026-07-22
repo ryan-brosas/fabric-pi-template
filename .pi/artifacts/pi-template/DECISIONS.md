@@ -346,8 +346,8 @@ mock-only tests, unnecessary compatibility shims, large unrelated generated edit
 AI-generated" alone is not a finding.
 **Language and Framework Overlay:** establish exact framework/version from the packet, then apply
 an authoritative rule (official material > maintained source > maintainer guidance > local skills >
-model memory — never). At L2-3, `source-check-required` stops acceptance until Main or a
-network-capable scout obtains authoritative evidence and the review is rerun. Do not invent a best
+model memory — never). At L2-3, `source-check-required` stops acceptance until Main obtains
+authoritative evidence directly (Main-mediated research, ADR-013) and the review is rerun. Do not invent a best
 practice from memory.
 **Freshness:** any candidate-byte change invalidates an L2-3 review and requires a new
 packet/review. Accepted findings trigger bounded convergence (max two review-integration rounds,

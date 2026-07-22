@@ -412,7 +412,7 @@ Each finding: `[Critical|High|Medium|Low][category] path:line` + violated author
 ### Tier behavior
 
 - **L0-1 (advisory):** non-blocking; child failure warns and proceeds.
-- **L2-3 (blocking):** Main cannot advance until every Critical/High finding is adjudicated. `source-check-required` stops acceptance until Main or a network-capable scout obtains authoritative evidence and the review is rerun.
+- **L2-3 (blocking):** Main cannot advance until every Critical/High finding is adjudicated. `source-check-required` stops acceptance until Main obtains authoritative evidence directly (Main-mediated research, ADR-013) and the review is rerun.
 
 ### Convergence
 
