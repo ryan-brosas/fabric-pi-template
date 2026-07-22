@@ -409,3 +409,13 @@ A second wiring gap in the same "away-runtime non-functional end-to-end" class s
 - Line 618: "no such field exists in 0.23.0 or 0.24.3".
 
 ADR-013's historical 0.23.0 references (lines 257/299/378/450) untouched (frozen when ADR-013 was settled). ADR-011/012/013/014 markers + the full digest `ee0bb190...` intact. No functional/coupling change (the digest pin was already correct); this is a provenance-string refresh.
+
+---
+
+## Post-verification follow-up — criterion-12 regex refinement (committed)
+
+**Operator-authorized** at Phase 5 close (separate from the D3-verified feature; the D3 PASS at `0769962` stands as the feature's verification record).
+
+**Root cause:** the criterion-12 forbidden-token verify regex (`rg -n 'agent:|task\(|question\(|skill\(|write\(|\.active|spec\.md|prd\.json|review-state\.json' .pi/prompts/*.md`) false-positives on 3 lines of `.pi/prompts/init.md` (259-260, 298) added by a concurrent agent's milestone-3-lifecycle-prompts work. Those lines are DESCRIPTIVE PROSE: 259-260 describe the two-layer lifecycle architecture (`.opencode/` produces `spec.md`/`.active`/`prd.json`); 298 is the explicit pseudocode disclaimer ("`task()` means bounded Fabric dispatch... Never execute those snippets literally"). No prompt instructs executing those primitives, so they are NOT forbidden-token violations — the regex predates the init.md two-layer description and over-matches.
+
+**Fix (prd.json:207 verify string):** append `| rg -v 'Pseudocode in prompts.*conceptual|OpenCode command layer|no shared.*pointer'` to exclude the two descriptive contexts. Verified: the refined regex PASSES on the real prompts (exit 0) AND FAILS on a planted real violation (`.pi/prompts/_zzz_violation_probe.md` "Call task() ... read .active" → caught, exit 1) — the exclusions do NOT mask real violations. The narrow context strings match only the descriptive prose, not arbitrary forbidden-token usage. The D3 PASS (Criterion 12 gate B) is reclassified from false-positive to PASS under the refined regex. ADR-013 historical refs untouched; ADR-011/012/013/014 markers intact.

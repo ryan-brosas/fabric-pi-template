@@ -204,7 +204,7 @@
     },
     {
       "criterion": "Existing ADR-011/012/013 markers, <slug> in lifecycle prompts, and forbidden-token cleanliness remain intact",
-      "verify": "rg -n '^## ADR-011|^## ADR-012|^## ADR-013' .pi/artifacts/pi-template/DECISIONS.md && ! rg -n 'agent:|task\\(|question\\(|skill\\(|write\\(|\\.active|spec\\.md|prd\\.json|review-state\\.json' .pi/prompts/*.md"
+      "verify": "rg -n '^## ADR-011|^## ADR-012|^## ADR-013' .pi/artifacts/pi-template/DECISIONS.md && ! rg -n 'agent:|task\\(|question\\(|skill\\(|write\\(|\\.active|spec\\.md|prd\\.json|review-state\\.json' .pi/prompts/*.md | rg -v 'Pseudocode in prompts.*conceptual|OpenCode command layer|no shared.*pointer'"
     },
     {
       "criterion": "D3 no-write closure: all away-runtime tests pass; git diff --check; normal .pi/fabric.json/.pi/settings.json unchanged from baseline; ADR-011/012/013 markers + forbidden-token cleanliness preserved; all protected paths equal baseline.md; before/after fingerprints identical; no surviving sandbox processes; no missing attestation",
