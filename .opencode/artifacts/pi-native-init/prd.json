@@ -1,0 +1,466 @@
+{
+  "title": "Pi-Native Initialization Compiler (/init) and Source-Backed /create",
+  "slug": "pi-native-init",
+  "created": "2026-07-23",
+  "id": "pni-001",
+  "approach": "Redesign /init as the truthful first lifecycle touch: a hybrid compiler producing the complete Pi-native project packet (root AGENTS.md + .pi/{ROADMAP,user,tech-stack,state,memory}.md) with verbatim managed boilerplate, crash-safe refresh, and an exact handoff to source-backed /create. Migrate all runtime context from .opencode to .pi (no compatibility shims); ADR-016 supersedes only ADR-007's memory location. Eight strictly serial child plans; .pi/state.md stays partial until the final static gate, then ready as the last production write. Serialized behind away-sandbox-runtime under operator Option B (reserve: pi-native-init active; away-sandbox-runtime paused at B3; C1-D3 deferred, reconcile-on-resume; B1 owns the same shared authority files). Operator resolutions: mandatory full packet always; hybrid compiler; .pi/ROADMAP.md sole default; structured cards; .pi/user.md tracked approved-only; source-backed /create <slug> --from <path[#anchor]>; plain /init fresh-only + --refresh; curated horizons; verbatim boilerplate everywhere; crash-safe partial-before-mutation ordering; source is untrusted data with exact bounds and stable-byte provenance. Review-gate corrections accepted: complete ADR-016 contract in canonical PLAN; remove (not repoint) verification cache/skip/append; final no-write pass reruns away-sandbox D3; smoke covers packet-rejection, slug-before-packet, and post-preview drift. P1 corrections: write_paths=38; state.context_reload_required; AGENTS mutation -> partial until /reload; interview intent in .pi/memory.md before roadmap; ROADMAP monotonic last_issued_id; /create memory + ready-packet/hash gate; P6.3 exact .opencode/artifacts/.active; fail-closed rg (exit 1 only); P7.1 includes .pi/away-sandbox.json; autonomous Gate 0.4 blocks autonomous-away-loop until P8.3.",
+  "blocks": [
+    "away-sandbox-runtime paused at B3 (operator Option B: reserve pi-native-init; C1-D3 deferred, reconcile-on-resume); shared authority-file ownership AGENTS.md, DECISIONS.md, PLAN.md",
+    "autonomous-away-loop spec/plan/prd synchronization (blocked by Gate 0.4 until pi-native-init P8.3)",
+    "operator-gated retained-fixture runtime smoke (after /trust + restart)"
+  ],
+  "manifests": {
+    "write_paths": [
+      ".opencode/artifacts/pi-native-init/boilerplate.md",
+      ".opencode/artifacts/pi-native-init/baseline.md",
+      ".opencode/artifacts/pi-native-init/spec.md",
+      ".opencode/artifacts/pi-native-init/prd.json",
+      ".opencode/tool/structural-check.sh",
+      ".pi/artifacts/pi-template/DECISIONS.md",
+      ".pi/artifacts/pi-template/PLAN.md",
+      "AGENTS.md",
+      ".pi/ROADMAP.md",
+      ".pi/tech-stack.md",
+      ".pi/user.md",
+      ".pi/memory.md",
+      ".pi/state.md",
+      ".pi/prompts/create.md",
+      ".pi/prompts/init.md",
+      ".pi/prompts/plan.md",
+      ".pi/prompts/research.md",
+      ".pi/prompts/ship.md",
+      ".pi/prompts/verify.md",
+      ".pi/prompts/gc.md",
+      ".pi/skills/development-lifecycle/SKILL.md",
+      ".pi/skills/memory/SKILL.md",
+      ".pi/skills/subagent-driven-development/SKILL.md",
+      ".pi/skills/gemini-large-context/SKILL.md",
+      ".pi/skills/opensrc/references/example-workflow.md",
+      ".pi/skills/verification-before-completion/references/VERIFICATION_PROTOCOL.md",
+      ".pi/away-runtime/closure.ts",
+      ".pi/away-runtime/confinement.test.ts",
+      ".pi/away-sandbox.json",
+      ".opencode/artifacts/away-sandbox-runtime/spec.md",
+      ".opencode/artifacts/away-sandbox-runtime/plan.md",
+      ".opencode/artifacts/away-sandbox-runtime/prd.json",
+      ".opencode/artifacts/autonomous-away-loop/spec.md",
+      ".opencode/artifacts/autonomous-away-loop/plan.md",
+      ".opencode/artifacts/autonomous-away-loop/prd.json",
+      ".opencode/tech-stack.md",
+      ".opencode/roadmap.md",
+      ".opencode/state.md"
+    ],
+    "protected_source_paths": [
+      ".opencode/command/audit.md",
+      ".opencode/command/create.md",
+      ".opencode/command/fix.md",
+      ".opencode/command/gc.md",
+      ".opencode/command/init.md",
+      ".opencode/command/plan.md",
+      ".opencode/command/research.md",
+      ".opencode/command/ship.md",
+      ".opencode/command/verify.md"
+    ],
+    "verified_paths": [
+      ".opencode/artifacts/pi-native-init/spec.md",
+      ".opencode/artifacts/pi-native-init/prd.json",
+      ".opencode/artifacts/pi-native-init/boilerplate.md",
+      ".opencode/artifacts/pi-native-init/baseline.md",
+      ".opencode/tool/structural-check.sh",
+      ".pi/artifacts/pi-template/DECISIONS.md",
+      ".pi/artifacts/pi-template/PLAN.md",
+      "AGENTS.md",
+      ".pi/ROADMAP.md",
+      ".pi/tech-stack.md",
+      ".pi/user.md",
+      ".pi/memory.md",
+      ".pi/state.md",
+      ".pi/prompts/create.md",
+      ".pi/prompts/init.md",
+      ".pi/prompts/plan.md",
+      ".pi/prompts/research.md",
+      ".pi/prompts/ship.md",
+      ".pi/prompts/verify.md",
+      ".pi/prompts/gc.md",
+      ".pi/skills/development-lifecycle/SKILL.md",
+      ".pi/skills/memory/SKILL.md",
+      ".pi/skills/subagent-driven-development/SKILL.md",
+      ".pi/skills/gemini-large-context/SKILL.md",
+      ".pi/skills/opensrc/references/example-workflow.md",
+      ".pi/skills/verification-before-completion/references/VERIFICATION_PROTOCOL.md",
+      ".pi/away-runtime/closure.ts",
+      ".pi/away-runtime/confinement.test.ts",
+      ".pi/away-sandbox.json",
+      ".opencode/artifacts/away-sandbox-runtime/spec.md",
+      ".opencode/artifacts/away-sandbox-runtime/plan.md",
+      ".opencode/artifacts/away-sandbox-runtime/prd.json",
+      ".opencode/artifacts/autonomous-away-loop/spec.md",
+      ".opencode/artifacts/autonomous-away-loop/plan.md",
+      ".opencode/artifacts/autonomous-away-loop/prd.json",
+      ".opencode/tech-stack.md",
+      ".opencode/roadmap.md",
+      ".opencode/state.md",
+      ".opencode/artifacts/.active",
+      ".pi/.gitignore"
+    ],
+    "baseline_oid": "pending: frozen at P1.1 at HEAD e15881f under operator Option B (reserve; away-sandbox-runtime paused at B3; C1-D3 deferred, reconcile-on-resume); feature-scoped baseline (absolute byte-equality unachievable under concurrent churn; binding check is feature-scoped: pi-native-init commits must not touch protected paths)",
+    "shared_serial_ownership": [
+      { "path": "AGENTS.md", "owners": ["P2.1", "P7.3"] },
+      { "path": ".pi/artifacts/pi-template/DECISIONS.md", "owners": ["P2.1", "P7.3"] },
+      { "path": ".pi/artifacts/pi-template/PLAN.md", "owners": ["P2.1", "P7.3"] },
+      {
+        "path": ".opencode/tool/structural-check.sh",
+        "owners": ["P1.2", "P3.1", "P4.1", "P5.1", "P6.3", "P8.3"]
+      },
+      { "path": ".pi/state.md", "owners": ["P2.3", "P8.3"] },
+      { "path": ".pi/away-sandbox.json", "owners": ["P7.1"] },
+      { "path": ".opencode/artifacts/autonomous-away-loop/plan.md", "owners": ["P1.2", "P8.1"] }
+    ]
+  },
+  "success_criteria": [
+    {
+      "criterion": "Init prompt: --from/--deep/--refresh present; --context/--user/--all absent; all six Pi-native outputs; no 60/150 line cap",
+      "verify": "bash .opencode/tool/structural-check.sh"
+    },
+    {
+      "criterion": "Managed boilerplate byte-identical across AGENTS.md, .pi/prompts/init.md, and the locked fixture; agents_boilerplate_sha256 in .pi/state.md matches",
+      "verify": "bash .opencode/tool/structural-check.sh"
+    },
+    {
+      "criterion": ".pi/state.md frontmatter has schema_version: 1, initialization_status: partial|ready, and context_reload_required: true|false",
+      "verify": "rg -q '^schema_version: 1$' .pi/state.md && rg -q '^initialization_status: (partial|ready)$' .pi/state.md && rg -q '^context_reload_required: (true|false)$' .pi/state.md"
+    },
+    {
+      "criterion": "Packet completeness: AGENTS.md and .pi/{ROADMAP,user,tech-stack,state,memory}.md all exist",
+      "verify": "test -f AGENTS.md && test -f .pi/ROADMAP.md && test -f .pi/user.md && test -f .pi/tech-stack.md && test -f .pi/state.md && test -f .pi/memory.md"
+    },
+    {
+      "criterion": "Create: --from <path[#anchor]> present; raw mode retained; slug validation precedes packet/source access; /create is sole mkdir namespace creator",
+      "verify": "bash .opencode/tool/structural-check.sh"
+    },
+    {
+      "criterion": "Create source contract: bounds, secret denylist, no-symlink/no-truncation, untrusted-data rule, provenance fields; no roadmap mutation",
+      "verify": "bash .opencode/tool/structural-check.sh"
+    },
+    {
+      "criterion": "Lifecycle packet gate: plan/research/ship/verify require slug then ready packet before memory/lifecycle access; /gc gates before memory/action and keeps memory read-only",
+      "verify": "bash .opencode/tool/structural-check.sh"
+    },
+    {
+      "criterion": "Pi-native memory path; no active .opencode runtime context paths in runtime contracts (excluding historical ADR-007 text)",
+      "verify": "rg -q '.pi/memory.md' .pi/prompts/create.md .pi/prompts/plan.md .pi/prompts/research.md .pi/prompts/ship.md .pi/prompts/verify.md .pi/prompts/gc.md && { rg -n '.opencode/(artifacts/MEMORY.md|tech-stack.md|roadmap.md|state.md|user.md)' AGENTS.md .pi/prompts .pi/skills .pi/artifacts/pi-template/PLAN.md; [ $? -eq 1 ]; }"
+    },
+    {
+      "criterion": "Skills portability: no active .opencode runtime deps, no exact .opencode/artifacts/.active coordination path, no global verify.log in .pi/skills (must NOT false-positive on legitimate text like participants.active); development-lifecycle makes /init the first hook",
+      "verify": "{ rg -n '\\.opencode/|verify\\.log' .pi/skills; [ $? -eq 1 ]; } && rg -q '/init' .pi/skills/development-lifecycle/SKILL.md"
+    },
+    {
+      "criterion": "Verification cache/skip/post-success-append semantics removed (not repointed)",
+      "verify": "{ rg -n 'verify\\.log|cache|skip.*verif|append.*after|post-success' .pi/skills/verification-before-completion/references/VERIFICATION_PROTOCOL.md; [ $? -eq 1 ]; }"
+    },
+    {
+      "criterion": "ADR-016 present; ADR-007 historical text preserved and marked partially superseded",
+      "verify": "rg -q '^## ADR-016:' .pi/artifacts/pi-template/DECISIONS.md && rg -q 'ADR-007' .pi/artifacts/pi-template/DECISIONS.md"
+    },
+    {
+      "criterion": "Canonical PLAN.md encodes the complete ADR-016 contract (mandatory /init, six-file packet, state ordering, packet gates, both /create syntaxes, source bounds/provenance, exact roadmap grammar, Pi-native memory)",
+      "verify": "rg -qi '/init' .pi/artifacts/pi-template/PLAN.md && rg -qi 'ADR-016' .pi/artifacts/pi-template/PLAN.md && rg -qi 'memory' .pi/artifacts/pi-template/PLAN.md"
+    },
+    {
+      "criterion": "Roadmap grammar: roadmap_schema_version: 1, unique RM-NNN, exact Autonomy/Open decisions values, away-eligibility rule",
+      "verify": "bash .opencode/tool/structural-check.sh"
+    },
+    {
+      "criterion": "Roadmap ID allocation: .pi/ROADMAP.md frontmatter has monotonic last_issued_id: RM-NNN; IDs never reused/renumbered; refresh preserves IDs by normalized outcome and never decrements the high-water mark",
+      "verify": "rg -q '^last_issued_id: RM-[0-9][0-9][0-9]$' .pi/ROADMAP.md"
+    },
+    {
+      "criterion": "No regression in milestone-3/4 static suite (frontmatter, forbidden CLEAN, slug presence, namespace ownership, completion-authority split)",
+      "verify": "bash .opencode/tool/structural-check.sh"
+    },
+    {
+      "criterion": "Source command bodies unchanged against the P1.1 baseline (feature-scoped: pi-native-init commits touch none)",
+      "verify": "git diff --exit-code <baseline_oid> -- .opencode/command/"
+    },
+    {
+      "criterion": "prd graph bounded: 2-3 tasks per child plan, <=3 files per task, ID-based deps point backward",
+      "verify": "node -e 'const p=require(\"./.opencode/artifacts/pi-native-init/prd.json\");const ids=new Map(p.tasks.map((t,i)=>[t.id,i]));if(ids.size!==p.tasks.length)throw new Error(\"dup/missing id\");const bc={};for(const[i,t]of p.tasks.entries()){if(t.files.length>3)throw new Error(t.id+\": >3 files\");if(!t.child_plan)throw new Error(t.id+\": missing child_plan\");bc[t.child_plan]=(bc[t.child_plan]||0)+1;for(const d of t.depends_on){if(!ids.has(d))throw new Error(t.id+\": unknown dep \"+d);if(ids.get(d)>=i)throw new Error(t.id+\": dep not earlier\")}}for(const[b,n]of Object.entries(bc)){if(n<2||n>3)throw new Error(b+\": \"+n+\" tasks\")}'"
+    },
+    {
+      "criterion": "Final ready + no-write pass: .pi/state.md ready + context_reload_required: false, full static gate green, git diff --check clean",
+      "verify": "rg -q '^initialization_status: ready$' .pi/state.md && rg -q '^context_reload_required: false$' .pi/state.md && bash .opencode/tool/structural-check.sh && git diff --check"
+    },
+    {
+      "criterion": "Offline checker: no network-capable probe",
+      "verify": "{ rg -n '\\bnpx\\b' .opencode/tool/structural-check.sh; [ $? -eq 1 ]; }"
+    }
+  ],
+  "tasks": [
+    {
+      "id": "P1.1",
+      "child_plan": "P1",
+      "title": "Resolve ownership and lock canonical input (spec, prd, boilerplate fixture)",
+      "category": "preflight",
+      "end_state": "Operator Option B recorded (reserve pi-native-init; away-sandbox-runtime paused at B3; C1-D3 deferred, reconcile-on-resume). All ten P1 contract corrections applied to spec.md and prd.json. Exact operator-supplied AGENTS boilerplate persisted verbatim as .opencode/artifacts/pi-native-init/boilerplate.md (extracted from root AGENTS.md Rule 0 -> Safety + Note for Codex, in generated order; stop if absent rather than reconstruct); its SHA-256 recorded. Eight-plan dependency chain recorded. (baseline.md freeze is P1.2.)",
+      "depends_on": [],
+      "files": [
+        ".opencode/artifacts/pi-native-init/spec.md",
+        ".opencode/artifacts/pi-native-init/prd.json",
+        ".opencode/artifacts/pi-native-init/boilerplate.md"
+      ],
+      "verify": "test -f .opencode/artifacts/pi-native-init/boilerplate.md && rg -q 'pi:init:boilerplate' .opencode/artifacts/pi-native-init/boilerplate.md && jq -e . .opencode/artifacts/pi-native-init/prd.json"
+    },
+    {
+      "id": "P1.2",
+      "child_plan": "P1",
+      "title": "Freeze feature-scoped baseline and make structural verification offline-safe and fail-closed",
+      "category": "safety",
+      "end_state": "baseline.md frozen at P1.1 HEAD under Option B (feature-scoped: pi-native-init commits must not touch protected paths; absolute byte-equality unachievable under concurrent churn). structural-check.sh has no network-capable probe; uses an installed binary/local probe; Fallow skipped when absent, never installed or contacting a registry. Adds a fail-closed negative-match helper (rg exit 1 = clean; exit 0 = forbidden; exit >=2 = tool error) used by all negative checks. Adds Gate 0.4 to the autonomous-away-loop plan: pi-native-init P8.3 must complete before any autonomous-away-loop implementation begins. Checker still runs.",
+      "depends_on": ["P1.1"],
+      "files": [
+        ".opencode/artifacts/pi-native-init/baseline.md",
+        ".opencode/tool/structural-check.sh",
+        ".opencode/artifacts/autonomous-away-loop/plan.md"
+      ],
+      "verify": "bash -n .opencode/tool/structural-check.sh && { rg -n '\\bnpx\\b' .opencode/tool/structural-check.sh; [ $? -eq 1 ]; } && rg -q 'P8.3' .opencode/artifacts/autonomous-away-loop/plan.md"
+    },
+    {
+      "id": "P2.1",
+      "child_plan": "P2",
+      "title": "Establish ADR-016 and managed AGENTS (DECISIONS, PLAN, AGENTS)",
+      "category": "contract",
+      "end_state": "ADR-016 added (supersedes only ADR-007 memory location; ADR-007 historical text + namespace decisions preserved, marked partially superseded). Canonical PLAN.md encodes the complete contract (mandatory /init, six-file packet, state ordering + context_reload_required, packet gates, both /create syntaxes, source bounds/provenance, exact roadmap grammar, Pi-native memory; 'no schemas' narrowed to lifecycle-kernel/typed-handoff). AGENTS.md has the exact boilerplate in its managed region (reordered so the full boilerplate Rule 0 -> Safety + Note for Codex is one contiguous managed block, with the Repository project appendix after the end marker); project routing/topology preserved in the appendix. Writing/refreshing AGENTS.md leaves .pi/state.md partial + context_reload_required: true (the only advertised next action is /reload then /init --refresh).",
+      "depends_on": ["P1.2"],
+      "files": [
+        ".pi/artifacts/pi-template/DECISIONS.md",
+        ".pi/artifacts/pi-template/PLAN.md",
+        "AGENTS.md"
+      ],
+      "verify": "rg -q '^## ADR-016:' .pi/artifacts/pi-template/DECISIONS.md && rg -q 'ADR-007' .pi/artifacts/pi-template/DECISIONS.md && rg -q 'pi:init:boilerplate:start' AGENTS.md && rg -q 'pi:init:boilerplate:end' AGENTS.md && git diff --check"
+    },
+    {
+      "id": "P2.2",
+      "child_plan": "P2",
+      "title": "Seed project facts, profile, and durable intent (tech-stack, user, memory)",
+      "category": "seed",
+      "end_state": ".pi/tech-stack.md holds detected facts + command evidence (verified|documented|failed|unknown). .pi/user.md holds only operator-approved tracked preferences (no secrets, no inferred personal data). .pi/memory.md created with distilled non-sensitive project memory AND an immutable '## Initialization Intent - <generation-id>' section holding confirmed operator/project intent (interview-derived when no --from); this section is the provenance source for roadmap cards. Memory is seeded BEFORE the roadmap (P2.3).",
+      "depends_on": ["P2.1"],
+      "files": [".pi/tech-stack.md", ".pi/user.md", ".pi/memory.md"],
+      "verify": "rg -q 'pi-fabric.*0.23.0' .pi/tech-stack.md && rg -q '^## Initialization Intent - ' .pi/memory.md && git diff --check"
+    },
+    {
+      "id": "P2.3",
+      "child_plan": "P2",
+      "title": "Seed roadmap and partial state (ROADMAP, state)",
+      "category": "seed",
+      "end_state": ".pi/ROADMAP.md compiles project intent into the exact v1 grammar (roadmap_schema_version: 1; monotonic last_issued_id: RM-NNN frontmatter; 1-3 Ready cards; unresolved -> manual-only; unique immutable RM-NNN). Each card cites the stable .pi/memory.md Initialization Intent section path + whole-file SHA-256. .pi/state.md written LAST with schema_version: 1, initialization_status: partial, context_reload_required: true, agents_boilerplate_sha256 set. Packet NOT advertised as usable; /create --from NOT advertised as ready (state is partial + reload-required).",
+      "depends_on": ["P2.2"],
+      "files": [".pi/ROADMAP.md", ".pi/state.md"],
+      "verify": "rg -q '^roadmap_schema_version: 1$' .pi/ROADMAP.md && rg -q '^last_issued_id: RM-[0-9][0-9][0-9]$' .pi/ROADMAP.md && rg -q '### RM-001' .pi/ROADMAP.md && rg -q 'Autonomy:' .pi/ROADMAP.md && rg -q '^initialization_status: partial$' .pi/state.md && rg -q '^context_reload_required: true$' .pi/state.md && rg -q '^agents_boilerplate_sha256:' .pi/state.md && git diff --check"
+    },
+    {
+      "id": "P3.1",
+      "child_plan": "P3",
+      "title": "Add failing structural assertions for source-backed create",
+      "category": "test",
+      "end_state": "structural-check.sh asserts the new grammar, slug-before-packet/source ordering, mandatory ready packet (all six files + schema v1 + ready + context_reload_required: false + matching agents_boilerplate_sha256), source bounds, untrusted-data rule, provenance fields, no roadmap mutation, and preserved namespace/review/supervisor safeguards. Expected RED captured.",
+      "depends_on": ["P2.3"],
+      "files": [".opencode/tool/structural-check.sh"],
+      "verify": "bash -n .opencode/tool/structural-check.sh"
+    },
+    {
+      "id": "P3.2",
+      "child_plan": "P3",
+      "title": "Implement source mode and packet gate in /create",
+      "category": "impl",
+      "end_state": ".pi/prompts/create.md supports /create <slug> \"description\" and /create <slug> --from <path[#anchor]>. Validation order slug -> complete-ready-packet gate (all six files, schema v1, initialization_status: ready, context_reload_required: false, agents_boilerplate_sha256 matching managed AGENTS interior) -> namespace (absent/partial/established). Memory access uses .pi/memory.md (not .opencode/artifacts/MEMORY.md). Source guard + stable-byte procedure applied; zero/multiple anchor matches and multiple shippable outcomes blocked; provenance recorded in PLAN.md; .pi/ROADMAP.md never mutated. Fail-closed namespace ownership and all review/supervisor rules preserved.",
+      "depends_on": ["P3.1"],
+      "files": [".pi/prompts/create.md"],
+      "verify": "rg -q -- '--from' .pi/prompts/create.md && rg -q 'sha256' .pi/prompts/create.md && rg -q '.pi/memory.md' .pi/prompts/create.md && rg -q 'mkdir -p' .pi/prompts/create.md && git diff --check"
+    },
+    {
+      "id": "P3.3",
+      "child_plan": "P3",
+      "title": "Close the create gate",
+      "category": "gate",
+      "end_state": "structural-check.sh create assertions GREEN; git diff --check clean. .pi/state.md remains partial.",
+      "depends_on": ["P3.2"],
+      "files": [],
+      "verify": "bash .opencode/tool/structural-check.sh && git diff --check && rg -q '^initialization_status: partial$' .pi/state.md"
+    },
+    {
+      "id": "P4.1",
+      "child_plan": "P4",
+      "title": "Add failing init assertions",
+      "category": "test",
+      "end_state": "structural-check.sh asserts new flags, removed modes, all Pi-native outputs, no line cap, exact boilerplate equality, full state machine + write ordering, source bounds, prompt-injection treatment, drift checks, readiness outputs, reload barrier, monotonic roadmap ID. Only intended checks fail.",
+      "depends_on": ["P3.3"],
+      "files": [".opencode/tool/structural-check.sh"],
+      "verify": "bash -n .opencode/tool/structural-check.sh"
+    },
+    {
+      "id": "P4.2",
+      "child_plan": "P4",
+      "title": "Rewrite /init compiler and refresh state machine",
+      "category": "impl",
+      "end_state": ".pi/prompts/init.md implements absent/interrupted-without-state/established/partial/refresh classifications; hybrid compiler; full-packet preview + confirmation; fresh writes state last; refresh invalidation before mutation; re-preview on input/appendix drift; exact managed boilerplate + semantically reconciled appendix; READY/PARTIAL/response-only BLOCKED; exact /create --from handoff only when ready; no installs/network/secret-reads/source-triggered actions. Writing/refreshing AGENTS.md leaves state partial + context_reload_required: true and advertises only /reload then /init --refresh; only a post-/reload refresh with no drift writes ready + context_reload_required: false last, then emits the /create handoff. Interview mode writes confirmed intent to .pi/memory.md before compiling roadmap cards. Refresh preserves roadmap IDs by normalized outcome; never decrements last_issued_id; allocates a new ID for materially changed/new outcomes.",
+      "depends_on": ["P4.1"],
+      "files": [".pi/prompts/init.md"],
+      "verify": "rg -q -- '--from' .pi/prompts/init.md && rg -q -- '--refresh' .pi/prompts/init.md && rg -q 'pi:init:boilerplate:start' .pi/prompts/init.md && rg -q -i 'READY|PARTIAL|BLOCKED' .pi/prompts/init.md && git diff --check"
+    },
+    {
+      "id": "P4.3",
+      "child_plan": "P4",
+      "title": "Close the init gate",
+      "category": "gate",
+      "end_state": "structural-check.sh init assertions GREEN; git diff --check clean. .pi/state.md remains partial.",
+      "depends_on": ["P4.2"],
+      "files": [],
+      "verify": "bash .opencode/tool/structural-check.sh && git diff --check && rg -q '^initialization_status: partial$' .pi/state.md"
+    },
+    {
+      "id": "P5.1",
+      "child_plan": "P5",
+      "title": "Encode packet-gate assertions for lifecycle consumers",
+      "category": "test",
+      "end_state": "structural-check.sh asserts slug-before-packet for every slugged command; complete packet + schema v1 + ready + context_reload_required: false + matching boilerplate hash; /gc gates before memory/action; old-path rejection scoped to active runtime contracts (excluding historical ADR-007).",
+      "depends_on": ["P4.3"],
+      "files": [".opencode/tool/structural-check.sh"],
+      "verify": "bash -n .opencode/tool/structural-check.sh"
+    },
+    {
+      "id": "P5.2",
+      "child_plan": "P5",
+      "title": "Migrate planning and delivery prompts (plan, research, ship)",
+      "category": "impl",
+      "end_state": ".pi/prompts/plan.md, research.md, ship.md add the mandatory ready-packet gate after slug validation and replace active memory access with .pi/memory.md; preserve established/missing/partial namespace behavior; preserve response-only pre-create research once the packet is ready.",
+      "depends_on": ["P5.1"],
+      "files": [".pi/prompts/plan.md", ".pi/prompts/research.md", ".pi/prompts/ship.md"],
+      "verify": "rg -q '.pi/memory.md' .pi/prompts/plan.md .pi/prompts/research.md .pi/prompts/ship.md && git diff --check"
+    },
+    {
+      "id": "P5.3",
+      "child_plan": "P5",
+      "title": "Migrate verification and GC (verify, gc)",
+      "category": "impl",
+      "end_state": ".pi/prompts/verify.md preserves the final-fingerprint + no-post-fingerprint-write contract; keeps the durable-memory append before the final pass. .pi/prompts/gc.md requires the ready packet before memory/action and keeps memory read-only; .pi/memory.md is mandatory packet structure. State remains partial.",
+      "depends_on": ["P5.2"],
+      "files": [".pi/prompts/verify.md", ".pi/prompts/gc.md"],
+      "verify": "rg -q '.pi/memory.md' .pi/prompts/verify.md .pi/prompts/gc.md && git diff --check && rg -q '^initialization_status: partial$' .pi/state.md"
+    },
+    {
+      "id": "P6.1",
+      "child_plan": "P6",
+      "title": "Migrate core lifecycle skills (development-lifecycle, memory, subagent-driven-development)",
+      "category": "impl",
+      "end_state": "development-lifecycle/SKILL.md makes /init the first lifecycle hook. memory/SKILL.md uses .pi/memory.md. subagent-driven-development/SKILL.md uses explicit slug-local canonical artifacts and removes global OpenCode plan/memory paths.",
+      "depends_on": ["P5.3"],
+      "files": [
+        ".pi/skills/development-lifecycle/SKILL.md",
+        ".pi/skills/memory/SKILL.md",
+        ".pi/skills/subagent-driven-development/SKILL.md"
+      ],
+      "verify": "rg -q '/init' .pi/skills/development-lifecycle/SKILL.md && rg -q '.pi/memory.md' .pi/skills/memory/SKILL.md && git diff --check"
+    },
+    {
+      "id": "P6.2",
+      "child_plan": "P6",
+      "title": "Migrate research and verification references (gemini, opensrc, VERIFICATION_PROTOCOL)",
+      "category": "impl",
+      "end_state": "gemini-large-context/SKILL.md and opensrc/references/example-workflow.md replace .active and global OpenCode paths. VERIFICATION_PROTOCOL.md removes (not repoints) cache/skip/post-success-append behavior; candidate evidence stays in per-slug PROGRESS.md before the final pass; final declaration remains external with no post-fingerprint write.",
+      "depends_on": ["P6.1"],
+      "files": [
+        ".pi/skills/gemini-large-context/SKILL.md",
+        ".pi/skills/opensrc/references/example-workflow.md",
+        ".pi/skills/verification-before-completion/references/VERIFICATION_PROTOCOL.md"
+      ],
+      "verify": "{ rg -n 'verify\\.log|cache|skip.*verif|post-success' .pi/skills/verification-before-completion/references/VERIFICATION_PROTOCOL.md; [ $? -eq 1 ]; } && git diff --check"
+    },
+    {
+      "id": "P6.3",
+      "child_plan": "P6",
+      "title": "Expand portability verification",
+      "category": "test",
+      "end_state": "structural-check.sh scans all .pi/skills/** and fails on active .opencode runtime deps, the exact .opencode/artifacts/.active coordination path, and global verify logs (must NOT false-positive on legitimate text like participants.active or the bare substring .active). Asserts development-lifecycle makes /init the first hook. State remains partial.",
+      "depends_on": ["P6.2"],
+      "files": [".opencode/tool/structural-check.sh"],
+      "verify": "bash .opencode/tool/structural-check.sh && git diff --check && rg -q '^initialization_status: partial$' .pi/state.md"
+    },
+    {
+      "id": "P7.1",
+      "child_plan": "P7",
+      "title": "Correct the settled away-sandbox runtime closure (closure.ts, confinement.test.ts, away-sandbox.json)",
+      "category": "impl",
+      "end_state": "Mandatory .opencode closure members removed if present; Pi-native runtime + protected-context paths used; a copied .pi runtime works with .opencode absent; the packet and managed AGENTS region are protected from autonomous mutation. .pi/away-sandbox.json protected_paths/runtime_protected_paths add the five .pi context files (ROADMAP, user, tech-stack, state, memory) and the managed AGENTS region; .opencode/command/** remains protected as source; the sandbox manifest itself is protected.",
+      "depends_on": ["P6.3"],
+      "files": [
+        ".pi/away-runtime/closure.ts",
+        ".pi/away-runtime/confinement.test.ts",
+        ".pi/away-sandbox.json"
+      ],
+      "verify": "test -f .pi/away-runtime/closure.ts && test -f .pi/away-sandbox.json && node --experimental-strip-types --test .pi/away-runtime/confinement.test.ts && git diff --check"
+    },
+    {
+      "id": "P7.2",
+      "child_plan": "P7",
+      "title": "Synchronize the away-sandbox feature contract (spec, plan, prd)",
+      "category": "docs",
+      "end_state": "away-sandbox-runtime spec.md/plan.md/prd.json updated for closure membership, managed-region ownership, Pi-native context, and acceptance checks reflecting the fixed managed AGENTS region and protected context.",
+      "depends_on": ["P7.1"],
+      "files": [
+        ".opencode/artifacts/away-sandbox-runtime/spec.md",
+        ".opencode/artifacts/away-sandbox-runtime/plan.md",
+        ".opencode/artifacts/away-sandbox-runtime/prd.json"
+      ],
+      "verify": "jq -e . .opencode/artifacts/away-sandbox-runtime/prd.json && git diff --check"
+    },
+    {
+      "id": "P7.3",
+      "child_plan": "P7",
+      "title": "Reconcile canonical sandbox authority (DECISIONS, PLAN, AGENTS)",
+      "category": "contract",
+      "end_state": "ADR-014 aligned with ADR-016 while the managed boilerplate hash is proven unchanged (marker-bounded block byte-identical to the fixture). State remains partial.",
+      "depends_on": ["P7.2"],
+      "files": [
+        ".pi/artifacts/pi-template/DECISIONS.md",
+        ".pi/artifacts/pi-template/PLAN.md",
+        "AGENTS.md"
+      ],
+      "verify": "rg -q '^## ADR-014:' .pi/artifacts/pi-template/DECISIONS.md && rg -q '^## ADR-016:' .pi/artifacts/pi-template/DECISIONS.md && bash .opencode/tool/structural-check.sh && rg -q '^initialization_status: partial$' .pi/state.md"
+    },
+    {
+      "id": "P8.1",
+      "child_plan": "P8",
+      "title": "Synchronize autonomous-away-loop (spec, plan, prd)",
+      "category": "docs",
+      "end_state": "autonomous-away-loop spec.md/plan.md/prd.json require sole default .pi/ROADMAP.md, exact roadmap grammar (roadmap_schema_version: 1, monotonic last_issued_id, immutable RM-NNN), source-backed /create, eligibility only for Ready + away-ok + Open decisions: none, no roadmap mutation, protected Pi-native context, and the fixed AGENTS managed region. Gate 0.4 (added at P1.2) preserved until pi-native-init P8.3 completes.",
+      "depends_on": ["P7.3"],
+      "files": [
+        ".opencode/artifacts/autonomous-away-loop/spec.md",
+        ".opencode/artifacts/autonomous-away-loop/plan.md",
+        ".opencode/artifacts/autonomous-away-loop/prd.json"
+      ],
+      "verify": "jq -e . .opencode/artifacts/autonomous-away-loop/prd.json && rg -q '.pi/ROADMAP.md' .opencode/artifacts/autonomous-away-loop/spec.md && rg -q 'last_issued_id' .opencode/artifacts/autonomous-away-loop/spec.md && git diff --check"
+    },
+    {
+      "id": "P8.2",
+      "child_plan": "P8",
+      "title": "Update development-only context (tech-stack, roadmap, state)",
+      "category": "docs",
+      "end_state": ".opencode/tech-stack.md, roadmap.md, state.md describe the shipped Pi-native behavior while remaining explicitly development-only.",
+      "depends_on": ["P8.1"],
+      "files": [".opencode/tech-stack.md", ".opencode/roadmap.md", ".opencode/state.md"],
+      "verify": "rg -qi 'pi-native|/init|\\.pi/' .opencode/tech-stack.md && git diff --check"
+    },
+    {
+      "id": "P8.3",
+      "child_plan": "P8",
+      "title": "Final static gate and readiness promotion",
+      "category": "gate",
+      "end_state": "Final exact assertions added to structural-check.sh. All static checks run while state is partial. Operator runs /reload or restarts Pi (GATE: do not promote before reload). In the reloaded session the checker reruns and rejects any intervening drift; only then .pi/state.md changes to initialization_status: ready + context_reload_required: false (written last); the complete no-write static pass reruns; no further production write. Then (operator-gated, no-write) away-sandbox-runtime D3 full tests/attestation/fingerprint rerun against final bytes; any failure reopens work with state back to partial before any repair write.",
+      "depends_on": ["P8.2"],
+      "files": [".opencode/tool/structural-check.sh", ".pi/state.md"],
+      "verify": "bash -n .opencode/tool/structural-check.sh && bash .opencode/tool/structural-check.sh && rg -q '^initialization_status: ready$' .pi/state.md && rg -q '^context_reload_required: false$' .pi/state.md && git diff --check"
+    }
+  ]
+}
