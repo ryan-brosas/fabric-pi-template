@@ -73,7 +73,7 @@ Ask: "How much codebase research do you need?" with these options:
 
 - **Deep (Recommended for complex work)** — 3-5 agents: patterns, tests, deps, best practices (~2 min)
 - **Standard** — 2 agents: patterns + tests (~1 min)
-- **Minimal** — 1 agent: quick file scan (~30 sec)
+- **Minimal** — 1 explore worker: quick file scan (~30 sec)
 - **Skip** — I know the codebase, use existing knowledge
 
 ## Phase 4: Gather Context
