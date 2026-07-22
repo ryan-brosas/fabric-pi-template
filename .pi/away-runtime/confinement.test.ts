@@ -275,6 +275,31 @@ describe("closure: resolve real manifest (requireAll:false tolerates forward ref
       assert.ok(!/\/mesh\//.test(i.canonical), `no mesh state: ${i.canonical}`);
     }
   });
+
+  test("closure inputs contain no .opencode path (a copied .pi runtime works with .opencode absent)", () => {
+    const c = resolveClosure(REAL_MANIFEST, "writer", { requireAll: false });
+    for (const i of c.inputs) {
+      assert.ok(
+        !i.declared.includes(".opencode") && !i.canonical.includes(".opencode"),
+        `closure input must not depend on .opencode: ${i.declared}`,
+      );
+    }
+  });
+
+  test("the manifest protects the init packet and managed AGENTS region from autonomous mutation", () => {
+    const { manifest } = loadManifest(REAL_MANIFEST);
+    const pp = manifest.protected_paths as string[];
+    for (const f of [
+      ".pi/ROADMAP.md",
+      ".pi/user.md",
+      ".pi/tech-stack.md",
+      ".pi/state.md",
+      ".pi/memory.md",
+      "AGENTS.md",
+    ]) {
+      assert.ok(pp.includes(f), `protected_paths includes ${f}`);
+    }
+  });
 });
 
 describe("closure: canonical-path and symlink handling", () => {
