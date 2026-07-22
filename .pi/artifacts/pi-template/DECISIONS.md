@@ -207,3 +207,46 @@ authority docs. (b) Embed gate mechanics into `/ship`/`/verify` so advisors are 
 a standalone manual command (the original plan) — redundant with `/supervise` in practice and
 easy to forget, the exact concern raised. Chosen the single supervisor as the only part that
 earns its keep.
+
+## ADR-009: Safe extension defaults and explicit writable dispatch
+**Status:** accepted
+**Date:** 2026-07-22
+**Context:** ADR-003 established the extension split (Makora `extensions:true`, GPT/read-only
+`extensions:false`) as a per-call discipline. But `.pi/fabric.json`'s `subagents.extensions`
+defaulted to `true`, so every read-only one-shot child (explore/scout/review/plan/debug) inherited
+`fabric_exec`/`agents.*`/`mesh.*` unless its dispatch explicitly passed `extensions:false` — a
+dispatch that forgot the override silently granted a review child recursive orchestration. The
+AGENTS rule "GPT council and read-only children use `extensions:false`" was per-call-dependent and
+fragile. Separately, the Makora writable tool allowlist was described ("exact allowlist") but never
+concretely pinned, and `bash` inclusion was load-bearing and undecided. Installed pi-fabric 0.22.4
+source confirms `extensions` resolves as `recursive ? true : (request.extensions ??
+config.extensions)` (`dist/subagents/manager.js:332-337`), so the config default is the fail-safe
+floor; a recursive Pi run forces `true` regardless, which is why the canonical Makora dispatch pins
+`recursive:false`. The same source confirms there is exactly one shared semaphore from
+`config.maxConcurrent` (`manager.js:210-214,300-301`) — no separate writable pool — and `agents.run`
+blocks until settlement (`manager.js:457-460`), so the one-writable-run ceiling is Main policy, not
+host enforcement.
+**Decision:** Pin `subagents.extensions:false` in `.pi/fabric.json` as the safe read-only default;
+Makora overrides `extensions:true` explicitly per call. Pin the concrete Makora writable allowlist
+to `read`, `grep`, `find`, `ls`, `edit`, `write` — no `bash`. Main runs all verification after the
+worker settles; there is no general exact-argv child command runner (`schema.trustedCommands` is
+schema-verification machinery only). The canonical Makora `agents.run` dispatch pins
+`runner:"pi"`, `model:"makora/zai-org/GLM-5.2-NVFP4"`, `thinking:"max"`, `extensions:true`,
+`recursive:false`, `tools:[<pinned allowlist>]`, `worktree:false`. The one-Makora ceiling is enforced
+by Main issuing at most one blocking writable `agents.run()` at a time and making no edit or write
+call while it is active; `maxConcurrent` bounds total concurrent children across tiers, not the
+writable pool. This is operator/prompt policy, not host-enforced — labeled honestly.
+**Consequences:** Easier: read-only children cannot accidentally inherit orchestration capability;
+the Makora dispatch shape is identical every time and statically checkable; worker capability is
+minimal (no shell, no network), strengthening distrust. Harder: a Makora worker cannot self-verify
+by running commands — Main must run all verification after settlement, and if an implementation
+genuinely needs an intermediate command, Main splits the work into serial worker runs around a
+Main-owned command. The one-writable-run ceiling is policy, not a host lock, so a discipline
+failure is not caught at the Fabric layer.
+**Alternatives:** (a) Keep `extensions:true` default and require every read-only dispatch to pass
+`extensions:false` — fragile; one forgotten override grants excess capability, the exact concern.
+(b) Include `bash` in the Makora allowlist so the worker self-verifies — wider capability (network,
+destructive commands) contradicts the distrust posture; Main-owned verification is stronger.
+(c) Add a host-side writable semaphore or atomic single-writer lease to enforce the ceiling —
+rejected as clean-slate scope creep; v1 stays operator/prompt policy, honestly labeled. Chosen
+the fail-safe default, the pinned non-shell allowlist, and the Main-owned verification discipline.
