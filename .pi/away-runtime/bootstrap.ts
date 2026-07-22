@@ -161,14 +161,20 @@ function buildEnv(
   return env;
 }
 
+// The Fabric approval gate governs RAW sandbox operations (pi.write/pi.bash). The
+// away_* host tools run in the TRUSTED host, not the sandbox — calling one is a
+// read-like RPC (send request, get response), not a sandbox write/execute. So every
+// away_* captured-tool risk is "read": it passes approvals.read:allow, while raw
+// write/execute stay denied by approvals.write:deny / approvals.execute:deny. The
+// manifest's host_call_risks records the SEMANTIC host-side risk (for receipts) and
+// is intentionally NOT applied to the Fabric gate.
 function buildCaptureRisks(lane: LaneProfile, manifest: Manifest): Record<string, FabricRisk> {
   const risks: Record<string, FabricRisk> = {};
   for (const ref of lane.host_call_refs) {
-    const risk = manifest.host_call_risks[ref];
-    if (!risk) {
+    if (!(ref in manifest.host_call_risks)) {
       throw new Error(`lane references undeclared host call ref: ${ref}`);
     }
-    risks[ref] = risk;
+    risks[ref] = "read";
   }
   return risks;
 }

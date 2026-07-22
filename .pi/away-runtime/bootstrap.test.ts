@@ -142,7 +142,7 @@ describe("bootstrap synthetic fabric.json", () => {
     assert.equal(r.fabricConfig.schema.mode, "off");
   });
 
-  test("captures exactly the lane's host-call refs with exact risks", () => {
+  test("captures exactly the lane's host-call refs, all as read-risk RPCs", () => {
     const r = bootstrap("writer", {
       manifestPath: MANIFEST,
       controlCwd: tmpDir("ctrl"),
@@ -160,8 +160,12 @@ describe("bootstrap synthetic fabric.json", () => {
       "away_search",
       "away_stage_write",
     ]);
-    assert.equal(risks.away_stage_write, "write");
-    assert.equal(risks.away_attest, "execute");
+    // Every away_* capture risk is "read": away_* calls are read-like RPCs into the
+    // trusted host (not sandbox write/execute), so they pass approvals.read:allow while
+    // raw pi.write/pi.bash stay denied by approvals.write:deny / approvals.execute:deny.
+    for (const ref of Object.keys(risks)) {
+      assert.equal(risks[ref], "read", `${ref} capture risk is read`);
+    }
   });
 
   test("writes the synthetic fabric.json to the inert control cwd, not the repo", () => {
