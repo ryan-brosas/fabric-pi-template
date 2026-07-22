@@ -39,7 +39,7 @@ rg_neg() {
 }
 
 # --- 1. Plugin isolation: no cross-plugin imports ---
-echo "[Check 1/8] Plugin isolation — no cross-plugin imports..."
+echo "[Check 1/9] Plugin isolation — no cross-plugin imports..."
 
 PLUGIN_DIR="$ROOT/.opencode/plugin"
 PLUGINS=()
@@ -60,7 +60,7 @@ done
 pass "No cross-plugin imports detected"
 
 # --- 2. SDK boundary: SDK doesn't import from plugin/ ---
-echo "[Check 2/8] SDK boundary — SDK has no plugin dependencies..."
+echo "[Check 2/9] SDK boundary — SDK has no plugin dependencies..."
 
 if [ -d "$PLUGIN_DIR/sdk" ]; then
 	SDK_FILES=$(find "$PLUGIN_DIR/sdk" -name "*.ts" 2>/dev/null)
@@ -75,7 +75,7 @@ fi
 pass "SDK boundary intact"
 
 # --- 3. File size limits ---
-echo "[Check 3/8] File size limits..."
+echo "[Check 3/9] File size limits..."
 
 check_size() {
 	local path="$1"
@@ -111,7 +111,7 @@ done
 pass "All files within size limits"
 
 # --- 4. No TODO/FIXME without owner ---
-echo "[Check 4/8] TODO/FIXME hygiene..."
+echo "[Check 4/9] TODO/FIXME hygiene..."
 
 BAD_TODO=$(grep -rn "TODO\|FIXME" "$ROOT/.opencode/plugin/"*.ts 2>/dev/null | grep -v "//.*owner:" || true)
 if [ -n "$BAD_TODO" ]; then
@@ -121,7 +121,7 @@ fi
 pass "TODO hygiene acceptable"
 
 # --- 5. Consistent naming: kebab-case filenames (basename only) ---
-echo "[Check 5/8] Filename convention..."
+echo "[Check 5/9] Filename convention..."
 
 BAD_NAMES=$(find "$ROOT/.opencode/plugin" "$ROOT/.opencode/tool" -name "*.ts" -o -name "*.sh" 2>/dev/null | grep -v node_modules | while IFS= read -r f; do
 	bn=$(basename "$f")
@@ -135,7 +135,7 @@ fi
 pass "Filename convention OK"
 
 # --- 6. Remediator: if this check fails, instructions are below ---
-echo "[Check 6/8] Remediation readiness..."
+echo "[Check 6/9] Remediation readiness..."
 
 # Ensure fallow is available (offline: probe an installed binary only; never
 # install, cache, or contact a registry from this checker).
@@ -146,7 +146,7 @@ else
 fi
 
 # --- 7. /create contract (Pi-native init: both modes + packet gate) ---
-echo "[Check 7/8] /create contract — both modes, packet gate, source bounds, provenance..."
+echo "[Check 7/9] /create contract — both modes, packet gate, source bounds, provenance..."
 
 CREATE="$ROOT/.pi/prompts/create.md"
 
@@ -223,7 +223,7 @@ else
 fi
 
 # --- 8. /init contract (Pi-native init: compiler, refresh, six-file packet, boilerplate, crash-safe) ---
-echo "[Check 8/8] /init contract — compiler, refresh, packet, boilerplate, crash-safe..."
+echo "[Check 8/9] /init contract — compiler, refresh, packet, boilerplate, crash-safe..."
 
 INIT="$ROOT/.pi/prompts/init.md"
 
@@ -356,6 +356,98 @@ if(i<0||j<0){console.log("ERROR")}else{const nonBp=s.slice(0,i)+s.slice(j+b.leng
 		pass "init.md: command validation behavior retained"
 	else
 		fail "init.md: command validation behavior lost"
+	fi
+fi
+
+# --- 9. Lifecycle consumer contract (Pi-native init: packet gate + .pi/memory.md) ---
+echo "[Check 9/9] Lifecycle consumer contract — packet gate, .pi/memory.md, old paths absent..."
+
+# Slugged commands: plan, research, ship, verify
+# Each must gate on a ready packet after slug validation, use .pi/memory.md, and drop old .opencode paths.
+SLUGGED_PROMPTS=("$ROOT/.pi/prompts/plan.md" "$ROOT/.pi/prompts/research.md" "$ROOT/.pi/prompts/ship.md" "$ROOT/.pi/prompts/verify.md")
+
+for f in "${SLUGGED_PROMPTS[@]}"; do
+	name=$(basename "$f")
+	if [ ! -f "$f" ]; then
+		fail "$name missing"
+		continue
+	fi
+
+	# RED: ready-packet gate (schema + ready + reload false + AGENTS hash) after slug validation
+	if rg -q 'agents_boilerplate_sha256' "$f" && rg -q 'context_reload_required' "$f" && rg -q 'initialization_status: ready' "$f"; then
+		pass "$name: ready-packet gate present"
+	else
+		fail "$name: missing ready-packet gate (schema/hash/reload)"
+	fi
+
+	# RED: .pi/memory.md used (not old .opencode path)
+	if rg -q '\.pi/memory\.md' "$f"; then
+		pass "$name: uses .pi/memory.md"
+	else
+		fail "$name: missing .pi/memory.md reference"
+	fi
+
+	# RED: old .opencode/artifacts/MEMORY.md absent
+	rg_neg '\.opencode/artifacts/MEMORY\.md' "$f" "$name: old .opencode memory path absent"
+
+	# GREEN: slug validation before filesystem/memory access preserved
+	if rg -q 'before any filesystem' "$f"; then
+		pass "$name: slug-before-memory ordering preserved"
+	else
+		fail "$name: slug-before-memory ordering lost"
+	fi
+done
+
+# Namespace classification preserved (plan/ship/verify use Established/Partial/Absent)
+for f in "$ROOT/.pi/prompts/plan.md" "$ROOT/.pi/prompts/ship.md" "$ROOT/.pi/prompts/verify.md"; do
+	name=$(basename "$f")
+	if [ ! -f "$f" ]; then
+		continue
+	fi
+	if rg -q 'Established' "$f" && rg -q 'Partial' "$f" && rg -q 'Absent' "$f"; then
+		pass "$name: namespace classification preserved"
+	else
+		fail "$name: namespace classification lost"
+	fi
+done
+
+# Slugless /gc: packet gate before memory/action + read-only
+GC="$ROOT/.pi/prompts/gc.md"
+if [ ! -f "$GC" ]; then
+	fail "gc.md missing"
+else
+	# RED: ready-packet gate (slugless but must still gate on initialized packet)
+	if rg -q 'agents_boilerplate_sha256' "$GC" && rg -q 'context_reload_required' "$GC" && rg -q 'initialization_status: ready' "$GC"; then
+		pass "gc.md: ready-packet gate present"
+	else
+		fail "gc.md: missing ready-packet gate (schema/hash/reload)"
+	fi
+
+	# RED: .pi/memory.md used
+	if rg -q '\.pi/memory\.md' "$GC"; then
+		pass "gc.md: uses .pi/memory.md"
+	else
+		fail "gc.md: missing .pi/memory.md reference"
+	fi
+
+	# RED: old .opencode/artifacts/MEMORY.md absent
+	rg_neg '\.opencode/artifacts/MEMORY\.md' "$GC" "gc.md: old .opencode memory path absent"
+
+	# GREEN: read-only (never writes lifecycle/memory; grades in response only)
+	if rg -qi 'never writes' "$GC" && rg -qi 'response only|emitted in the response' "$GC"; then
+		pass "gc.md: read-only behavior preserved"
+	else
+		fail "gc.md: read-only behavior lost"
+	fi
+fi
+
+# Scoped old-path rejection: ADR-007 historical text preserved (not rewritten)
+DECISIONS="$ROOT/.pi/artifacts/pi-template/DECISIONS.md"
+if [ -f "$DECISIONS" ]; then
+	if rg -q 'ADR-007' "$DECISIONS" && rg -q '\.opencode/artifacts/MEMORY\.md' "$DECISIONS"; then
+		pass "DECISIONS.md: ADR-007 historical text preserved (old path retained)"
+	else
+		fail "DECISIONS.md: ADR-007 historical text lost"
 	fi
 fi
 
