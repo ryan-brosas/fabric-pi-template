@@ -1,0 +1,168 @@
+{
+  "title": "Milestone 5 — Worker topology + distrust (audit + hardening)",
+  "slug": "milestone-5-worker-topology-distrust",
+  "created": "2026-07-22",
+  "id": "ms5-001",
+  "approach": "audit + hardening pass: the worker-topology + distrust contract is mostly encoded (AGENTS/PLAN/fabric.json). This spec audits it for six residual gaps (extensions default contradicts AGENTS; Makora allowlist not pinned; no canonical dispatch block; 1-Makora enforcement mechanism not stated; single-writer policy has no smoke; host-derived candidate intake is prose not encoded), hardens them, and defines the worker-topology smoke (runs in milestone 6). Two operator decisions pending: pin subagents.extensions=false (recommended) and exclude bash from the Makora allowlist (recommended). Same shape as milestone 4.",
+  "blocks": [
+    "Milestone 6 — runtime smoke (requires /trust + restart)",
+    "Milestone 6 — /pi/tools/ fingerprint capture",
+    "No custom host-side semaphore extension or atomic single-writer lease (v1 policy)"
+  ],
+  "manifests": {
+    "write_paths": [
+      ".pi/fabric.json",
+      "AGENTS.md",
+      ".pi/artifacts/pi-template/DECISIONS.md",
+      ".pi/artifacts/pi-template/PLAN.md",
+      ".pi/prompts/ship.md",
+      ".pi/artifacts/pi-template/TODO.md",
+      ".pi/artifacts/pi-template/PROGRESS.md",
+      ".opencode/state.md",
+      ".opencode/artifacts/milestone-5-worker-topology-distrust/spec.md",
+      ".opencode/roadmap.md"
+    ],
+    "protected_source_paths": [
+      ".opencode/command/audit.md",
+      ".opencode/command/create.md",
+      ".opencode/command/fix.md",
+      ".opencode/command/gc.md",
+      ".opencode/command/init.md",
+      ".opencode/command/plan.md",
+      ".opencode/command/research.md",
+      ".opencode/command/ship.md",
+      ".opencode/command/verify.md"
+    ],
+    "verified_paths": [
+      ".pi/fabric.json",
+      "AGENTS.md",
+      ".pi/artifacts/pi-template/DECISIONS.md",
+      ".pi/artifacts/pi-template/PLAN.md",
+      ".pi/artifacts/pi-template/TODO.md",
+      ".pi/artifacts/pi-template/PROGRESS.md",
+      ".pi/prompts/ship.md",
+      ".opencode/state.md",
+      ".opencode/roadmap.md",
+      ".opencode/artifacts/milestone-5-worker-topology-distrust/spec.md",
+      ".opencode/artifacts/milestone-5-worker-topology-distrust/prd.json",
+      ".opencode/artifacts/.active",
+      ".pi/.gitignore"
+    ],
+    "baseline_oid": "bebd0449eb501fe9e7dd5fa66781ad1f1613a459",
+    "shared_serial_ownership": [
+      { "path": "AGENTS.md", "owners": ["A1", "A2"] },
+      { "path": ".pi/artifacts/pi-template/PLAN.md", "owners": ["A2", "B1"] }
+    ]
+  },
+  "success_criteria": [
+    {
+      "criterion": "subagents.extensions is false (safe read-only default; Makora overrides true per-call)",
+      "verify": "jq -e '.subagents.extensions == false' .pi/fabric.json"
+    },
+    {
+      "criterion": "Makora writable allowlist is concretely pinned in PLAN.md (not just the words 'exact allowlist')",
+      "verify": "node -e 'const fs=require(\"fs\");const s=fs.readFileSync(\".pi/artifacts/pi-template/PLAN.md\",\"utf8\");if(!/makora.*tools|tools.*makora/is.test(s))process.exit(1);if(!/read.*grep.*find.*ls.*edit.*write|read,?grep,?find,?ls,?edit,?write/s.test(s))process.exit(1)'"
+    },
+    {
+      "criterion": "PLAN.md has a canonical Makora agents.run dispatch block with extensions:true + thinking:max",
+      "verify": "rg -q 'makora/zai-org/GLM-5.2-NVFP4' .pi/artifacts/pi-template/PLAN.md && rg -q 'thinking.*max' .pi/artifacts/pi-template/PLAN.md && rg -q 'extensions.*true' .pi/artifacts/pi-template/PLAN.md"
+    },
+    {
+      "criterion": "1-Makora enforcement mechanism stated in AGENTS + PLAN (Main's one-blocking-writable-run discipline, not maxConcurrent)",
+      "verify": "rg -qi 'one blocking|at most one.*agents\\.run|writable run at a time|one.*blocking.*writable' AGENTS.md .pi/artifacts/pi-template/PLAN.md"
+    },
+    {
+      "criterion": "ship.md encodes host-derived candidate intake (Main recomputes paths/hashes from the worktree, not worker self-report)",
+      "verify": "rg -qi 'host-derived|recomputes|git hash-object|git status|worker.*advisory|self-report' .pi/prompts/ship.md"
+    },
+    {
+      "criterion": "PLAN.md defines the worker-topology smoke (two concurrent writable -> one runs; read-only overlaps; Main edit refused)",
+      "verify": "rg -qi 'two.*implementation requests|one running|read-only.*overlap|Main.*edit.*refus' .pi/artifacts/pi-template/PLAN.md"
+    },
+    {
+      "criterion": "ADR-009 present in DECISIONS.md",
+      "verify": "rg -q '^## ADR-009:' .pi/artifacts/pi-template/DECISIONS.md"
+    },
+    {
+      "criterion": "No regression: milestone-3/4 static suite intact (frontmatter 9/9, forbidden CLEAN, slug 5/5, completion authority, canonical namespace)",
+      "verify": "node -e 'const fs=require(\"fs\");const need={audit:[\"description\",\"argument-hint\"],create:[\"description\",\"argument-hint\"],fix:[\"description\",\"argument-hint\"],gc:[\"description\"],init:[\"description\",\"argument-hint\"],plan:[\"description\",\"argument-hint\"],research:[\"description\",\"argument-hint\"],ship:[\"description\",\"argument-hint\"],verify:[\"description\",\"argument-hint\"]};for(const[f,keys]of Object.entries(need)){const s=fs.readFileSync(\".pi/prompts/\"+f+\".md\",\"utf8\");const m=/^---\\n([\\s\\S]*?)\\n---\\n/.exec(s);if(!m)process.exit(1);const got=[...m[1].matchAll(/^([\\w-]+):/gm)].map(x=>x[1]);if(got.length!==keys.length||!keys.every(k=>got.includes(k)))process.exit(1)}' && (rg -q 'agent:|task\\(|question\\(|skill\\(|write\\(|\\.active|spec\\.md|prd\\.json|tasks\\.json|audit-pattern|batch-implement|deep-research|review-state\\.json|/ui-slop-check|/compound|progress\\.md|audit\\.md' .pi/prompts/*.md; [ $? -eq 1 ]) && for f in create plan ship verify research; do rg -q '<slug>' .pi/prompts/$f.md || exit 1; done && rg -q 'cannot declare (terminal )?(verified status|completion)' .pi/prompts/ship.md && rg -qi 'sole.*verified|transcript only|no repository write' .pi/prompts/verify.md"
+    },
+    {
+      "criterion": "Source command bodies unchanged (baseline-bound to bebd044)",
+      "verify": "git diff --exit-code bebd0449eb501fe9e7dd5fa66781ad1f1613a459 -- .opencode/command/audit.md .opencode/command/create.md .opencode/command/fix.md .opencode/command/gc.md .opencode/command/init.md .opencode/command/plan.md .opencode/command/research.md .opencode/command/ship.md .opencode/command/verify.md"
+    },
+    {
+      "criterion": "prd graph bounded (2-3 tasks per child plan, <=3 files per task, ID-based deps)",
+      "verify": "node -e 'const p=require(\"./.opencode/artifacts/milestone-5-worker-topology-distrust/prd.json\");const ids=new Map(p.tasks.map((t,i)=>[t.id,i]));if(ids.size!==p.tasks.length)process.exit(1);const bc={};for(const[i,t]of p.tasks.entries()){if(t.files.length>3||!t.child_plan)process.exit(1);bc[t.child_plan]=(bc[t.child_plan]||0)+1;for(const d of t.depends_on){if(!ids.has(d)||ids.get(d)>=i)process.exit(1)}}for(const[,n]of Object.entries(bc)){if(n<2||n>3)process.exit(1)}'"
+    }
+  ],
+  "tasks": [
+    {
+      "id": "A1",
+      "child_plan": "A",
+      "title": "Resolve extensions default + ADR-009 (fabric.json, AGENTS, DECISIONS)",
+      "category": "contract",
+      "end_state": ".pi/fabric.json subagents.extensions pinned false (safe read-only default; Makora overrides true per-call). AGENTS.md states the default is false with Makora per-call true (deterministic, not per-call-dependent). DECISIONS.md has ADR-009 (safe default + per-call exception, mirroring ADR-003).",
+      "depends_on": [],
+      "files": [".pi/fabric.json", "AGENTS.md", ".pi/artifacts/pi-template/DECISIONS.md"],
+      "verify": "jq -e '.subagents.extensions == false' .pi/fabric.json && rg -q '^## ADR-009:' .pi/artifacts/pi-template/DECISIONS.md && rg -qi 'extensions.*false.*default|default.*false.*extensions|read-only.*extensions.*false' AGENTS.md"
+    },
+    {
+      "id": "A2",
+      "child_plan": "A",
+      "title": "Pin Makora allowlist + dispatch block + 1-Makora enforcement (PLAN, AGENTS)",
+      "category": "contract",
+      "end_state": "PLAN.md pins the concrete Makora writable allowlist (read,grep,find,ls,edit,write — no bash) and a canonical per-call agents.run dispatch block (model, thinking:max, extensions:true, tools, worktree). PLAN.md + AGENTS.md state the 1-Makora enforcement mechanism (Main's one-blocking-writable-run discipline, not maxConcurrent).",
+      "depends_on": ["A1"],
+      "files": [".pi/artifacts/pi-template/PLAN.md", "AGENTS.md"],
+      "verify": "rg -q 'makora/zai-org/GLM-5.2-NVFP4' .pi/artifacts/pi-template/PLAN.md && rg -q 'thinking.*max' .pi/artifacts/pi-template/PLAN.md && rg -q 'extensions.*true' .pi/artifacts/pi-template/PLAN.md && rg -qi 'one blocking|at most one.*agents\\.run|writable run at a time|one.*blocking.*writable' AGENTS.md .pi/artifacts/pi-template/PLAN.md"
+    },
+    {
+      "id": "B1",
+      "child_plan": "B",
+      "title": "Host-derived candidate intake + worker-topology smoke definition (ship.md, PLAN.md)",
+      "category": "harden",
+      "end_state": "ship.md encodes a host-derived candidate-intake step (Main recomputes paths/hashes from the worktree via git status/diff/hash-object; worker self-report is advisory only, never the basis for staging). PLAN.md defines the worker-topology smoke (two concurrent writable -> one runs; read-only overlaps; Main edit refused by policy). All existing ship.md procedural content preserved.",
+      "depends_on": ["A2"],
+      "files": [".pi/prompts/ship.md", ".pi/artifacts/pi-template/PLAN.md"],
+      "verify": "rg -qi 'host-derived|recomputes|git hash-object|git status|worker.*advisory|self-report' .pi/prompts/ship.md && rg -qi 'two.*implementation requests|one running|read-only.*overlap|Main.*edit.*refus' .pi/artifacts/pi-template/PLAN.md && git diff --exit-code bebd0449eb501fe9e7dd5fa66781ad1f1613a459 -- .opencode/command/ship.md"
+    },
+    {
+      "id": "B2",
+      "child_plan": "B",
+      "title": "Record candidate evidence (TODO, PROGRESS, state)",
+      "category": "evidence",
+      "end_state": "TODO.md, PROGRESS.md, and state.md record milestone-5 hardening complete but verification PENDING (not VERIFIED). Every A/B validator and the milestone-3/4 regression suite pass; commands/exit codes/limitations logged; runtime-smoke deferral noted.",
+      "depends_on": ["B1"],
+      "files": [
+        ".pi/artifacts/pi-template/TODO.md",
+        ".pi/artifacts/pi-template/PROGRESS.md",
+        ".opencode/state.md"
+      ],
+      "verify": "rg -q 'pending final|verification pending|pending.*no-write' .pi/artifacts/pi-template/PROGRESS.md && rg -q 'milestone 5|milestone-5' .opencode/state.md"
+    },
+    {
+      "id": "C1",
+      "child_plan": "C",
+      "title": "Close implementation state (spec, roadmap)",
+      "category": "close",
+      "end_state": "spec.md marks only A1-B2 complete; C2 explicitly pending external no-write verification. roadmap.md milestone 5 marked implementation-done/verification-pending. jq validates prd.json. All remote synchronization complete before C2.",
+      "depends_on": ["B2"],
+      "files": [
+        ".opencode/artifacts/milestone-5-worker-topology-distrust/spec.md",
+        ".opencode/roadmap.md"
+      ],
+      "verify": "jq -e . .opencode/artifacts/milestone-5-worker-topology-distrust/prd.json && rg -q 'implementation done|implementation-done|verification pending|pending.*verify' .opencode/roadmap.md"
+    },
+    {
+      "id": "C2",
+      "child_plan": "C",
+      "title": "Final no-write static verification (external declaration only)",
+      "category": "verify",
+      "end_state": "All success-criteria checks pass read-only; source command bodies unchanged against bebd044; git diff --check clean; local HEAD == remote main == remote main:master; fingerprint tuple captured before and after, unchanged. VERIFIED declared in response/session transcript only. No repository write after the baseline fingerprint. Runtime smoke remains milestone 6.",
+      "depends_on": ["C1"],
+      "files": [],
+      "verify": "fingerprint tuple captured and compared unchanged after every read-only validator; git diff --exit-code bebd0449eb501fe9e7dd5fa66781ad1f1613a459 -- .opencode/command/; git diff --check; git rev-parse HEAD == origin/main == origin/master"
+    }
+  ]
+}
