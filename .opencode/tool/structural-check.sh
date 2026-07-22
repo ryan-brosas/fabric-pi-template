@@ -39,7 +39,7 @@ rg_neg() {
 }
 
 # --- 1. Plugin isolation: no cross-plugin imports ---
-echo "[Check 1/6] Plugin isolation — no cross-plugin imports..."
+echo "[Check 1/7] Plugin isolation — no cross-plugin imports..."
 
 PLUGIN_DIR="$ROOT/.opencode/plugin"
 PLUGINS=()
@@ -60,7 +60,7 @@ done
 pass "No cross-plugin imports detected"
 
 # --- 2. SDK boundary: SDK doesn't import from plugin/ ---
-echo "[Check 2/6] SDK boundary — SDK has no plugin dependencies..."
+echo "[Check 2/7] SDK boundary — SDK has no plugin dependencies..."
 
 if [ -d "$PLUGIN_DIR/sdk" ]; then
 	SDK_FILES=$(find "$PLUGIN_DIR/sdk" -name "*.ts" 2>/dev/null)
@@ -75,7 +75,7 @@ fi
 pass "SDK boundary intact"
 
 # --- 3. File size limits ---
-echo "[Check 3/6] File size limits..."
+echo "[Check 3/7] File size limits..."
 
 check_size() {
 	local path="$1"
@@ -111,7 +111,7 @@ done
 pass "All files within size limits"
 
 # --- 4. No TODO/FIXME without owner ---
-echo "[Check 4/6] TODO/FIXME hygiene..."
+echo "[Check 4/7] TODO/FIXME hygiene..."
 
 BAD_TODO=$(grep -rn "TODO\|FIXME" "$ROOT/.opencode/plugin/"*.ts 2>/dev/null | grep -v "//.*owner:" || true)
 if [ -n "$BAD_TODO" ]; then
@@ -121,7 +121,7 @@ fi
 pass "TODO hygiene acceptable"
 
 # --- 5. Consistent naming: kebab-case filenames (basename only) ---
-echo "[Check 5/6] Filename convention..."
+echo "[Check 5/7] Filename convention..."
 
 BAD_NAMES=$(find "$ROOT/.opencode/plugin" "$ROOT/.opencode/tool" -name "*.ts" -o -name "*.sh" 2>/dev/null | grep -v node_modules | while IFS= read -r f; do
 	bn=$(basename "$f")
@@ -135,7 +135,7 @@ fi
 pass "Filename convention OK"
 
 # --- 6. Remediator: if this check fails, instructions are below ---
-echo "[Check 6/6] Remediation readiness..."
+echo "[Check 6/7] Remediation readiness..."
 
 # Ensure fallow is available (offline: probe an installed binary only; never
 # install, cache, or contact a registry from this checker).
@@ -143,6 +143,83 @@ if command -v fallow &>/dev/null; then
 	pass "Fallow available for structural analysis"
 else
 	echo "  INFO: Fallow not installed — install it offline (e.g. 'npm install -g fallow') to enable structural analysis; this check is skipped, not failed"
+fi
+
+# --- 7. /create contract (Pi-native init: both modes + packet gate) ---
+echo "[Check 7/7] /create contract — both modes, packet gate, source bounds, provenance..."
+
+CREATE="$ROOT/.pi/prompts/create.md"
+
+if [ ! -f "$CREATE" ]; then
+	fail "create.md missing"
+else
+	# Argument grammar: raw description AND --from source mode (RED until P3.2)
+	if rg -q -- '--from' "$CREATE"; then
+		pass "create.md: --from source mode grammar present"
+	else
+		fail "create.md: missing --from source mode grammar"
+	fi
+
+	# Ready-packet gate: schema v1, ready, reload flag, matching AGENTS hash (RED until P3.2)
+	if rg -q 'agents_boilerplate_sha256' "$CREATE" && rg -q 'context_reload_required' "$CREATE" && rg -q 'initialization_status: ready' "$CREATE"; then
+		pass "create.md: complete ready-packet gate present"
+	else
+		fail "create.md: missing complete ready-packet gate (schema/hash/reload)"
+	fi
+
+	# Memory access uses .pi/memory.md (RED until P3.2)
+	if rg -q '\.pi/memory\.md' "$CREATE"; then
+		pass "create.md: uses .pi/memory.md"
+	else
+		fail "create.md: missing .pi/memory.md reference"
+	fi
+	rg_neg '\.opencode/artifacts/MEMORY\.md' "$CREATE" "create.md: old .opencode memory path absent"
+
+	# Source bounds: file/section size limits (RED until P3.2)
+	if rg -q '1,048,576' "$CREATE" && rg -q '65,536' "$CREATE"; then
+		pass "create.md: source size bounds present"
+	else
+		fail "create.md: missing source size bounds (1,048,576 / 65,536)"
+	fi
+
+	# Stable provenance: path/anchor/whole-file hash/RM ID (RED until P3.2)
+	if rg -q -i 'provenance' "$CREATE" && rg -q -i 'sha256' "$CREATE"; then
+		pass "create.md: provenance fields present"
+	else
+		fail "create.md: missing provenance (path/anchor/hash/RM ID)"
+	fi
+
+	# No roadmap mutation: /create must declare it never mutates .pi/ROADMAP.md (RED until P3.2)
+	if rg -qi 'never.*mutate.*ROADMAP|never.*write.*ROADMAP|read.only.*ROADMAP' "$CREATE"; then
+		pass "create.md: no-roadmap-mutation declared"
+	else
+		fail "create.md: missing no-roadmap-mutation declaration"
+	fi
+
+	# Preserved safeguards (GREEN — existing behavior that P3.2 must not regress)
+	if rg -q 'mkdir -p.*\.pi/artifacts' "$CREATE"; then
+		pass "create.md: sole namespace ownership (mkdir -p) preserved"
+	else
+		fail "create.md: namespace mkdir ownership lost"
+	fi
+
+	if rg -q 'Established' "$CREATE" && rg -q 'Partial' "$CREATE" && rg -q 'Absent' "$CREATE"; then
+		pass "create.md: namespace classification preserved"
+	else
+		fail "create.md: namespace classification lost"
+	fi
+
+	if rg -q 'Phase 10A' "$CREATE" && rg -q 'Phase 10B' "$CREATE"; then
+		pass "create.md: review/supervisor phases (10A/10B) preserved"
+	else
+		fail "create.md: review/supervisor phases lost"
+	fi
+
+	if rg -q 'Validate the provided' "$CREATE"; then
+		pass "create.md: slug-first guard preserved"
+	else
+		fail "create.md: slug-first guard lost"
+	fi
 fi
 
 echo ""
