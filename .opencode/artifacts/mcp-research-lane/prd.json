@@ -1,0 +1,262 @@
+{
+  "title": "MCP Research Lane — context7+exa MCP for read-only children; Main-direct codex_search",
+  "slug": "mcp-research-lane",
+  "created": "2026-07-22",
+  "id": "mrl-001",
+  "approach": "Extend the read-only research tools allowlist from [read,grep,find,ls] to [read,grep,find,ls,resolve-library-id,query-docs,web_search_exa,web_fetch_exa] across the four supervisor handshake research dispatches (create 10B, plan 8B, research 5, ship 6A), the supervise.md mini-research dispatch, and the gather-phase guidance (create Phase 4, plan Phase 3, research). Children stay extensions:false, recursive:false, worktree:false — no capability widening (no bash, no fabric_exec, no recursion); they just gain web/doc MCP lookup. codex_search (pi-codex-search 0.1.5, a Pi extension blocked by --no-extensions/resource-loader.js:267,351) stays Main-direct: Main runs codex_search itself (extensions loaded, fullCodeMode:true) for premium ChatGPT-subscription web search with citations; NOT delegated to extensions:false children. Parallel fan-out for gather phases (create Deep=3-5 agents, research Multi-Angle=parallel scouts already partly parallel) — MCP makes each parallel child richer; the supervisor handshake stays ONE gather (single direction question) but MCP-equipped. ADR-013 records: MCP-equipped parallel read-only research lane preserving extensions:false; codex_search Main-direct; no capability widening. Ships after proactive-supervisor (ADR-012) settled at HEAD a04a65c; ADR-013 is next available. Rejected Option B (extensions:true children + tight allowlist excluding fabric_exec) because safety hinges on an unproven allowlist-vs-fabric_exec filter on the agents.run child path (high blast radius if wrong).",
+  "blocks": [
+    "proactive-supervisor (ADR-012) must settle for shared files (supervise.md, create/plan/research/ship, AGENTS, DECISIONS, PLAN, tech-stack, roadmap, state) — SETTLED at HEAD a04a65c; ADR-012 present at DECISIONS.md:370",
+    "ADR-013 is next available (010=prewalk, 011=lifecycle-review-gates, 012=proactive-supervisor)",
+    "No capability widening: children stay extensions:false (codex_search is Main-direct only)",
+    "No change to the supervisor actor config (extensions:false read-only posture preserved)",
+    "MCP tool names are stable upstream: context7 resolve-library-id/query-docs (3.2.3), exa web_search_exa/web_fetch_exa (3.2.1)"
+  ],
+  "manifests": {
+    "write_paths": [
+      ".pi/prompts/supervise.md",
+      ".pi/prompts/create.md",
+      ".pi/prompts/plan.md",
+      ".pi/prompts/research.md",
+      ".pi/prompts/ship.md",
+      ".pi/artifacts/pi-template/DECISIONS.md",
+      ".pi/artifacts/pi-template/PLAN.md",
+      "AGENTS.md",
+      ".opencode/tech-stack.md",
+      ".opencode/roadmap.md",
+      ".opencode/state.md",
+      ".opencode/artifacts/mcp-research-lane/spec.md",
+      ".opencode/artifacts/mcp-research-lane/prd.json",
+      ".opencode/artifacts/.active"
+    ],
+    "protected_source_paths": [
+      ".opencode/command/audit.md",
+      ".opencode/command/create.md",
+      ".opencode/command/fix.md",
+      ".opencode/command/gc.md",
+      ".opencode/command/init.md",
+      ".opencode/command/plan.md",
+      ".opencode/command/research.md",
+      ".opencode/command/ship.md",
+      ".opencode/command/verify.md",
+      ".pi/fabric.json",
+      ".pi/settings.json",
+      ".pi/prompts/verify.md"
+    ],
+    "verified_paths": [
+      ".pi/prompts/supervise.md",
+      ".pi/prompts/create.md",
+      ".pi/prompts/plan.md",
+      ".pi/prompts/research.md",
+      ".pi/prompts/ship.md",
+      ".pi/artifacts/pi-template/DECISIONS.md",
+      ".pi/artifacts/pi-template/PLAN.md",
+      "AGENTS.md",
+      ".opencode/tech-stack.md",
+      ".opencode/roadmap.md",
+      ".opencode/state.md",
+      ".opencode/artifacts/mcp-research-lane/spec.md",
+      ".opencode/artifacts/mcp-research-lane/prd.json",
+      ".opencode/artifacts/.active"
+    ],
+    "baseline_oid": "a04a65c5db5b3946c1649fc8bec15fe5140f7ccf",
+    "shared_serial_ownership": [
+      {
+        "path": ".pi/prompts/supervise.md",
+        "owners": [
+          "proactive-supervisor-settled",
+          "A1"
+        ]
+      },
+      {
+        "path": ".pi/prompts/create.md",
+        "owners": [
+          "proactive-supervisor-settled",
+          "lifecycle-review-gates-settled",
+          "A2"
+        ]
+      },
+      {
+        "path": ".pi/prompts/plan.md",
+        "owners": [
+          "proactive-supervisor-settled",
+          "lifecycle-review-gates-settled",
+          "A2"
+        ]
+      },
+      {
+        "path": ".pi/prompts/research.md",
+        "owners": [
+          "proactive-supervisor-settled",
+          "B1"
+        ]
+      },
+      {
+        "path": ".pi/prompts/ship.md",
+        "owners": [
+          "proactive-supervisor-settled",
+          "lifecycle-review-gates-settled",
+          "milestone-5-settled",
+          "B1"
+        ]
+      },
+      {
+        "path": ".pi/artifacts/pi-template/DECISIONS.md",
+        "owners": [
+          "proactive-supervisor-settled",
+          "C1"
+        ]
+      },
+      {
+        "path": ".pi/artifacts/pi-template/PLAN.md",
+        "owners": [
+          "proactive-supervisor-settled",
+          "lifecycle-review-gates-settled",
+          "C1"
+        ]
+      },
+      {
+        "path": "AGENTS.md",
+        "owners": [
+          "proactive-supervisor-settled",
+          "lifecycle-review-gates-settled",
+          "C1"
+        ]
+      },
+      {
+        "path": ".opencode/tech-stack.md",
+        "owners": [
+          "proactive-supervisor-settled",
+          "C2"
+        ]
+      },
+      {
+        "path": ".opencode/roadmap.md",
+        "owners": [
+          "proactive-supervisor-settled",
+          "C2"
+        ]
+      },
+      {
+        "path": ".opencode/state.md",
+        "owners": [
+          "proactive-supervisor-settled",
+          "C2"
+        ]
+      }
+    ]
+  },
+  "success_criteria": [
+    {
+      "criterion": "A1: supervise.md handshake mini-research allowlist extended with 4 MCP names; Main-direct codex_search documented; hard limits + extensions:false actor config + ADR-012 protocol preserved",
+      "verify": "rg -n 'resolve-library-id|query-docs|web_search_exa|web_fetch_exa' .pi/prompts/supervise.md && rg -n 'codex_search' .pi/prompts/supervise.md && rg -n 'proactive-supervisor/v1' .pi/prompts/supervise.md && ! rg -n 'tools:\\[\"read\",\"grep\",\"find\",\"ls\"\\]' .pi/prompts/supervise.md && git diff --check"
+    },
+    {
+      "criterion": "A2: create.md (Phase 4 gather + Phase 10B handshake) + plan.md (Phase 3 gather + Phase 8B handshake) allowlists extended with MCP names; Main-direct codex_search noted; ADR-012 + ADR-011 markers + <slug> + frontmatter preserved",
+      "verify": "rg -n 'resolve-library-id|web_search_exa' .pi/prompts/create.md .pi/prompts/plan.md && rg -n 'codex_search' .pi/prompts/create.md .pi/prompts/plan.md && rg -n '^## Phase 10A: Spec Review Gate$|^## Phase 10B: Supervisor Boundary Handshake$|^## Phase 8A: Planning Review Gate$|^## Phase 8B: Supervisor Boundary Handshake$' .pi/prompts/create.md .pi/prompts/plan.md && rg -q '<slug>' .pi/prompts/create.md && rg -q '<slug>' .pi/prompts/plan.md && git diff --check"
+    },
+    {
+      "criterion": "B1: research.md (gather + Phase 5 handshake) + ship.md (Phase 6A handshake) allowlists extended with MCP names; Main-direct codex_search noted; ADR-012 protocol + ship 'cannot declare verified' + ADR-011 markers preserved",
+      "verify": "rg -n 'resolve-library-id|web_search_exa' .pi/prompts/research.md .pi/prompts/ship.md && rg -n 'codex_search' .pi/prompts/research.md .pi/prompts/ship.md && rg -n '^### Phase 5: Supervisor Boundary Handshake$|^## Phase 6A: Supervisor Boundary Handshake$' .pi/prompts/research.md .pi/prompts/ship.md && rg -q 'cannot declare' .pi/prompts/ship.md && rg -n '^### Tier-Gated Diff Review$' .pi/prompts/ship.md && git diff --check"
+    },
+    {
+      "criterion": "C1: ADR-013 present; PLAN.md has MCP research-lane contract; AGENTS.md has research paragraph with MCP tools + Main-direct codex_search + extensions:false preserved",
+      "verify": "rg -n '^## ADR-013: MCP research lane$' .pi/artifacts/pi-template/DECISIONS.md && rg -n 'resolve-library-id|web_search_exa|codex_search|MCP research' .pi/artifacts/pi-template/PLAN.md AGENTS.md && rg -n 'extensions: false|extensions:false' AGENTS.md && git diff --check"
+    },
+    {
+      "criterion": "C2: tech-stack/roadmap/state synchronized to ADR-013 + MCP research lane + Main-direct codex_search",
+      "verify": "rg -n 'ADR-013|MCP research|codex_search|resolve-library-id|web_search_exa' .opencode/tech-stack.md .opencode/roadmap.md .opencode/state.md && git diff --check"
+    },
+    {
+      "criterion": "C3: static closure — pi-fabric 0.23.0, list-models resolve, slug in 5 prompts, forbidden-token clean, git diff --check, protected files unchanged from a04a65c, ADR-011+012 markers preserved, no extensions:true introduced",
+      "verify": "git diff --check && node -p 'require(\"./.pi/npm/node_modules/pi-fabric/package.json\").version' | rg -x '0\\.23\\.0' && pi --approve --list-models >/dev/null 2>&1; for f in create plan ship verify research; do rg -q '<slug>' \".pi/prompts/$f.md\" || exit 1; done && ! rg -n 'agent:|task\\(|question\\(|skill\\(|write\\(|\\.active|spec\\.md|prd\\.json|review-state\\.json' .pi/prompts/*.md && ! rg -n 'extensions:true' .pi/prompts/supervise.md .pi/prompts/create.md .pi/prompts/plan.md .pi/prompts/research.md .pi/prompts/ship.md && git diff --exit-code a04a65c5db5b3946c1649fc8bec15fe5140f7ccf -- .pi/fabric.json .pi/settings.json .pi/prompts/verify.md .opencode/command"
+    }
+  ],
+  "tasks": [
+    {
+      "id": "A1",
+      "child_plan": "A",
+      "title": "Extend supervise.md research allowlist + Main-direct codex_search",
+      "category": "implement",
+      "end_state": "supervise.md mini-research dispatch allowlist extended to [read,grep,find,ls,resolve-library-id,query-docs,web_search_exa,web_fetch_exa]; a Main-direct codex_search note added (Main uses codex_search for premium web search with citations; not delegated to extensions:false children); ADR-012 proactive-supervisor/v1 protocol, action:silent discipline, four hard limits, and extensions:false actor config all preserved.",
+      "depends_on": [],
+      "files": [
+        ".pi/prompts/supervise.md"
+      ],
+      "verify": "rg -n 'resolve-library-id|query-docs|web_search_exa|web_fetch_exa' .pi/prompts/supervise.md && rg -n 'codex_search' .pi/prompts/supervise.md && rg -n 'proactive-supervisor/v1' .pi/prompts/supervise.md && ! rg -n 'tools:\\[\"read\",\"grep\",\"find\",\"ls\"\\]' .pi/prompts/supervise.md && git diff --check"
+    },
+    {
+      "id": "A2",
+      "child_plan": "A",
+      "title": "Extend create.md + plan.md research allowlists + codex_search note",
+      "category": "implement",
+      "end_state": "create.md Phase 4 gather guidance + Phase 10B handshake research dispatch allowlist extended with the 4 MCP names; plan.md Phase 3 gather guidance + Phase 8B handshake research dispatch allowlist extended; both add a Main-direct codex_search note; ADR-011 Phase 10A/8A markers, ADR-012 Phase 10B/8B handshakes, <slug>, frontmatter, forbidden-token cleanliness all preserved.",
+      "depends_on": [
+        "A1"
+      ],
+      "files": [
+        ".pi/prompts/create.md",
+        ".pi/prompts/plan.md"
+      ],
+      "verify": "rg -n 'resolve-library-id|web_search_exa' .pi/prompts/create.md .pi/prompts/plan.md && rg -n 'codex_search' .pi/prompts/create.md .pi/prompts/plan.md && rg -n '^## Phase 10A: Spec Review Gate$|^## Phase 10B: Supervisor Boundary Handshake$|^## Phase 8A: Planning Review Gate$|^## Phase 8B: Supervisor Boundary Handshake$' .pi/prompts/create.md .pi/prompts/plan.md && rg -q '<slug>' .pi/prompts/create.md && rg -q '<slug>' .pi/prompts/plan.md && git diff --check"
+    },
+    {
+      "id": "B1",
+      "child_plan": "B",
+      "title": "Extend research.md + ship.md research allowlists + codex_search note",
+      "category": "implement",
+      "end_state": "research.md gather guidance + Phase 5 handshake research dispatch allowlist extended with the 4 MCP names; ship.md Phase 6A handshake research dispatch allowlist extended; both add a Main-direct codex_search note; ADR-012 Phase 5/6A handshakes, ship 'cannot declare verified' phrase, ADR-011 Tier-Gated Diff Review marker, <slug> preserved.",
+      "depends_on": [
+        "A2"
+      ],
+      "files": [
+        ".pi/prompts/research.md",
+        ".pi/prompts/ship.md"
+      ],
+      "verify": "rg -n 'resolve-library-id|web_search_exa' .pi/prompts/research.md .pi/prompts/ship.md && rg -n 'codex_search' .pi/prompts/research.md .pi/prompts/ship.md && rg -n '^### Phase 5: Supervisor Boundary Handshake$|^## Phase 6A: Supervisor Boundary Handshake$' .pi/prompts/research.md .pi/prompts/ship.md && rg -q 'cannot declare' .pi/prompts/ship.md && rg -n '^### Tier-Gated Diff Review$' .pi/prompts/ship.md && git diff --check"
+    },
+    {
+      "id": "C1",
+      "child_plan": "C",
+      "title": "Record ADR-013 and canonical research-lane authority",
+      "category": "contract",
+      "end_state": "DECISIONS.md has ADR-013 (MCP research lane) recording: context7+exa MCP added to the extensions:false read-only allowlist (no capability widening); codex_search Main-direct (Pi extension blocked by --no-extensions); parallel fan-out for gather phases; supervisor handshake stays one gather; rejected extensions:true Option B. PLAN.md has the MCP research-lane contract (allowlist, codex_search Main-direct, fan-out). AGENTS.md has a research paragraph documenting the MCP tools + Main-direct codex_search + extensions:false preserved.",
+      "depends_on": [
+        "B1"
+      ],
+      "files": [
+        ".pi/artifacts/pi-template/DECISIONS.md",
+        ".pi/artifacts/pi-template/PLAN.md",
+        "AGENTS.md"
+      ],
+      "verify": "rg -n '^## ADR-013: MCP research lane$' .pi/artifacts/pi-template/DECISIONS.md && rg -n 'resolve-library-id|web_search_exa|codex_search|MCP research' .pi/artifacts/pi-template/PLAN.md AGENTS.md && rg -n 'extensions: false|extensions:false' AGENTS.md && git diff --check"
+    },
+    {
+      "id": "C2",
+      "child_plan": "C",
+      "title": "Synchronize project summaries",
+      "category": "contract",
+      "end_state": "tech-stack.md documents the MCP research tools (context7 resolve-library-id/query-docs, exa web_search_exa/web_fetch_exa) + Main-direct codex_search in the research lane; roadmap.md notes ADR-013; state.md records mcp-research-lane status + ADR-013.",
+      "depends_on": [
+        "C1"
+      ],
+      "files": [
+        ".opencode/tech-stack.md",
+        ".opencode/roadmap.md",
+        ".opencode/state.md"
+      ],
+      "verify": "rg -n 'ADR-013|MCP research|codex_search|resolve-library-id|web_search_exa' .opencode/tech-stack.md .opencode/roadmap.md .opencode/state.md && git diff --check"
+    },
+    {
+      "id": "C3",
+      "child_plan": "C",
+      "title": "Static closure and no-write verification",
+      "category": "verify",
+      "end_state": "No-write static verification: pi-fabric 0.23.0, list-models resolves, slug in 5 prompts, forbidden-token clean across .pi/prompts/*.md, no extensions:true introduced in the 5 research prompts, git diff --check clean, protected files (fabric.json, settings.json, verify.md, .opencode/command) unchanged from a04a65c, ADR-011+012 markers + ship/verify authority phrases preserved.",
+      "depends_on": [
+        "C2"
+      ],
+      "files": [],
+      "verify": "git diff --check && node -p 'require(\"./.pi/npm/node_modules/pi-fabric/package.json\").version' | rg -x '0\\.23\\.0' && pi --approve --list-models >/dev/null 2>&1; for f in create plan ship verify research; do rg -q '<slug>' \".pi/prompts/$f.md\" || exit 1; done && ! rg -n 'agent:|task\\(|question\\(|skill\\(|write\\(|\\.active|spec\\.md|prd\\.json|review-state\\.json' .pi/prompts/*.md && ! rg -n 'extensions:true' .pi/prompts/supervise.md .pi/prompts/create.md .pi/prompts/plan.md .pi/prompts/research.md .pi/prompts/ship.md && rg -n '^## Phase 10A: Spec Review Gate$' .pi/prompts/create.md && rg -n '^## ADR-013: MCP research lane$' .pi/artifacts/pi-template/DECISIONS.md && git diff --exit-code a04a65c5db5b3946c1649fc8bec15fe5140f7ccf -- .pi/fabric.json .pi/settings.json .pi/prompts/verify.md .opencode/command"
+    }
+  ]
+}
