@@ -1,0 +1,215 @@
+{
+  "title": "Milestone 3 — Lifecycle Prompts",
+  "slug": "milestone-3-lifecycle-prompts",
+  "created": "2026-07-22",
+  "id": "ms3-001",
+  "approach": "copy-and-strip (take all of each body): take all of each .opencode/command/*.md body into .pi/prompts/*.md, strip only OpenCode-only syntax (agent:, task()/question()/skill()/write(), .active, spec.md/prd.json/tasks.json/audit.md, batch-implement/deep-research/audit-pattern routing, 5-agent review matrix + review-state.json loop, /ui-slop-check + /compound invocation strings), re-point artifact paths to the Pi layer. The .opencode/command/*.md bodies ARE the lifecycle source being ported (not reference material).",
+  "blocks": [
+    "Milestone 5 — verification fingerprint tooling",
+    "Milestone 6 — smoke test",
+    "Gate workflow (.pi/prompts/gate.md) — separate deferred milestone"
+  ],
+  "affected_files": [
+    ".pi/prompts/audit.md",
+    ".pi/prompts/create.md",
+    ".pi/prompts/fix.md",
+    ".pi/prompts/gc.md",
+    ".pi/prompts/init.md",
+    ".pi/prompts/plan.md",
+    ".pi/prompts/research.md",
+    ".pi/prompts/ship.md",
+    ".pi/prompts/verify.md"
+  ],
+  "lifecycle_source_bodies": [
+    ".opencode/command/audit.md",
+    ".opencode/command/create.md",
+    ".opencode/command/fix.md",
+    ".opencode/command/gc.md",
+    ".opencode/command/init.md",
+    ".opencode/command/plan.md",
+    ".opencode/command/research.md",
+    ".opencode/command/ship.md",
+    ".opencode/command/verify.md"
+  ],
+  "success_criteria": [
+    {
+      "criterion": "All nine prompts exist",
+      "verify": "ls .pi/prompts/{audit,create,fix,gc,init,plan,research,ship,verify}.md"
+    },
+    {
+      "criterion": "Each has valid Pi frontmatter (description required; argument-hint required on the five lifecycle + audit/fix/init; gc has description only)",
+      "verify": "node -e 'const fs=require(\"fs\");const need={audit:\"<pattern>\",create:\"<slug>\",fix:\"<bug>\",gc:null,init:\"[--deep]\",plan:\"<slug>\",research:\"<slug>\",ship:\"<slug>\",verify:\"<slug>\"};for(const[f,h]of Object.entries(need)){const s=fs.readFileSync(\".pi/prompts/\"+f+\".md\",\"utf8\");const m=/^---\\n([\\s\\S]*?)\\n---\\n/.exec(s);if(!m)throw new Error(f+\": no frontmatter\");const keys=[...m[1].matchAll(/^(\\w[-\\w]*):/gm)].map(x=>x[1]);if(!keys.includes(\"description\"))throw new Error(f+\": missing description\");if(h!==null){const ah=m[1].match(/^argument-hint:\\s*(.+)$/m);if(!ah)throw new Error(f+\": missing argument-hint\");}}}'"
+    },
+    {
+      "criterion": "No OpenCode-only frontmatter remains",
+      "verify": "! rg -q '^agent:' .pi/prompts/*.md"
+    },
+    {
+      "criterion": "No pseudo-tool calls remain",
+      "verify": "! rg -q 'task\\(|question\\(|skill\\(|write\\(' .pi/prompts/*.md"
+    },
+    {
+      "criterion": "No OpenCode artifact refs remain (.active, spec.md, prd.json, tasks.json, lowercase progress.md/audit.md; PROGRESS.md uppercase is canonical and allowed)",
+      "verify": "! rg -q '\\.active|spec\\.md|prd\\.json|tasks\\.json|(?<![A-Z])progress\\.md|audit\\.md' .pi/prompts/*.md"
+    },
+    {
+      "criterion": "No workflow/review machinery remains",
+      "verify": "! rg -q 'batch-implement|deep-research|audit-pattern|ui-slop-check|compound|review-state\\.json' .pi/prompts/*.md"
+    },
+    {
+      "criterion": "Completion authority split encoded (/ship cannot declare completion; /verify sole external verifier)",
+      "verify": "rg -q 'cannot declare completion|must not.*completion|records.*not.*completion' .pi/prompts/ship.md && rg -q 'sole.*verified|only.*phase.*verified|externally' .pi/prompts/verify.md"
+    },
+    {
+      "criterion": "Explicit slug contract on the five lifecycle commands",
+      "verify": "for f in create plan ship verify research; do rg -q '<slug>' .pi/prompts/$f.md || { echo MISSING $f; exit 1; }; done"
+    },
+    {
+      "criterion": "Canonical artifact paths across the lifecycle prompts",
+      "verify": "rg -q '\\.pi/artifacts/<slug>/(PLAN|TODO|PROGRESS|DECISIONS)\\.md' .pi/prompts/*.md"
+    },
+    {
+      "criterion": "No post-fingerprint write rule in /verify",
+      "verify": "rg -q 'no repository write|no.*write.*after.*fingerprint|externally' .pi/prompts/verify.md"
+    },
+    {
+      "criterion": "Source command bodies unchanged (immutability)",
+      "verify": "git diff --exit-code -- .opencode/command/"
+    },
+    {
+      "criterion": "Concurrent sessions on different slugs stay disjoint (by construction: explicit <slug>, no .active, no latest)",
+      "verify": "! rg -q '\\.active' .pi/prompts/*.md"
+    }
+  ],
+  "tasks": [
+    {
+      "title": "Port /create to .pi/prompts/create.md",
+      "category": "port",
+      "end_state": ".pi/prompts/create.md takes all of .opencode/command/create.md body: duplicate check, research depth, PRD rigor (lite/full), task format, validation, workspace safety, conversion, report. Frontmatter description + argument-hint <slug> <description>. Writes PLAN/TODO under .pi/artifacts/<slug>/. No stash/branch/worktree mutation.",
+      "depends_on": [],
+      "parallel": false,
+      "conflicts_with": [],
+      "files": [".pi/prompts/create.md"],
+      "verify": "ls .pi/prompts/create.md && ! rg -q '^agent:|task\\(|question\\(|skill\\(|write\\(|\\.active|spec\\.md|prd\\.json' .pi/prompts/create.md && rg -q '<slug>' .pi/prompts/create.md"
+    },
+    {
+      "title": "Port /plan to .pi/prompts/plan.md",
+      "category": "port",
+      "end_state": ".pi/prompts/plan.md takes all of .opencode/command/plan.md body: institutional research, discovery, goal-backward, dependencies, task standards, compliance gate. Frontmatter description + argument-hint <slug>. Hard 2-3 tasks, <=3 files/task; waves order writes only.",
+      "depends_on": ["Port /create to .pi/prompts/create.md"],
+      "parallel": false,
+      "conflicts_with": [],
+      "files": [".pi/prompts/plan.md"],
+      "verify": "ls .pi/prompts/plan.md && ! rg -q '^agent:|task\\(|question\\(|\\.active' .pi/prompts/plan.md && rg -q '<slug>' .pi/prompts/plan.md"
+    },
+    {
+      "title": "Port /research to .pi/prompts/research.md",
+      "category": "port",
+      "end_state": ".pi/prompts/research.md takes all of .opencode/command/research.md body: complexity detection, direct execution, source priority, confidence, stopping rules, documentation, output. Frontmatter description + argument-hint <slug> <topic> [--quick|--thorough]. Writes PROGRESS.md; sideways; never terminal status.",
+      "depends_on": ["Port /plan to .pi/prompts/plan.md"],
+      "parallel": false,
+      "conflicts_with": [],
+      "files": [".pi/prompts/research.md"],
+      "verify": "ls .pi/prompts/research.md && ! rg -q '^agent:|deep-research|task\\(|\\.active' .pi/prompts/research.md && rg -q 'sideways|PROGRESS\\.md' .pi/prompts/research.md"
+    },
+    {
+      "title": "Port /fix to .pi/prompts/fix.md",
+      "category": "port",
+      "end_state": ".pi/prompts/fix.md takes all of .opencode/command/fix.md body: reproduce, isolate, root cause, minimal fix, verify, two-failure escalation, rejected alternatives. Detects project toolchain (not npm-only).",
+      "depends_on": ["Port /research to .pi/prompts/research.md"],
+      "parallel": false,
+      "conflicts_with": [],
+      "files": [".pi/prompts/fix.md"],
+      "verify": "ls .pi/prompts/fix.md && ! rg -q '^agent:|skill\\(' .pi/prompts/fix.md"
+    },
+    {
+      "title": "Port /ship to .pi/prompts/ship.md (encodes completion-authority split)",
+      "category": "port",
+      "end_state": ".pi/prompts/ship.md takes all of .opencode/command/ship.md body: guards, task loop, checkpoints, TDD, exact-path commit protocol, stop conditions, full verification, UI checks, goal-backward, operator close, report. Serial writes; no review matrix/review-state.json loop; no /ui-slop-check//compound. Records implementation; CANNOT declare completion.",
+      "depends_on": ["Port /fix to .pi/prompts/fix.md"],
+      "parallel": false,
+      "conflicts_with": [],
+      "files": [".pi/prompts/ship.md"],
+      "verify": "ls .pi/prompts/ship.md && ! rg -q '^agent:|batch-implement|review-state\\.json|ui-slop-check|compound' .pi/prompts/ship.md && rg -q '<slug>' .pi/prompts/ship.md && rg -q 'cannot declare completion|must not.*completion' .pi/prompts/ship.md"
+    },
+    {
+      "title": "Port /verify to .pi/prompts/verify.md (encodes freshness + external verification)",
+      "category": "port",
+      "end_state": ".pi/prompts/verify.md takes all of .opencode/command/verify.md body: input selection, completeness, correctness, coherence, report modes. No legacy cache/--no-cache. Quick/skipped cannot VERIFIED. --fix restarts baseline. Sole phase that may declare verified status, externally; no repository write after the final before/after fingerprint.",
+      "depends_on": ["Port /ship to .pi/prompts/ship.md (encodes completion-authority split)"],
+      "parallel": false,
+      "conflicts_with": [],
+      "files": [".pi/prompts/verify.md"],
+      "verify": "ls .pi/prompts/verify.md && ! rg -q '^agent:|verify\\.log|CURRENT_STAMP|--no-cache' .pi/prompts/verify.md && rg -q '<slug>' .pi/prompts/verify.md && rg -q 'externally|no repository write' .pi/prompts/verify.md"
+    },
+    {
+      "title": "Port /init to .pi/prompts/init.md",
+      "category": "port",
+      "end_state": ".pi/prompts/init.md takes all of .opencode/command/init.md body: idempotency, modes, project detection, previews, AGENTS update, tech-stack generation, planning context, user profile, output, skill guidance. Pseudo-calls translated to direct interaction; no blind overwrite/network install.",
+      "depends_on": [
+        "Port /verify to .pi/prompts/verify.md (encodes freshness + external verification)"
+      ],
+      "parallel": false,
+      "conflicts_with": [],
+      "files": [".pi/prompts/init.md"],
+      "verify": "ls .pi/prompts/init.md && ! rg -q '^agent:|task\\(|question\\(|skill\\(|write\\(' .pi/prompts/init.md"
+    },
+    {
+      "title": "Port /gc to .pi/prompts/gc.md",
+      "category": "port",
+      "end_state": ".pi/prompts/gc.md takes all of .opencode/command/gc.md body: Fallow scan, grades, structural assessment, recommendations, report. Locally available tooling only; missing tooling = explicit PARTIAL/BLOCKED; no auto-install/PR.",
+      "depends_on": ["Port /init to .pi/prompts/init.md"],
+      "parallel": false,
+      "conflicts_with": [],
+      "files": [".pi/prompts/gc.md"],
+      "verify": "ls .pi/prompts/gc.md && ! rg -q '^agent:|skill\\(|task\\(' .pi/prompts/gc.md"
+    },
+    {
+      "title": "Port /audit to .pi/prompts/audit.md",
+      "category": "port",
+      "end_state": ".pi/prompts/audit.md takes all of .opencode/command/audit.md body: pattern input, occurrences, affected files, severities, recommended fixes, correct examples. Direct search/review/synthesis; response-only report; no .active/inferred artifact write.",
+      "depends_on": ["Port /gc to .pi/prompts/gc.md"],
+      "parallel": false,
+      "conflicts_with": [],
+      "files": [".pi/prompts/audit.md"],
+      "verify": "ls .pi/prompts/audit.md && ! rg -q '^agent:|audit-pattern|\\.active' .pi/prompts/audit.md"
+    },
+    {
+      "title": "Record candidate evidence (pending final no-write verification)",
+      "category": "evidence",
+      "end_state": ".pi/artifacts/pi-template/TODO.md and PROGRESS.md and .opencode/state.md record the nine prompt implementations complete but verification PENDING (not VERIFIED). Commands, exit codes, limitations logged.",
+      "depends_on": ["Port /audit to .pi/prompts/audit.md"],
+      "parallel": false,
+      "conflicts_with": [],
+      "files": [
+        ".pi/artifacts/pi-template/TODO.md",
+        ".pi/artifacts/pi-template/PROGRESS.md",
+        ".opencode/state.md"
+      ],
+      "verify": "rg -q 'pending final|verification pending|pending.*no-write' .pi/artifacts/pi-template/PROGRESS.md"
+    },
+    {
+      "title": "Close OpenCode feature implementation state",
+      "category": "close",
+      "end_state": "spec.md marks each bounded task complete (without VERIFIED); roadmap.md milestone 3 marked implementation-done/verification-pending. jq validates prd.json.",
+      "depends_on": ["Record candidate evidence (pending final no-write verification)"],
+      "parallel": false,
+      "conflicts_with": [],
+      "files": [
+        ".opencode/artifacts/milestone-3-lifecycle-prompts/spec.md",
+        ".opencode/roadmap.md"
+      ],
+      "verify": "jq -e . .opencode/artifacts/milestone-3-lifecycle-prompts/prd.json && rg -q 'implementation done|verification pending|pending.*verify' .opencode/roadmap.md"
+    },
+    {
+      "title": "Final no-write verification (external declaration only)",
+      "category": "verify",
+      "end_state": "All success-criteria checks pass; source command bodies unchanged; git diff --check clean; local HEAD equals remote main and main:master; VERIFIED declared in response/transcript only; no repository write after the final fingerprint.",
+      "depends_on": ["Close OpenCode feature implementation state"],
+      "parallel": false,
+      "conflicts_with": [],
+      "files": [],
+      "verify": "run all success-criteria commands; git diff --exit-code -- .opencode/command/; git diff --check; git rev-parse HEAD == origin/main == origin/master"
+    }
+  ]
+}
