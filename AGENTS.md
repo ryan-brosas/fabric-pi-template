@@ -213,6 +213,22 @@ projects ignore `.pi/settings.json`, project packages, prompts, and `.pi/fabric.
 - `.pi/fabric/mesh/`, `.pi/npm/`, `.pi/git/`, `.pi/sessions/` are runtime state (gitignored); lifecycle
   artifacts under `.pi/artifacts/` ARE tracked.
 
+**Away Sandbox Runtime (ADR-014).** Unattended `node-process` Fabric guests and candidate verification
+run under a host-pinned bubblewrap confinement runtime in `.pi/away-runtime/` (see
+`.pi/artifacts/pi-template/PLAN.md` § Away Sandbox Runtime). `node-process` is explicitly not a
+security sandbox, so the boundary is strict bubblewrap (`--unshare-user`, never the fail-open try
+variant) with minimal binding and a cleared env, not the executor. The launcher pins the writable
+`process.execPath` to a trusted wrapper that validates the Fabric argv + child-source digest (sha256
+`ee0bb190...`, the imported value, version-coupled to pi-fabric 0.23.0) before launching the untrusted
+inner guest. Credentials and the trusted Pi RPC host stay in the parent; only generated node-process
+code is sandboxed. Cgroup-v2 systemd delegation (`systemd-run --user --wait --pipe --collect -p
+TasksMax=/MemoryMax=/CPUWeight=`) enforces PID/memory/CPU. Main stays sole integrator, merge stays
+human-only, and missing wrapper attestation, strict userns, cgroup support, or closure hash each block
+execution — no weaker fallback. The verifier reuses the launcher with a distinct profile (exact remote
+OID checkout, read-only, no net, no creds). This is an opt-in away lane; normal interactive sessions
+are unaffected. ADR-015 (autonomous-away-loop) adds the ledger/Git/GitHub crash-replay full loop on top
+of this foundation.
+
 ---
 
 Note for Codex/GPT:

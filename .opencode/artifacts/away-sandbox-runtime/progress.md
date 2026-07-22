@@ -143,3 +143,22 @@ Operator-authorized (4 decisions at the gate): (a) live Makora smoke now (extern
 ### Next
 
 - A3 PASSES → **B1** Freeze ADR-014 authority (DECISIONS.md + PLAN.md + AGENTS.md pin pi-fabric 0.23.0 + child-source value digest `ee0bb190d5af47ff6ee99a0dd5874889b44b0857db23b897b4c57c88956793fb` + the writable-`process.execPath` seam + cgroup-v2 systemd delegation + strict `--unshare-user`). STOP permanently was NOT triggered — no weaker wrapper.
+
+## B1 — Freeze ADR-014 authority
+
+**Files:** `.pi/artifacts/pi-template/DECISIONS.md` (ADR-014 appended, line 510), `.pi/artifacts/pi-template/PLAN.md` (`### Away Sandbox Runtime (ADR-014)` section, line 360), `AGENTS.md` (away-runtime authority paragraph, line 216). 3-file cap honored.
+
+**Done — ADR-014 codified, invariants preserved separately:**
+- `## ADR-014: Away sandbox runtime` (exact heading) recorded with full ADR body: Context (`node-process` not a sandbox; `docs/configuration.md:10-12`, `subagents/manager.js:824-828`, `approval-controller.js:1-22`, `config.js:374-395`), Decision (host-pinned bubblewrap runtime under `.pi/away-runtime/`; pin per-lane `process.execPath` to trusted wrapper).
+- **Tested seam + version coupling recorded:** writable-`process.execPath` seam (Fabric 0.23.0 `NodeProcessRuntime` unconditionally `spawn(process.execPath, [...])` at `node-process-runtime.js:29`; no config field pins a wrapper; launcher reassigns the writable+configurable `process.execPath` before Fabric boots; A2-proven). Child-source digest pin = the VALUE sha256 `ee0bb190d5af47ff6ee99a0dd5874889b44b0857db23b897b4c57c88956793fb` (2838-char imported value, NOT the `.js` file); frozen to pi-fabric 0.23.0.
+- **Credentials in the trusted parent, only generated node-process sandboxed:** strict bubblewrap (`--unshare-user` STRICT, never `--unshare-user-try`; PID/mount/IPC/UTS/net; minimal binding — node+libs+ld-linux+inner-guest+/proc+/dev+/tmp only; `--clearenv` env={PATH,LANG}); credential at `~/.pi/agent/auth.json` not bound → ENOENT (A3-proven). Non-scout lanes no net; external-scout net-but-no-FS-no-cred. Cgroup-v2 systemd delegation (`systemd-run --user --wait --pipe --collect -p TasksMax=/MemoryMax=/CPUWeight=`; `--scope` unsuitable).
+- **Invariants each preserved separately** (DECISIONS.md ADR-014 Authority block): real OS sandbox not node-process-as-boundary; host-controlled lanes; no model dispatch (never raw `agents.*`); default-deny closure; human-only merge; Main sole integrator; `/verify` authority+freshness (verifier reuses launcher, exact remote OID checkout, read-only, no net/creds, broker-controlled argv, stale PASS invalidated by any change); no destructive cleanup; no normal-session widening (opt-in away lane; normal sessions unaffected).
+- **Block conditions:** missing wrapper attestation, strict userns, cgroup support, or closure hash each block execution — no weaker fallback, no fail-open userns, no fabricated success.
+- **ADR-015 forward dependency** recorded (autonomous-away-loop adds the real ledger/Git/GitHub crash-replay full loop on top of this foundation; this feature defers that loop).
+- **Alternatives** recorded: (a) node-process as boundary, (b) fail-open `--unshare-user-try`, (c) wrapper via Fabric config (no such field in 0.23.0), (d) credentials into sandbox env — all rejected.
+
+**Verify (prd.json B1):** `rg -n '^## ADR-014: Away sandbox runtime$' .pi/artifacts/pi-template/DECISIONS.md && rg -n 'Away Sandbox Runtime|ADR-014' .pi/artifacts/pi-template/PLAN.md AGENTS.md` → exit 0 (DECISIONS.md:510 heading; PLAN.md:360 `### Away Sandbox Runtime (ADR-014)`; AGENTS.md:216 `**Away Sandbox Runtime (ADR-014).**`). PASS.
+
+**Regression:** A1 16/16, A2 25/25 — live re-run on current bytes; the ADR-014 "A1/A2/A3-proven" claims hold. No code changed by B1 (doc/pin only).
+
+**Next:** B2 (Immutable closure + resource limits — `.pi/away-runtime/closure.ts` + `resources.ts` + `confinement.test.ts`; cgroup-v2 systemd enforcement; TDD).

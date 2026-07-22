@@ -357,6 +357,52 @@ interchangeable. Required source unavailable → capable alternative else `parti
 unavailable → `local-only`; L2/L3 `source-check-required` unsatisfiable → `blocked`;
 sensitive/unbounded → `rejected`. Never widen child `extensions`/`tools` to recover.
 
+### Away Sandbox Runtime (ADR-014)
+
+ADR-014 adds a host-pinned bubblewrap confinement runtime under `.pi/away-runtime/` for unattended
+`node-process` Fabric guests and candidate verification. `node-process` is explicitly not a security
+sandbox (`docs/configuration.md:10-12`), so the boundary is strict bubblewrap, not the executor.
+
+**The writable-`process.execPath` seam.** Fabric 0.23.0's `NodeProcessRuntime` unconditionally spawns
+`spawn(process.execPath, [...])` (`node-process-runtime.js:29`); there is no config field to pin a
+wrapper — the runtime class is a hard dependency. The launcher reassigns the writable+configurable
+`process.execPath` to a trusted outer wrapper (`executor-wrapper.mjs`) before Fabric boots. The
+wrapper validates the exact Fabric argv and the child-source value digest (sha256
+`ee0bb190d5af47ff6ee99a0dd5874889b44b0857db23b897b4c57c88956793fb` — the imported VALUE, not the
+`.js` file), then launches the untrusted inner guest (`inner-guest.mjs`) inside strict bubblewrap.
+The reassignment is host-owned, runs before untrusted code, and the model cannot influence it. This is
+version-coupled to pi-fabric 0.23.0; a Fabric upgrade re-proves the seam and re-cuts the digest.
+
+**Confinement.** `--unshare-user` STRICT (never the fail-open `--unshare-user-try`); PID/mount/IPC/UTS/net
+namespaces; minimal binding (node + ldd-resolved libs + ld-linux + inner-guest.mjs + `/proc` + `/dev` +
+`/tmp` only — no full rootfs, no `/etc`, no host home, no repo, no credentials); `--clearenv` (sandbox
+env = {PATH, LANG}). The provider credential at `~/.pi/agent/auth.json` is not bound, so it is ENOENT
+from the sandbox; credentials and the trusted Pi RPC host stay in the parent. Non-scout lanes have no
+network; the external-scout lane has network but no filesystem and no credential env. The wrapper
+filters every host-call by effective ref (`fabric.$call` → `args.ref`) against the lane's allowlisted
+`away_*` refs, enforces frame discipline, and fsyncs a terminal attestation before forwarding the
+result.
+
+**Resource limits.** Cgroup-v2 systemd delegation: `systemd-run --user --wait --pipe --collect -p
+TasksMax=/MemoryMax=/CPUWeight=` service mode enforces PID/memory/CPU (`--scope` is unsuitable for
+long-running children). cgroup2fs; delegated subtree `user@1000.service`;
+`DelegateControllers=cpu memory pids`. Storage and file-count are quota-backed.
+
+**Profiles and closure.** The controller (Main, or a Main-derived launcher) derives the lane profile
+from trusted phase/state; the model never chooses model IDs, tools, cwd, env, binaries, args, or risk
+grants, and never dispatches raw `agents.*`. The immutable startup closure (wrapper, inner guest, lane
+extension, config, pinned Pi/Fabric/provider/Node/bwrap source, command catalog) is hash-pinned and
+rechecked before launch, after restart, and before accepting a result.
+
+**Block conditions.** Missing wrapper attestation, strict userns, cgroup support, or closure hash each
+block execution — no weaker fallback wrapper, no fail-open userns variant, no fabricated success.
+
+**Authority.** Main stays sole integrator; merge stays human-only; the verifier reuses the launcher
+with a distinct profile (exact remote OID checkout, read-only source+deps, no net, no creds,
+broker-controlled argv from command IDs) and a stale PASS is invalidated by any change. This is an
+opt-in away lane; normal interactive sessions are unaffected. ADR-015 (autonomous-away-loop) adds the
+real ledger/Git/GitHub crash-replay full loop on top of this foundation; this feature defers that loop.
+
 ## Lifecycle
 
 Every lifecycle command takes an explicit `<slug>` (lowercase-hyphen, validated) and

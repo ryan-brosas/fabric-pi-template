@@ -506,3 +506,90 @@ version evidence above; the allowlist edits were no-ops. (b) Flip children to `e
 child path, which is not runtime-proven, and a wrong assumption is a real ADR-008/009 boundary breach
 with high blast radius. (c) Expose the generic `mcp` proxy via `capture.keepVisible` — rejected for the
 primary plan: it is broader than this feature; only exact direct-tool names are exposed.
+
+## ADR-014: Away sandbox runtime
+
+**Status:** accepted · **Date:** 2026-07-23
+
+**Context:** Unattended (no operator present) execution of model-generated `node-process` Fabric
+guests and candidate verification needs real OS confinement. `node-process` is explicitly not a
+security sandbox (`docs/configuration.md:10-12`): `agent:allow` plus caller-selectable child tools let
+generated code spawn a shell-capable child (`dist/subagents/manager.js:824-828`), and
+`PI_FABRIC_GRANTED_RISKS` grants broad risk classes with no per-run override
+(`dist/core/approval-controller.js:1-22`, `dist/config.js:374-395`). So `node-process` cannot be the
+boundary. The question is how to keep the trusted Pi RPC host, the provider credential, and the real
+ledger/Git/GitHub loop OUTSIDE the sandbox, confining ONLY the generated node-process guest.
+
+**Decision:** Add a host-pinned bubblewrap confinement runtime under `.pi/away-runtime/` (ADR-014).
+Keep Fabric `node-process` as the executor but pin per-lane `process.execPath` to a trusted outer
+wrapper (`executor-wrapper.mjs`). The wrapper validates the exact Fabric argv and the child-source
+value digest, then launches the untrusted inner guest (`inner-guest.mjs`) inside strict bubblewrap.
+Credentials and provider auth stay in the trusted parent; only generated node-process code is
+sandboxed.
+
+- **Writable-`process.execPath` seam (version-coupled, A2-proven).** Fabric 0.23.0's
+  `NodeProcessRuntime` unconditionally spawns `spawn(process.execPath, ['--max-old-space-size=<mb>',
+  '--input-type=module', '--eval', NODE_PROCESS_CHILD_SOURCE], {stdio:['ignore','ignore','ignore',
+  'ipc']})` (`node-process-runtime.js:29`). There is NO config field to pin a wrapper — the runtime
+  class is a hard dependency and the only knob is `executor.runtime`. But `process.execPath` is
+  writable+configurable on Node 24, so the launcher reassigns it to the trusted wrapper before Fabric
+  boots. The wrapper is the script node runs (shebang `#!/usr/bin/env node`); Fabric's argv becomes
+  `process.argv.slice(2)` and node never evals the child-source. The reassignment is host-owned, runs
+  before untrusted code, and the model cannot influence it.
+- **Child-source digest pin = the VALUE, not the file.** Fabric passes `NODE_PROCESS_CHILD_SOURCE`
+  (the imported value, sha256 `ee0bb190d5af47ff6ee99a0dd5874889b44b0857db23b897b4c57c88956793fb`,
+  2838 chars) via `--eval`, not the `.js` source file. The wrapper validates `sha256(argv[3])` against
+  this value; a pi-fabric reinstall changes the value, the drift guard fails, and the pin is re-cut.
+  This digest is frozen to pi-fabric 0.23.0.
+- **Strict bubblewrap (A1/A3-proven).** `--unshare-user` STRICT, never the fail-open
+  `--unshare-user-try`; PID/mount/IPC/UTS/net namespaces; `--die-with-parent`; minimal binding (node
+  binary + ldd-resolved libs + ld-linux + inner-guest.mjs + `/proc` + `/dev` + `/tmp` only — no full
+  rootfs, no `/etc`, no host home, no repo, no credentials); `--clearenv` (sandbox env = {PATH, LANG}).
+  The credential at `~/.pi/agent/auth.json` lives under `/home/ryan/.pi/`, which is not bound, so it is
+  ENOENT from the sandbox. Non-scout lanes have no network; the external-scout lane has network but no
+  filesystem and no credential env. The wrapper filters every host-call by effective ref
+  (`fabric.$call` → `args.ref`) against the lane's allowlisted `away_*` refs, enforces frame
+  discipline, and fsyncs a terminal attestation before forwarding the result.
+- **Cgroup-v2 systemd delegation (A3-proven).** `systemd-run --user --wait --pipe --collect -p
+  TasksMax=/MemoryMax=/CPUWeight=` service mode enforces PID/memory/CPU; `--scope` is unsuitable for
+  long-running children. cgroup2fs; delegated subtree `user@1000.service`;
+  `DelegateControllers=cpu memory pids`. Storage and file-count are quota-backed.
+- **Controller-derived profiles.** The controller (Main, or a Main-derived launcher) derives the lane
+  profile from trusted phase/state; the model never chooses model IDs, tools, cwd, env, binaries, args,
+  or risk grants, and never dispatches raw `agents.*`.
+- **Immutable startup closure.** The wrapper, inner guest, lane extension, config, and pinned
+  Pi/Fabric/provider/Node/bwrap source and command catalog are hash-pinned and rechecked before launch,
+  after restart, and before accepting a result.
+
+**Consequences — block conditions.** Missing wrapper attestation, strict userns, cgroup support, or
+closure hash each block execution: no weaker fallback wrapper, no fail-open userns variant, no
+fabricated success. Easier: the security boundary is a real OS sandbox, so safety does not depend on a
+`node-process` allowlist. Harder: the runtime is version-coupled to pi-fabric 0.23.0 (the child-source
+digest and the writable-execPath seam); a Fabric upgrade requires re-proving the seam and re-cutting
+the digest. The runtime is opt-in per away lane; normal interactive sessions keep their existing config
+and are unaffected.
+
+**Authority — invariants preserved separately.**
+- **Real OS sandbox, not `node-process` as the boundary.** Confinement is strict bubblewrap; the
+  executor stays `node-process` behind a pinned wrapper.
+- **Host-controlled lanes, no model dispatch.** The controller is Main (or a Main-derived launcher);
+  the model never dispatches raw `agents.*` or selects capabilities.
+- **Default-deny closure.** The closure is default-deny; only allowlisted `away_*` refs reach the host.
+- **Human-only merge.** The sandbox never commits, merges, or pushes; it stages to reserved files and
+  attests; Main and the operator retain merge authority.
+- **Main sole integrator.** Main remains the sole scheduler, integrator, and commit authority.
+- **`/verify` authority + freshness.** The verifier reuses the launcher with a distinct profile (exact
+  remote OID checkout, source+deps read-only, no network, no credentials, broker-controlled exact argv
+  from command IDs); a stale PASS is invalidated by any change.
+- **No destructive cleanup, no normal-session widening.** The sandbox does no destructive cleanup;
+  this is an opt-in away lane, not a widening of normal sessions. Provider credentials and the trusted
+  Pi RPC host stay in the parent; only generated node-process code is sandboxed.
+
+**Forward dependency.** ADR-015 (autonomous-away-loop) adds the real ledger/Git/GitHub crash-replay
+full loop on top of this confinement foundation; this feature defers that loop.
+
+**Alternatives:** (a) `node-process` as the boundary — rejected: it is not a sandbox; shell-capable
+children and broad risk grants. (b) Fail-open `--unshare-user-try` — rejected: userns failure would
+run unconfined. (c) Pin a wrapper via Fabric config — rejected: no such field exists in 0.23.0; the
+writable-execPath seam is the only mechanism and it is host-owned and pre-boot. (d) Pass credentials
+into the sandbox env — rejected: an exfiltration channel; credentials stay in the parent.
