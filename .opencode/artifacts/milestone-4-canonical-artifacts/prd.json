@@ -1,0 +1,147 @@
+{
+  "title": "Milestone 4 — Canonical Artifacts (Audit + Hardening)",
+  "slug": "milestone-4-canonical-artifacts",
+  "created": "2026-07-22",
+  "id": "ms4-001",
+  "approach": "audit + hardening pass: milestones 1-3 already encoded most of the canonical-artifact contract. This spec audits the nine ported prompts for four residual gaps (lazy creation absent in plan/research/ship/verify; slug validation absent in plan/research; gc active-slug inference wrong for the slugless Pi layer; two-surface contract not formalized), hardens them, and formalizes the lifecycle-state vs project-memory separation (ADR-007). No changes to substantive procedural content; only the four enumerated hardening edits + contract formalization.",
+  "blocks": [
+    "Milestone 5 — verification fingerprint tooling",
+    "Milestone 6 — smoke test",
+    "Gate workflow (.pi/prompts/gate.md) — separate deferred milestone"
+  ],
+  "affected_files": [
+    ".pi/prompts/plan.md",
+    ".pi/prompts/research.md",
+    ".pi/prompts/ship.md",
+    ".pi/prompts/verify.md",
+    ".pi/prompts/gc.md",
+    "AGENTS.md",
+    ".pi/artifacts/pi-template/PLAN.md",
+    ".pi/artifacts/pi-template/DECISIONS.md"
+  ],
+  "success_criteria": [
+    {
+      "criterion": "Slug-validation regex present in all five lifecycle prompts",
+      "verify": "for f in create plan research ship verify; do rg -q '\\^\\(\\?=\\.\\{1,64\\}\\$\\)\\[a-z0-9\\]' .pi/prompts/$f.md || { echo MISSING $f; exit 1; }; done"
+    },
+    {
+      "criterion": "Lazy-creation mkdir present in the five lifecycle prompts",
+      "verify": "for f in create plan research ship verify; do rg -q 'mkdir -p.*\\.pi/artifacts' .pi/prompts/$f.md || { echo MISSING $f; exit 1; }; done"
+    },
+    {
+      "criterion": "/gc has no active-slug inference",
+      "verify": "! rg -qi 'active slug' .pi/prompts/gc.md"
+    },
+    {
+      "criterion": "Two-surface contract documented (AGENTS + ADR-007)",
+      "verify": "rg -q 'Two surfaces|two-surface|project memory.*separate|lifecycle state.*confined' AGENTS.md && rg -q 'ADR-007' .pi/artifacts/pi-template/DECISIONS.md"
+    },
+    {
+      "criterion": "No regression in milestone-3 static suite (frontmatter 9/9, forbidden CLEAN, slug presence 5/5)",
+      "verify": "node -e 'const fs=require(\"fs\");const need={audit:[\"description\",\"argument-hint\"],create:[\"description\",\"argument-hint\"],fix:[\"description\",\"argument-hint\"],gc:[\"description\"],init:[\"description\",\"argument-hint\"],plan:[\"description\",\"argument-hint\"],research:[\"description\",\"argument-hint\"],ship:[\"description\",\"argument-hint\"],verify:[\"description\",\"argument-hint\"]};for(const[f,keys]of Object.entries(need)){const s=fs.readFileSync(\".pi/prompts/\"+f+\".md\",\"utf8\");const m=/^---\\n([\\s\\S]*?)\\n---\\n/.exec(s);if(!m)throw new Error(f+\": no frontmatter\");const got=[...m[1].matchAll(/^([\\w-]+):/gm)].map(x=>x[1]);if(got.length!==keys.length||!keys.every(k=>got.includes(k)))throw new Error(f+\": got [\"+got+\"] expected [\"+keys+\"]\");}' && ! rg -q 'agent:|task\\(|question\\(|skill\\(|write\\(|\\.active|spec\\.md|prd\\.json|tasks\\.json|audit-pattern|batch-implement|deep-research|review-state\\.json|/ui-slop-check|/compound|progress\\.md|audit\\.md' .pi/prompts/*.md && for f in create plan ship verify research; do rg -q '<slug>' .pi/prompts/$f.md || exit 1; done"
+    },
+    {
+      "criterion": "Source command bodies unchanged (immutability)",
+      "verify": "git diff --exit-code -- .opencode/command/"
+    },
+    {
+      "criterion": "Completion-authority split intact",
+      "verify": "rg -q 'cannot declare completion|must not.*completion' .pi/prompts/ship.md && rg -qi 'sole.*verified|transcript only|no repository write' .pi/prompts/verify.md"
+    },
+    {
+      "criterion": "No .active/latest in the nine prompts",
+      "verify": "! rg -q '\\.active|latest' .pi/prompts/*.md"
+    },
+    {
+      "criterion": "jq validates prd.json",
+      "verify": "jq -e . .opencode/artifacts/milestone-4-canonical-artifacts/prd.json"
+    },
+    {
+      "criterion": "Every task has <=3 files (bounded)",
+      "verify": "jq -e '([.tasks[].files | length] | max) <= 3' .opencode/artifacts/milestone-4-canonical-artifacts/prd.json"
+    }
+  ],
+  "tasks": [
+    {
+      "title": "Formalize the two-surface contract (AGENTS, PLAN, DECISIONS)",
+      "category": "contract",
+      "end_state": "AGENTS.md Lifecycle artifacts block has a Two surfaces subsection: lifecycle state (4 canonical files, confined to slug) vs project memory (MEMORY.md, separate writable surface). PLAN.md lifecycle flow mirrors it. DECISIONS.md has ADR-007 documenting the two-surface tradeoff. Done before prompt hardening so the contract is authoritative.",
+      "depends_on": [],
+      "parallel": false,
+      "conflicts_with": [],
+      "files": [
+        "AGENTS.md",
+        ".pi/artifacts/pi-template/PLAN.md",
+        ".pi/artifacts/pi-template/DECISIONS.md"
+      ],
+      "verify": "rg -q 'Two surfaces|two-surface|project memory.*separate|lifecycle state.*confined' AGENTS.md && rg -q 'ADR-007' .pi/artifacts/pi-template/DECISIONS.md && rg -q 'two surface|project memory' .pi/artifacts/pi-template/PLAN.md"
+    },
+    {
+      "title": "Harden /plan and /research (slug regex + lazy creation)",
+      "category": "harden-lifecycle",
+      "end_state": ".pi/prompts/plan.md and research.md validate <slug> with the canonical regex before filesystem access and do mkdir -p .pi/artifacts/<slug>/ before writes. All existing procedural content preserved. No OpenCode-only constructs introduced.",
+      "depends_on": ["Formalize the two-surface contract (AGENTS, PLAN, DECISIONS)"],
+      "parallel": false,
+      "conflicts_with": [],
+      "files": [".pi/prompts/plan.md", ".pi/prompts/research.md"],
+      "verify": "for f in plan research; do rg -q '\\^\\(\\?=\\.\\{1,64\\}\\$\\)\\[a-z0-9\\]' .pi/prompts/$f.md && rg -q 'mkdir -p.*\\.pi/artifacts' .pi/prompts/$f.md || { echo MISSING $f; exit 1; }; done && ! rg -q 'agent:|task\\(|question\\(|skill\\(|write\\(|\\.active|spec\\.md|prd\\.json' .pi/prompts/plan.md .pi/prompts/research.md"
+    },
+    {
+      "title": "Harden /ship and /verify (lazy creation; slug regex already present)",
+      "category": "harden-execution",
+      "end_state": ".pi/prompts/ship.md and verify.md do mkdir -p .pi/artifacts/<slug>/ before writes. Slug regex already present in both. Authority rules (ship no-completion, verify sole external) intact. All existing procedural content preserved.",
+      "depends_on": ["Harden /plan and /research (slug regex + lazy creation)"],
+      "parallel": false,
+      "conflicts_with": [],
+      "files": [".pi/prompts/ship.md", ".pi/prompts/verify.md"],
+      "verify": "for f in ship verify; do rg -q 'mkdir -p.*\\.pi/artifacts' .pi/prompts/$f.md || { echo MISSING $f; exit 1; }; done && rg -q 'cannot declare completion|must not.*completion' .pi/prompts/ship.md && rg -qi 'sole.*verified|transcript only|no repository write' .pi/prompts/verify.md"
+    },
+    {
+      "title": "Fix /gc (remove active-slug inference)",
+      "category": "harden-ops",
+      "end_state": ".pi/prompts/gc.md has no 'active slug' inference. It grades project-wide template domains (plugins/commands/skills/docs) without a slug and optionally accepts a <slug> to grade that slug's lifecycle artifacts. No .active/latest.",
+      "depends_on": ["Harden /ship and /verify (lazy creation; slug regex already present)"],
+      "parallel": false,
+      "conflicts_with": [],
+      "files": [".pi/prompts/gc.md"],
+      "verify": "! rg -qi 'active slug' .pi/prompts/gc.md && ! rg -q 'agent:|task\\(|question\\(|skill\\(|write\\(' .pi/prompts/gc.md"
+    },
+    {
+      "title": "Record candidate evidence (pending final no-write verification)",
+      "category": "evidence",
+      "end_state": ".pi/artifacts/pi-template/TODO.md and PROGRESS.md and .opencode/state.md record the milestone-4 hardening complete but verification PENDING (not VERIFIED). Commands, exit codes, limitations logged.",
+      "depends_on": ["Fix /gc (remove active-slug inference)"],
+      "parallel": false,
+      "conflicts_with": [],
+      "files": [
+        ".pi/artifacts/pi-template/TODO.md",
+        ".pi/artifacts/pi-template/PROGRESS.md",
+        ".opencode/state.md"
+      ],
+      "verify": "rg -q 'pending final|verification pending|pending.*no-write' .pi/artifacts/pi-template/PROGRESS.md"
+    },
+    {
+      "title": "Close OpenCode feature implementation state",
+      "category": "close",
+      "end_state": "spec.md marks each bounded task complete (without VERIFIED); roadmap.md milestone 4 marked implementation-done/verification-pending. jq validates prd.json.",
+      "depends_on": ["Record candidate evidence (pending final no-write verification)"],
+      "parallel": false,
+      "conflicts_with": [],
+      "files": [
+        ".opencode/artifacts/milestone-4-canonical-artifacts/spec.md",
+        ".opencode/roadmap.md"
+      ],
+      "verify": "jq -e . .opencode/artifacts/milestone-4-canonical-artifacts/prd.json && rg -q 'implementation done|verification pending|pending.*verify' .opencode/roadmap.md"
+    },
+    {
+      "title": "Final no-write verification (external declaration only)",
+      "category": "verify",
+      "end_state": "All success-criteria checks pass; source command bodies unchanged; git diff --check clean; local HEAD equals remote main and main:master; VERIFIED declared in response/transcript only; no repository write after the final fingerprint.",
+      "depends_on": ["Close OpenCode feature implementation state"],
+      "parallel": false,
+      "conflicts_with": [],
+      "files": [],
+      "verify": "run all success-criteria commands; git diff --exit-code -- .opencode/command/; git diff --check; git rev-parse HEAD == origin/main == origin/master"
+    }
+  ]
+}
