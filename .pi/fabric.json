@@ -1,11 +1,13 @@
 {
   "fullCodeMode": true,
-  "schema": { "mode": "off" },
+  "schema": {
+    "mode": "off"
+  },
   "approvals": {
     "read": "allow",
     "write": "deny",
     "execute": "deny",
-    "network": "deny",
+    "network": "allow",
     "agent": "allow"
   },
   "subagents": {
@@ -17,7 +19,9 @@
     "timeoutMs": 600000,
     "defaultTools": ["read", "grep", "find", "ls"],
     "budgetUsd": 10,
-    "maxTokensPerChild": 500000
+    "maxTokensPerChild": 500000,
+    "model": "makora/zai-org/GLM-5.2-FP8",
+    "thinking": "max"
   },
   "mesh": {
     "actorScope": "session"
@@ -28,6 +32,21 @@
     "indexThinking": false
   },
   "compaction": {
-    "engine": "fabric"
+    "engine": "pi",
+    "targetContextRatio": 0.7
+  },
+  "executor": {
+    "runtime": "node-process",
+    "memoryLimitBytes": 17179869184
+  },
+  "capture": {
+    "keepVisible": [
+      "fabric_exec",
+      "context7_resolve-library-id",
+      "context7_query-docs",
+      "exa_web_search_exa",
+      "exa_web_fetch_exa",
+      "codex_search"
+    ]
   }
 }
