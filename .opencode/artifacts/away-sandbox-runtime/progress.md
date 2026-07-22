@@ -393,3 +393,19 @@ A second wiring gap in the same "away-runtime non-functional end-to-end" class s
 **Verdict: D3 PASS — all 11 requirements met.** The `away-sandbox-runtime` feature (ADR-014) is verified: 14 waves P0.1-D2 complete, 207/207 tests green, the host-pinned bubblewrap confinement runtime is functional end-to-end (real launcher+RPC+wrapper+host-call firewall+staging+verifier; the D1 hermetic integration proves fabric_exec → captured away_* tools through the real wrapper+bwrap+cgroup), strict failure conditions enforced (no weaker wrapper / fail-open userns / fabricated success), credentials stay in the trusted parent (auth.json ENOENT in sandbox), no surviving descendants. The real ledger/Git/GitHub crash-replay full loop remains ADR-015 (deferred).
 
 **Final fingerprint captured immediately after this commit (no repo write after it).** Phase 5 (review + goal-backward verification + ask-before-close) is next.
+
+---
+
+## Post-verification follow-up — ADR-014 version-string refresh (committed)
+
+**Operator-authorized** at Phase 5 close (separate from the D3-verified feature; the D3 PASS at `0769962` stands as the feature's verification record).
+
+**Root cause:** a concurrent agent upgraded `.pi/npm/node_modules/pi-fabric` 0.23.0→0.24.3 between feature start and D3. D3 confirmed the child-source VALUE digest `ee0bb190...` is byte-identical across the bump (the wrapper anti-tamper pin + B2 closure + D1 real-sandbox suite all hold on 0.24.3), so the FUNCTIONAL coupling is intact. ADR-014's version STRING ("pi-fabric 0.23.0") was stale (cosmetic).
+
+**Fix (DECISIONS.md ADR-014 block, surgical):**
+- Line 546: seam marked "A2-proven, D3-reconfirmed on 0.24.3"; `Fabric 0.24.3's`.
+- Line 559: "This digest is frozen to the child-source VALUE; it is byte-identical across pi-fabric 0.23.0→0.24.3 (D3-reconfirmed), so the pin couples to the digest, not the version number."
+- Line 583: "version-coupled to the child-source VALUE digest (`ee0bb190...`, byte-identical across pi-fabric 0.23.0→0.24.3, D3-reconfirmed) and the writable-execPath seam; a Fabric upgrade that changes the digest requires re-cutting the pin."
+- Line 618: "no such field exists in 0.23.0 or 0.24.3".
+
+ADR-013's historical 0.23.0 references (lines 257/299/378/450) untouched (frozen when ADR-013 was settled). ADR-011/012/013/014 markers + the full digest `ee0bb190...` intact. No functional/coupling change (the digest pin was already correct); this is a provenance-string refresh.

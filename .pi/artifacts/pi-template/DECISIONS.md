@@ -543,7 +543,7 @@ value digest, then launches the untrusted inner guest (`inner-guest.mjs`) inside
 Credentials and provider auth stay in the trusted parent; only generated node-process code is
 sandboxed.
 
-- **Writable-`process.execPath` seam (version-coupled, A2-proven).** Fabric 0.23.0's
+- **Writable-`process.execPath` seam (version-coupled, A2-proven, D3-reconfirmed on 0.24.3).** Fabric 0.24.3's
   `NodeProcessRuntime` unconditionally spawns `spawn(process.execPath, ['--max-old-space-size=<mb>',
   '--input-type=module', '--eval', NODE_PROCESS_CHILD_SOURCE], {stdio:['ignore','ignore','ignore',
   'ipc']})` (`node-process-runtime.js:29`). There is NO config field to pin a wrapper — the runtime
@@ -556,7 +556,8 @@ sandboxed.
   (the imported value, sha256 `ee0bb190d5af47ff6ee99a0dd5874889b44b0857db23b897b4c57c88956793fb`,
   2838 chars) via `--eval`, not the `.js` source file. The wrapper validates `sha256(argv[3])` against
   this value; a pi-fabric reinstall changes the value, the drift guard fails, and the pin is re-cut.
-  This digest is frozen to pi-fabric 0.23.0.
+  This digest is frozen to the child-source VALUE; it is byte-identical across pi-fabric 0.23.0→0.24.3
+  (D3-reconfirmed), so the pin couples to the digest, not the version number.
 - **Strict bubblewrap (A1/A3-proven).** `--unshare-user` STRICT, never the fail-open
   `--unshare-user-try`; PID/mount/IPC/UTS/net namespaces; `--die-with-parent`; minimal binding (node
   binary + ldd-resolved libs + ld-linux + inner-guest.mjs + `/proc` + `/dev` + `/tmp` only — no full
@@ -580,9 +581,10 @@ sandboxed.
 **Consequences — block conditions.** Missing wrapper attestation, strict userns, cgroup support, or
 closure hash each block execution: no weaker fallback wrapper, no fail-open userns variant, no
 fabricated success. Easier: the security boundary is a real OS sandbox, so safety does not depend on a
-`node-process` allowlist. Harder: the runtime is version-coupled to pi-fabric 0.23.0 (the child-source
-digest and the writable-execPath seam); a Fabric upgrade requires re-proving the seam and re-cutting
-the digest. The runtime is opt-in per away lane; normal interactive sessions keep their existing config
+`node-process` allowlist. Harder: the runtime is version-coupled to the child-source VALUE digest
+(`ee0bb190...`, byte-identical across pi-fabric 0.23.0→0.24.3, D3-reconfirmed) and the
+writable-execPath seam; a Fabric upgrade that changes the digest requires re-cutting the pin. The
+runtime is opt-in per away lane; normal interactive sessions keep their existing config
 and are unaffected.
 
 **Authority — invariants preserved separately.**
@@ -615,7 +617,7 @@ full loop on top of this confinement foundation; this feature defers that loop.
 
 **Alternatives:** (a) `node-process` as the boundary — rejected: it is not a sandbox; shell-capable
 children and broad risk grants. (b) Fail-open `--unshare-user-try` — rejected: userns failure would
-run unconfined. (c) Pin a wrapper via Fabric config — rejected: no such field exists in 0.23.0; the
+run unconfined. (c) Pin a wrapper via Fabric config — rejected: no such field exists in 0.23.0 or 0.24.3; the
 writable-execPath seam is the only mechanism and it is host-owned and pre-boot. (d) Pass credentials
 into the sandbox env — rejected: an exfiltration channel; credentials stay in the parent.
 
