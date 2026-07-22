@@ -2,24 +2,22 @@
 
 ## Current Status
 
-Clean-slate, reset to `dbf74b7 chore: fresh start — Pi/Fabric template clean-slate`
-(local + remote `main`/`master`). The `/init` deep pass enriched the authority docs and
-created the canonical implementation contract under `.pi/artifacts/pi-template/`.
+Clean-slate at `90bb667` (local + remote `main`/`master`). Milestone 1 done: `.pi/settings.json`
++ `.pi/fabric.json` created and verified. The advisory council, lifecycle prompts, and
+verification tools remain.
 
-Established this pass:
-- `AGENTS.md` — applied the corrected architecture: removed `/night` and `.pi/config.json`
-  and Haiku-compaction references; added Makora `extensions:true`, single-writer-per-worktree,
-  per-slug lifecycle artifacts, `/verify` freshness, custom-supervisor (never self-stop), and
-  blocking-`ask` gate mechanics.
-- `.opencode/tech-stack.md`, `.opencode/roadmap.md`, `.opencode/state.md`, `.opencode/user.md`
-  de-duplicated against `AGENTS.md` (authority lives there).
-- `.pi/.gitignore` — runtime state only (`/fabric/ /npm/ /git/ /sessions/`); artifacts tracked.
-- `.pi/artifacts/pi-template/{PLAN,TODO,PROGRESS,DECISIONS}.md` — canonical contract.
+This pass:
+- `AGENTS.md` + `.opencode/{tech-stack,roadmap,state,user}.md` + `.pi/.gitignore` +
+  `.pi/artifacts/pi-template/{PLAN,TODO,PROGRESS,DECISIONS}.md` (init deep pass).
+- `.pi/settings.json` + `.pi/fabric.json` (milestone 1): Main defaults + pi-fabric pin;
+  fullCodeMode:false, schema.mode:off, read-only default child tools, maxDepth:1,
+  mesh.actorScope:session, memory disabled, fabric compaction.
 
 ## Blockers
 
-None. Bootstrap prerequisite for runtime use: `/trust` the project root, then restart Pi
-(untrusted projects ignore `.pi/settings.json`, packages, prompts, and `.pi/fabric.json`).
+Runtime smoke (review-child edit rejection, recursive delegation rejection) requires
+`/trust` the project root + restart Pi. Config encodes both constraints (verified via
+`normalizeFabricConfig` 12/12 PASS); runtime enforcement pending bootstrap.
 
 ## Active Decisions
 
@@ -32,25 +30,22 @@ in `.pi/artifacts/pi-template/DECISIONS.md`. Summary only — do not edit here f
 
 ## Next Priorities
 
-1. Create `.pi/settings.json` (Main `defaultProvider`/`defaultModel`/`defaultThinkingLevel`;
-   pin `npm:pi-fabric@0.22.4`).
-2. Create `.pi/fabric.json` (`fullCodeMode:false`, `schema.mode:"off"`, read-only default
-   child tools, `subagents.maxDepth:1`, `mesh.actorScope:"session"`, `mesh.enabled:true`,
-   `memory.indexToolOutput:false`, `compaction.engine:"fabric"`, finite limits).
-3. Author `.pi/prompts/supervise.md` (native supervisor + advisor create/inspect,
-   session-scoped, supervisor-only steer, custom instructions — never self-stop).
-4. Author `.pi/prompts/gate.md` (lifecycle-gate workflow: blocking `agents.ask()` to
-   applicable advisors, validate each, one blocking `agents.ask(supervisor)` on conflict;
-   mailbox-only advisors, no host events).
-5. Author thin lifecycle prompts: `.pi/prompts/{create,plan,ship,verify,research}.md`
-   (explicit `<slug>`; self-contained; no agent routing).
-6. Smoke-test: model IDs resolve, Main retains native tools, review child edit fails,
-   gate blocks on errored advisor, `/verify` freshness invalidates on byte change.
+2. Advisory council — `.pi/prompts/supervise.md` (create/inspect supervisor + advisors,
+   session-scoped, custom supervisor instructions — never self-stop).
+3. Lifecycle gate workflow — `.pi/prompts/gate.md` (blocking `agents.ask()` to applicable
+   advisors, validate each, one blocking `agents.ask(supervisor)` on conflict).
+4. Lifecycle prompts — `.pi/prompts/{create,plan,ship,verify,research}.md` (explicit
+   `<slug>`; self-contained; no agent routing).
+5. Verification fingerprint — `.pi/tools/` capture (HEAD, digests, file hashes).
+6. Smoke — model resolution, Main native tools, review-child edit rejection, gate block
+   on errored advisor, freshness invalidation.
 
 ## Verification Status
 
 - `pi --approve --list-models` resolves `openai-codex/gpt-5.6-sol`,
-  `openai-codex/gpt-5.4-mini`, `makora/zai-org/GLM-5.2-NVFP4` (host provider auth).
-- No `.pi` runtime config/prompt files exist yet — runtime smoke pending milestone 1-2.
-- Pending per-artifact commit+push (standing policy: commit and push after completing
-  each artifact).
+  `openai-codex/gpt-5.4-mini`, `makora/zai-org/GLM-5.2-NVFP4` (all thinking=yes).
+- `normalizeFabricConfig` 12/12 PASS against installed pi-fabric 0.22.4.
+- JSON valid (`jq -e`) on `.pi/settings.json` + `.pi/fabric.json`.
+- Node v24.16.0 (>=24).
+- Runtime child-spawn smoke pending `/trust` + restart.
+- Per-artifact commit+push standing policy active.
