@@ -20,6 +20,20 @@ Gather information before implementation. Find answers, document findings, stop 
 
 Default depth: ~30 tool calls for moderate exploration.
 
+Validate `<slug>` before any filesystem or project-memory access. Reject empty, absolute (start with `/`), slash-containing, `..`-segment, uppercase, leading/trailing-hyphen, or double-hyphen values.
+
+Accepted pattern:
+
+```
+^(?=.{1,64}$)[a-z0-9]+(?:-[a-z0-9]+)*$
+```
+
+If the slug is invalid, stop and report the exact failure. Do not access `.pi/artifacts/` or `.opencode/artifacts/MEMORY.md` until the slug passes validation.
+
+**Namespace guard.** `/research` may run before `/create` (research is sideways). Classify the namespace:
+- **Established** (both `PLAN.md` and `TODO.md` exist in `.pi/artifacts/<slug>/`): research may write `.pi/artifacts/<slug>/PROGRESS.md`.
+- **Missing or partial** (neither, or only one, exists): research runs read-only and returns findings in the response only. Do not write `PROGRESS.md`, do not write `.opencode/artifacts/MEMORY.md`, and do not `mkdir`. `/research` never creates a namespace — `/create` is the sole namespace creator.
+
 ## Complexity Detection
 
 Before starting, analyze the research topic complexity:
@@ -55,7 +69,7 @@ If complexity is detected as complex, perform multi-angle analysis directly:
 1. **Delegate to multiple read-only `scout` children** (one per angle) to gather findings from independent perspectives.
 2. **Delegate to read-only `review` children** to cross-check findings for contradictions and confidence.
 3. **Synthesize the report** from all cross-checked findings.
-4. **Write the final report** to `.pi/artifacts/<slug>/PROGRESS.md`.
+4. **Write the final report** to `.pi/artifacts/<slug>/PROGRESS.md` — only if the namespace is established per the Namespace guard above; otherwise return findings in the response only.
 
 **Announce:** "This is complex research requiring multi-angle analysis. Delegating parallel read-only scouts with cross-check."
 
@@ -69,7 +83,7 @@ If complexity is simple, execute directly:
 - **Don't over-research**: Stop when you have enough to proceed
 - **Use source priority**: Codebase → Docs → Source → GitHub → Web
 - **Verify confidence**: Medium+ confidence required before stopping
-- **Document findings**: Write to `.pi/artifacts/<slug>/PROGRESS.md` or report directly
+- **Document findings**: Write to `.pi/artifacts/<slug>/PROGRESS.md` if the namespace is established; otherwise report directly in the response (missing/partial namespace is response-only)
 
 ### Available Tools
 
@@ -126,7 +140,7 @@ rg -n "topic" .opencode/artifacts/MEMORY.md
 
 ### Phase 4: Document
 
-Write findings to `.pi/artifacts/<slug>/PROGRESS.md`:
+Write findings to `.pi/artifacts/<slug>/PROGRESS.md` — only if the namespace is established per the Namespace guard above; otherwise return findings in the response only (do not write `PROGRESS.md` or create any file):
 
 - Questions asked → answered/partial/unanswered with confidence
 - Key findings with sources (file paths, docs)

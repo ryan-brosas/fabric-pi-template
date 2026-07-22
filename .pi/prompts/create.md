@@ -39,6 +39,20 @@ Create a specification (PRD), set up workspace, and define executable tasks — 
 | `explore` | Finding patterns in codebase, affected files |
 | `scout`   | External research, best practices            |
 
+## Phase 2: Validate Slug
+
+This phase runs before Phase 1 because the slug must be validated before any filesystem or project-memory access.
+
+Validate the provided `<slug>` before any filesystem access. Reject values that are empty, absolute (start with `/`), contain slashes or `..` segments, uppercase letters, leading/trailing hyphens, or double hyphens.
+
+Accepted pattern:
+
+```
+^(?=.{1,64}$)[a-z0-9]+(?:-[a-z0-9]+)*$
+```
+
+If the slug is invalid, stop and report the exact validation failure. Do not access `.pi/artifacts/` or `.opencode/artifacts/MEMORY.md` until the slug passes validation.
+
 ## Phase 1: Duplicate Check
 
 ### Context Search
@@ -51,19 +65,11 @@ rg -n "topic" .opencode/artifacts/MEMORY.md
 
 ### Existing Work Check
 
-Check `.pi/artifacts/` for existing work on this slug. If `.pi/artifacts/<slug>/PLAN.md` already exists, ask the operator whether they want to continue with `/ship` instead. Never overwrite an existing slug namespace.
+Check `.pi/artifacts/` for existing work on this slug. An **established** namespace has both `PLAN.md` AND `TODO.md`. Classify and act:
 
-## Phase 2: Validate Slug
-
-Validate the provided `<slug>` before any filesystem access. Reject values that are empty, absolute (start with `/`), contain slashes or `..` segments, uppercase letters, leading/trailing hyphens, or double hyphens.
-
-Accepted pattern:
-
-```
-^(?=.{1,64}$)[a-z0-9]+(?:-[a-z0-9]+)*$
-```
-
-If the slug is invalid, stop and report the exact validation failure. If `.pi/artifacts/<slug>/` already exists, stop — do not overwrite.
+- **Established** (both `PLAN.md` and `TODO.md` exist): stop — the namespace is in use. Ask the operator whether they want to continue with `/ship` instead. Never overwrite an existing namespace.
+- **Partial** (only one of `PLAN.md`/`TODO.md` exists): stop — the namespace is partially initialized from an interrupted `/create`. Block for operator recovery; do not adopt, overwrite, or delete. Report which sentinel file is missing.
+- **Absent** (neither exists): proceed — `/create` is the sole namespace creator and will `mkdir -p .pi/artifacts/<slug>/` and write both sentinel files in Phase 5.
 
 ## Phase 3: Choose Research Depth
 

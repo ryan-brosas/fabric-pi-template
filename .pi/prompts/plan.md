@@ -17,6 +17,16 @@ Create a detailed implementation plan with TDD steps. Optional deep-planning bet
 | -------- | -------- | --------------------------------- |
 | `<slug>` | required | The active feature namespace (lowercase-hyphen, validated by `/create`) |
 
+Validate `<slug>` before any filesystem or project-memory access. Reject empty, absolute (start with `/`), slash-containing, `..`-segment, uppercase, leading/trailing-hyphen, or double-hyphen values.
+
+Accepted pattern:
+
+```
+^(?=.{1,64}$)[a-z0-9]+(?:-[a-z0-9]+)*$
+```
+
+If the slug is invalid, stop and report the exact failure. Do not access `.pi/artifacts/` or `.opencode/artifacts/MEMORY.md` until the slug passes validation. `/plan` never creates a namespace — `/create` is the sole namespace creator.
+
 ## Before You Plan
 
 - **Be certain**: Only create tasks you're confident about
@@ -69,10 +79,11 @@ Delegate to a read-only `explore` child to search the codebase for patterns, con
 
 ## Phase 1: Guards
 
-Verify:
+Verify the namespace is **established** (both `PLAN.md` AND `TODO.md` exist in `.pi/artifacts/<slug>/`):
 
-- `.pi/artifacts/<slug>/PLAN.md` exists (if not, tell the operator to run `/create <slug> ...` first)
-- If PLAN.md already contains an implementation-plan section (Must-Haves, Dependency Graph, Tasks), ask the operator: overwrite or skip?
+- **Established** (both exist): proceed. If PLAN.md already contains an implementation-plan section (Must-Haves, Dependency Graph, Tasks), ask the operator: overwrite or skip?
+- **Partial** (only one of `PLAN.md`/`TODO.md` exists): stop — the namespace is partially initialized from an interrupted `/create`. Block for operator recovery; do not adopt, overwrite, delete, or `mkdir`. Report which sentinel file is missing.
+- **Absent** (neither exists): stop — tell the operator to run `/create <slug> ...` first. `/plan` never creates a namespace.
 
 ## Phase 2: Discovery Assessment
 
