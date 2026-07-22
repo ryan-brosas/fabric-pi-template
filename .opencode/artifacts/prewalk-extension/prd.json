@@ -1,0 +1,177 @@
+{
+  "title": "Prewalk via native Fabric trajectory handoff (0.23.0)",
+  "slug": "prewalk-extension",
+  "created": "2026-07-22",
+  "id": "prewalk-001",
+  "approach": "Adopt the native pi-fabric 0.23.0 explicit `agents.handoff()` primitive (commit ed08a16) to implement prewalk, replacing the prior synthetic-router design (same slug, superseded — see spec.md 'Superseded approach'). Flip `.pi/fabric.json` `fullCodeMode:false->true` (required for the fabric_exec boundary; isolated to Main per docs/configuration.md:167, children unaffected). Main authors a `fabric_exec` program that does frontier work then calls `agents.handoff({model:'makora/zai-org/GLM-5.2-NVFP4', extensions:true, tools:[read,grep,find,ls,edit,write], thinking:'max'})` — explicit handoff forwards extensions/tools/thinking per call (runRequest:517,536), preserving ADR-009 per-call safety (unlike automatic /fabric prewalk, which inherits subagents.extensions:false and breaks Makora). The handoff is trajectory-preserving (Fabric forks the finalized fabric_exec call+result; the source session is not rewritten) — faithful to the warm-session spirit, deliberately coarser than Stencil/OMP (no TODO gate; Fabric disclaims benchmark equivalence). No custom extension code, no log validator (native carries its own audit/result), no prewalk.model config (explicit handoff carries the model). Operational routing is selective by complexity (prewalk handoff for novel/multi-file M-L; direct Makora agents.run for S/single-file mechanical), both sharing the one blocking-writable-run ceiling from milestone-5. The dogfood (C1) is the first live proof. Ships after milestone-5 settles (shared canonical files; single-writer policy).",
+  "blocks": [
+    "Milestone-5 (active) must settle/commit shared canonical files — especially .pi/prompts/ship.md (uncommitted, milestone-5 B1) — before prewalk /ship edits them (single-writer policy, ADR-002/ADR-009)",
+    "Runtime dogfood (C1) is the first live proof; if it fails, the native-handoff adoption is revisited (fallback: two-child planner/executor approximation — explicitly NOT faithful prewalk — or the superseded synthetic router)",
+    "fullCodeMode:true is a template-philosophy change (Main authors fabric_exec for all work; Pi core tools move behind pi.* inside fabric_exec) — isolated to Main, children and supervisor unaffected (configuration.md:167)",
+    "No automatic /fabric prewalk (would force a global ADR-009 reversal — subagents.extensions:false breaks Makora; rejected)",
+    "No prewalk.model config (explicit handoff carries the model per call)",
+    "No .pi/settings.json, .opencode/command/*.md, .pi/extensions/, or .pi/tools/ changes (no custom code; native primitive only)",
+    "ADR-010 numbering: prewalk reserved it; coordinate with lifecycle-review-gates (next available at write time, 010 or 011)"
+  ],
+  "manifests": {
+    "write_paths": [
+      ".pi/fabric.json",
+      ".pi/artifacts/pi-template/DECISIONS.md",
+      ".pi/artifacts/pi-template/PLAN.md",
+      "AGENTS.md",
+      ".opencode/tech-stack.md",
+      ".pi/prompts/ship.md",
+      ".opencode/artifacts/prewalk-extension/spec.md",
+      ".opencode/artifacts/prewalk-extension/prd.json"
+    ],
+    "protected_source_paths": [
+      ".opencode/command/audit.md",
+      ".opencode/command/create.md",
+      ".opencode/command/fix.md",
+      ".opencode/command/gc.md",
+      ".opencode/command/init.md",
+      ".opencode/command/plan.md",
+      ".opencode/command/research.md",
+      ".opencode/command/ship.md",
+      ".opencode/command/verify.md",
+      ".pi/settings.json",
+      ".pi/prompts/supervise.md"
+    ],
+    "verified_paths": [
+      ".pi/fabric.json",
+      ".pi/artifacts/pi-template/DECISIONS.md",
+      ".pi/artifacts/pi-template/PLAN.md",
+      "AGENTS.md",
+      ".opencode/tech-stack.md",
+      ".pi/prompts/ship.md",
+      ".pi/settings.json",
+      ".opencode/artifacts/prewalk-extension/spec.md",
+      ".opencode/artifacts/prewalk-extension/prd.json",
+      ".opencode/artifacts/.active"
+    ],
+    "baseline_oid": "bcbbda47ea5ad63b516cff0f8469d81614559834",
+    "shared_serial_ownership": [
+      { "path": ".pi/fabric.json", "owners": ["milestone-5", "A1"] },
+      {
+        "path": ".pi/artifacts/pi-template/DECISIONS.md",
+        "owners": ["milestone-5", "prewalk", "A1", "lifecycle-review-gates"]
+      },
+      { "path": ".pi/artifacts/pi-template/PLAN.md", "owners": ["milestone-5", "A2"] },
+      { "path": "AGENTS.md", "owners": ["milestone-5", "prewalk", "B1", "lifecycle-review-gates"] },
+      { "path": ".opencode/tech-stack.md", "owners": ["prewalk", "B1", "lifecycle-review-gates"] },
+      { "path": ".pi/prompts/ship.md", "owners": ["milestone-5", "B2", "lifecycle-review-gates"] }
+    ]
+  },
+  "success_criteria": [
+    {
+      "criterion": "fullCodeMode flipped to true",
+      "verify": "jq -e '.fullCodeMode == true' .pi/fabric.json"
+    },
+    {
+      "criterion": "ADR-009 default preserved (subagents.extensions still false after the flip)",
+      "verify": "jq -e '.subagents.extensions == false' .pi/fabric.json"
+    },
+    {
+      "criterion": "ADR-010 present (recording native-handoff adoption + fullCodeMode rationale + superseded synthetic-router)",
+      "verify": "rg -q '^## ADR-010:' .pi/artifacts/pi-template/DECISIONS.md"
+    },
+    {
+      "criterion": "PLAN.md has a canonical prewalk handoff dispatch block with agents.handoff, makora model, extensions:true, thinking:max, exact writable allowlist",
+      "verify": "rg -q 'agents.handoff' .pi/artifacts/pi-template/PLAN.md && rg -q 'makora/zai-org/GLM-5.2-NVFP4' .pi/artifacts/pi-template/PLAN.md && rg -q 'extensions: true' .pi/artifacts/pi-template/PLAN.md"
+    },
+    {
+      "criterion": "AGENTS.md worker topology documents Main full code mode + the prewalk handoff lane (one writable worker, sharing the one-writable-run ceiling, no silent fallback)",
+      "verify": "rg -qi 'full code mode|fullCodeMode' AGENTS.md && rg -qi 'prewalk|handoff' AGENTS.md"
+    },
+    {
+      "criterion": "tech-stack.md documents the fullCodeMode flip + the explicit-handoff route",
+      "verify": "rg -q 'fullCodeMode' .opencode/tech-stack.md"
+    },
+    {
+      "criterion": "ship.md encodes selective routing (prewalk handoff for novel/multi-file M-L; direct Makora for S/single-file)",
+      "verify": "rg -qi 'selective|prewalk.*novel|direct.*makora.*mechanical' .pi/prompts/ship.md && rg -q 'Host-Derived Candidate Intake' .pi/prompts/ship.md"
+    },
+    {
+      "criterion": "No model regression: all three models resolve after upgrade + flip",
+      "verify": "pi --approve --list-models | grep -F 'openai-codex/gpt-5.6-sol' && pi --approve --list-models | grep -F 'makora/zai-org/GLM-5.2-NVFP4'"
+    },
+    {
+      "criterion": ".pi/fabric.json parses under 0.23.0 (no schema regression)",
+      "verify": "node -e 'const {normalizeFabricConfig}=require(\"/home/ryan/.pi/agent/npm/node_modules/pi-fabric/dist/config.js\");const fs=require(\"fs\");normalizeFabricConfig(JSON.parse(fs.readFileSync(\".pi/fabric.json\",\"utf8\")));console.log(\"ok\")'"
+    },
+    {
+      "criterion": "Main settings untouched (no regression)",
+      "verify": "git diff --exit-code bcbbda47ea5ad63b516cff0f8469d81614559834 -- .pi/settings.json"
+    },
+    {
+      "criterion": "Dogfood: handoff result completed === true (first live proof of the lane)",
+      "verify": "handoff result observed completed === true in the run transcript (C1 checkpoint)"
+    },
+    {
+      "criterion": "prd graph bounded: <=3 files per task, 2-3 tasks per child plan, ID-ordered deps",
+      "verify": "node -e 'const p=require(\"./.opencode/artifacts/prewalk-extension/prd.json\");const ids=new Map(p.tasks.map((t,i)=>[t.id,i]));if(ids.size!==p.tasks.length)process.exit(1);const bc={};for(const[i,t]of p.tasks.entries()){if(t.files.length>3)process.exit(1);bc[t.child_plan]=(bc[t.child_plan]||0)+1;for(const d of t.depends_on){if(!ids.has(d)||ids.get(d)>=i)process.exit(1)}}for(const[,n]of Object.entries(bc)){if(n<2||n>3)process.exit(1)}'"
+    }
+  ],
+  "tasks": [
+    {
+      "id": "A1",
+      "child_plan": "A",
+      "title": "Flip fullCodeMode and record ADR-010 (fabric.json, DECISIONS.md)",
+      "category": "config",
+      "end_state": ".pi/fabric.json has fullCodeMode:true and nothing else changed (subagents.extensions still false, defaultTools still read-only — ADR-009 preserved); DECISIONS.md has ADR-010 recording native-handoff adoption, the fullCodeMode rationale, ADR-009 per-call preservation, and the superseded synthetic-router approach.",
+      "depends_on": [],
+      "files": [".pi/fabric.json", ".pi/artifacts/pi-template/DECISIONS.md"],
+      "verify": "jq -e '.fullCodeMode == true and .subagents.extensions == false' .pi/fabric.json && rg -q '^## ADR-010:' .pi/artifacts/pi-template/DECISIONS.md"
+    },
+    {
+      "id": "A2",
+      "child_plan": "A",
+      "title": "Canonical prewalk handoff dispatch block (PLAN.md)",
+      "category": "contract",
+      "end_state": "PLAN.md has a Canonical prewalk handoff dispatch block showing a fabric_exec program that does frontier work then calls agents.handoff({model:'makora/zai-org/GLM-5.2-NVFP4', extensions:true, tools:[read,grep,find,ls,edit,write], thinking:'max'}), beside the direct Makora agents.run block; a prewalk row is added to the dispatch table; selective routing is stated.",
+      "depends_on": ["A1"],
+      "files": [".pi/artifacts/pi-template/PLAN.md"],
+      "verify": "rg -q 'Canonical prewalk handoff dispatch' .pi/artifacts/pi-template/PLAN.md && rg -q 'agents.handoff' .pi/artifacts/pi-template/PLAN.md && rg -q 'makora/zai-org/GLM-5.2-NVFP4' .pi/artifacts/pi-template/PLAN.md && rg -q 'extensions: true' .pi/artifacts/pi-template/PLAN.md"
+    },
+    {
+      "id": "B1",
+      "child_plan": "B",
+      "title": "Worker topology and tech-stack documentation (AGENTS.md, tech-stack.md)",
+      "category": "contract",
+      "end_state": "AGENTS.md worker-topology documents Main full code mode and the prewalk handoff lane (one writable worker, either direct Makora agents.run or Main-authored fabric_exec with explicit handoff to Makora; sharing the one-writable-run ceiling; never overlapping; no silent fallback; ADR-009 per-call preserved); tech-stack.md documents fullCodeMode:true + the explicit-handoff route and notes prewalk.model unused.",
+      "depends_on": ["A2"],
+      "files": ["AGENTS.md", ".opencode/tech-stack.md"],
+      "verify": "rg -qi 'full code mode|fullCodeMode' AGENTS.md && rg -qi 'prewalk|handoff' AGENTS.md && rg -q 'fullCodeMode' .opencode/tech-stack.md"
+    },
+    {
+      "id": "B2",
+      "child_plan": "B",
+      "title": "Selective routing in ship.md (collides with milestone-5 B1 + lifecycle-review-gates B1)",
+      "category": "contract",
+      "end_state": "ship.md has a Selective Routing section (prewalk handoff for novel/multi-file M-L; direct Makora agents.run for S/single-file mechanical; both sharing the one-writable-run ceiling; never overlapping; no silent fallback) placed after Host-Derived Candidate Intake and before Checkpoint Protocol. All existing ship.md content (including milestone-5 host-derived intake) preserved. Sequenced after milestone-5 B1 settles.",
+      "depends_on": ["A1"],
+      "files": [".pi/prompts/ship.md"],
+      "verify": "rg -qi 'selective|prewalk.*novel|direct.*makora.*mechanical' .pi/prompts/ship.md && rg -q 'Host-Derived Candidate Intake' .pi/prompts/ship.md"
+    },
+    {
+      "id": "C1",
+      "child_plan": "C",
+      "title": "Reload checkpoint and dogfood the handoff lane",
+      "category": "checkpoint",
+      "end_state": "After a human /reload or Pi restart, pi --approve --list-models resolves all three models; one Main-authored fabric_exec program performs frontier work, an edit, and an explicit agents.handoff() to Makora that completes a real desired edit; the handoff result shows handedOff:true, completed:true. First end-to-end live proof of the lane.",
+      "depends_on": ["B1", "B2"],
+      "files": [],
+      "verify": "pi --approve --list-models | grep -F 'makora/zai-org/GLM-5.2-NVFP4' (handoff result completed === true observed in the run transcript)"
+    },
+    {
+      "id": "C2",
+      "child_plan": "C",
+      "title": "No-regression and model resolution (verify, no-write)",
+      "category": "verify",
+      "end_state": "All success-criteria checks pass read-only: fullCodeMode:true, ADR-009 default preserved, ADR-010 present, PLAN handoff block present, AGENTS/tech-stack/ship updated, all three models resolve, .pi/fabric.json parses under 0.23.0, Main settings untouched. No silent fallback anywhere in the docs.",
+      "depends_on": ["C1"],
+      "files": [],
+      "verify": "full success-criteria suite runs green; git diff --check"
+    }
+  ]
+}
