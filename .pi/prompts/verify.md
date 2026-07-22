@@ -136,9 +136,68 @@ Flag contradictions with specific `path:line` references.
 
 ## Phase 5: Report
 
-Append candidate evidence to `.pi/artifacts/<slug>/PROGRESS.md` **before** the final fingerprint: commands, exit codes, and a `pending final no-write verification` status. Then capture the final fingerprint.
+Phase 5 runs after Phase 4 Coherence and is ordered: advisory evidence review (5A), candidate evidence writes (5B), fresh final no-write pass (5C), transcript-only result (5D). Any implementation defect found in 5A that requires a write sends work back to `/ship`.
 
-Emit the final result and the fingerprint tuple in the response/session transcript only. Do not edit, stage, commit, or push after the final fingerprint — any such write invalidates the PASS it records.
+### Phase 5A: Advisory Evidence Review
+
+After preliminary gates (Phase 3) and coherence (Phase 4), and before any candidate evidence writes, run an advisory read-only review over the assembled verification evidence. This catches what mechanical gates miss: superseded checks, stale assertions, untested branches, skips-as-passes, and freshness defects.
+
+Compute the **Effective Review Level** = `max(stored Discovery Level, stored Effective Review Level, current risk floor)` from the PLAN header. The `/verify` advisor is **always advisory** — it never blocks by its own authority (ADR-006). Independently validated correctness/safety defects still produce `NEEDS WORK` under Main's authority; any required write returns to `/ship`.
+
+#### Build the evidence packet (in-memory)
+
+The read-only reviewer has only `read,grep,find,ls`. Main builds an inline sanitized packet from the preliminary verification run:
+
+- Command names, exit codes, modes (incremental/full), and concise non-sensitive output.
+- Skips, timeouts, truncations, and any `SKIP` on a required gate.
+- Completeness (Phase 2) and coherence (Phase 4) summaries with `path:line` references.
+- The before-fingerprint tuple (HEAD, staged/unstaged digests, untracked manifest, verified-file hashes).
+- The effective level and rationale, plus prior review dispositions from `/ship`.
+- PLAN/TODO/DECISIONS excerpts relevant to the claim being verified.
+
+#### Dispatch (exact)
+
+```typescript
+const result = await agents.run({
+  task: "Evidence review for <slug>. Audit completeness, coherence, command evidence, and freshness for superseded checks, stale assertions, untested branches, and skips-as-passes. Return evidence-backed findings only. <inline sanitized evidence packet>",
+  name: "lifecycle-review-verify",
+  runner: "pi",
+  model: "openai-codex/gpt-5.6-sol",
+  thinking: "max",
+  extensions: false,
+  recursive: false,
+  tools: ["read", "grep", "find", "ls"],
+  worktree: false,
+});
+```
+
+Only `status === "completed"` is a completed review. Partial text from a failed/stopped/timed-out child is context only. A child failure is an advisory warning; it does not independently prevent `VERIFIED`.
+
+#### Finding semantics
+
+Each finding: `[Critical|High|Medium|Low][category] path:line` + violated authority + concrete failure scenario and cost + smallest correction + confidence + evidence status. No score, no quota. Main reopens every cited `path:line` (Worker Distrust); only Main's validated disposition produces `NEEDS WORK`.
+
+### Phase 5B: Candidate Evidence Writes
+
+Only after the 5A review is dispositioned (advisory findings recorded), append candidate evidence to `.pi/artifacts/<slug>/PROGRESS.md` **before** the final fingerprint: commands, exit codes, and a `pending final no-write verification` status. Record significant non-sensitive findings in `.opencode/artifacts/MEMORY.md` (before the final fingerprint only):
+
+```bash
+# Append to .opencode/artifacts/MEMORY.md:
+#   - YYYY-MM-DD: [scope] [key finding] — [what, impact, resolution]
+# Put under the Decisions or Gotchas section as appropriate
+```
+
+No repository write occurs after the final fingerprint — a post-fingerprint write invalidates the PASS it records.
+
+### Phase 5C: Final No-Write Pass
+
+After all allowed PROGRESS/MEMORY writes (5B), capture a fresh final-pass baseline fingerprint. Then rerun all required terminal gates and coherence (Phase 4) against the current bytes. Compare the final fingerprint to the fresh baseline: if any component differs (a formatter, concurrent writer, or later edit), rerun the affected checks. A stale PASS is invalid.
+
+This is the last mutation-free pass. No edit, stage, commit, or push occurs in 5C or after — any such write invalidates the PASS it records.
+
+### Phase 5D: Transcript-Only Result
+
+Emit the final result and the fingerprint tuple in the response/session transcript only. `/verify` is the sole command allowed to declare terminal verified status, and it does so only in its transcript — never as a repository write after the final fingerprint.
 
 Output:
 
@@ -146,17 +205,10 @@ Output:
 2. **Completeness**: score and status
 3. **Correctness**: gate results (with mode column)
 4. **Coherence**: contradictions found (if not --quick)
-5. **Fingerprint**: the before/after tuple (HEAD, staged digest, unstaged digest, untracked manifest, verified-file hashes)
-6. **Blocking issues** to fix before verified status
-7. **Next step**: if NEEDS WORK, run `/ship <slug>` to fix; if VERIFIED, the feature is complete
-
-Record significant findings in `.opencode/artifacts/MEMORY.md` (before the final fingerprint only):
-
-```bash
-# Append to .opencode/artifacts/MEMORY.md:
-#   - YYYY-MM-DD: [scope] [key finding] — [what, impact, resolution]
-# Put under the Decisions or Gotchas section as appropriate
-```
+5. **Advisory evidence review (5A)**: findings and Main disposition
+6. **Fingerprint**: the before/fresh-final tuple (HEAD, staged digest, unstaged digest, untracked manifest, verified-file hashes)
+7. **Blocking issues** to fix before verified status
+8. **Next step**: if NEEDS WORK, run `/ship <slug>` to fix; if VERIFIED, the feature is complete
 
 ## Related Commands
 
