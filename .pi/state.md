@@ -1,7 +1,7 @@
 ---
 schema_version: 1
-initialization_status: partial
-context_reload_required: true
+initialization_status: ready
+context_reload_required: false
 generation_id: gen-2026-07-23-01
 updated_at: 2026-07-23
 agents_boilerplate_sha256: f03c114b4cf989e1fd713546e4b69ee0beb2e4776f71ee2920a051ae3f462df1
@@ -13,14 +13,14 @@ Timestamped, non-authoritative snapshot of the Pi-native context packet. The
 frontmatter is machine-readable; the body is a human summary. Authority lives in
 `AGENTS.md` and `.pi/artifacts/pi-template/`.
 
-## Status: partial
+## Status: ready
 
-The packet is seeded but **not yet ready**. Lifecycle commands that require a ready
-packet (`/create`, `/plan`, `/ship`, `/verify`, `/gc`) must fail the packet gate until
-this state reaches `ready` with `context_reload_required: false`.
+The packet is initialized and ready. Lifecycle commands that require a ready
+packet (`/create`, `/plan`, `/ship`, `/verify`, `/gc`) may proceed past the packet
+gate; their per-command validation (slug, namespace, etc.) still applies.
 
-`context_reload_required: true` — `AGENTS.md` was established/changed at P2.1; a
-post-`/reload` refresh with no drift is required before promotion to `ready`.
+`context_reload_required: false` — the post-`/reload` refresh confirmed no drift;
+the live `AGENTS.md` managed interior matches `agents_boilerplate_sha256`.
 
 ## Packet
 
@@ -47,6 +47,9 @@ post-`/reload` refresh with no drift is required before promotion to `ready`.
 
 ## Next
 
-Complete the pi-native-init implementation (P3.1–P8.2), then promote to `ready` at
-P8.3 after an operator-gated `/reload` and retained-fixture `/init` smoke. Do not
-advertise `/create --from` as ready while this state is `partial`.
+The pi-native-init lifecycle is implemented (P1.1–P8.3 complete). The packet is
+ready; `/create <slug> "description"` and `/create <slug> --from .pi/ROADMAP.md#RM-NNN`
+are available. Roadmap Ready cards (RM-001, RM-002) are eligible for feature work;
+`/init --refresh` reconciles an established packet when the operator edits project
+intent. The retained-fixture runtime smoke remains a separate operator-gated
+checkpoint (requires `/trust` + restart + provider credentials).
