@@ -422,6 +422,18 @@ If confirmed:
 
 Update `.pi/artifacts/<slug>/TODO.md` to mark all tasks complete and append an implementation summary to `.pi/artifacts/<slug>/PROGRESS.md`. State that implementation is recorded and the next step is `/verify <slug>`.
 
+## Phase 6A: Supervisor Boundary Handshake
+
+After Phase 6 Close settles, before reporting, run the proactive-supervisor boundary handshake (ADR-012). The supervisor is the **opener** for the next phase (steers direction/strategy: prior art, cross-slug redundancy, superseded decisions, a better path); the review gate was the **closer** (audited the diff). This is advisory only. `/ship` records implementation but does not declare terminal verified status — only `/verify` may do that.
+
+Resolve exactly one session-local `supervisor` actor by exact id from `agents.actors()` (never by canonical name over mesh). If the actor is absent, stopped, or ambiguous, warn and continue — the supervisor is optional and advisory.
+
+Send a blocking first round via `agents.ask({id, message, data})` with the `proactive-supervisor/v1` protocol, `kind:"phase-complete"`, a unique `requestId`, the `<slug>`, `completedPhase:"ship"`, `candidateNextPhases:["verify"]` (the PR integration step is undeveloped), `namespaceState:"established"`, artifact paths, and an explicit non-secret path allowlist. The supervisor responds with `action:"silent"` and `data` of kind `no-advice`, `direction-steer`, or `research-request`.
+
+If the supervisor requests research, run at most ONE read-only gather via `agents.run` on `openai-codex/gpt-5.4-mini` (thinking max, `extensions:false`, `recursive:false`, `tools:["read","grep","find","ls"]`, `worktree:false`; encode scout/explore in the task; no role field), synthesize a summary at most 8 KiB (non-secret, with source paths), and send a blocking second round `agents.ask({id, message, data})` with `kind:"research-result"`, the same `requestId`, status, summary, and sources. The supervisor responds with `action:"silent"` and final `direction-steer` or `no-advice`.
+
+The blocking wait orders transport only — the actor has no independent blocking authority. Main independently validates every steer (Worker Distrust) and may proceed past it. Independently validated Critical/High defects and binding-authority (ADR/AGENTS) violations retain their existing blocking semantics under Main. Unknown response kind or `requestId` mismatch: ignore, warn, continue.
+
 ## Output
 
 Report:
