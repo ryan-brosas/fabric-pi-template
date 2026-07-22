@@ -250,3 +250,53 @@ destructive commands) contradicts the distrust posture; Main-owned verification 
 (c) Add a host-side writable semaphore or atomic single-writer lease to enforce the ceiling —
 rejected as clean-slate scope creep; v1 stays operator/prompt policy, honestly labeled. Chosen
 the fail-safe default, the pinned non-shell allowlist, and the Main-owned verification discipline.
+
+## ADR-010: Adopt native prewalk via explicit Fabric trajectory handoff
+**Status:** accepted
+**Date:** 2026-07-22
+**Context:** pi-fabric 0.23.0 (commit `ed08a16`, "feat(agents): add trajectory handoff and
+prewalk") introduced two native prewalk primitives: explicit `agents.handoff()` and automatic
+`/fabric prewalk`. Both require `fullCodeMode:true` because the atomic unit is a `fabric_exec`
+invocation (`commands/fabric.js:226-231`). The prior prewalk design — a project-local synthetic
+`prewalk` provider routing GPT→Makora within one AgentSession, premised on "0.22.4 has no native
+prewalk" — is now redundant. The automatic `/fabric prewalk` path is incompatible with ADR-009:
+`FabricPrewalkConfig = { model?: string }` only (`config.d.ts:37-39`), and it builds handoff args
+`{model, name, task?}` with no `extensions`/`tools` (`handoff.js:29-33`), so `manager.spawn`
+resolves `extensions = request.extensions ?? config.extensions` (`manager.js:347`) → inherits
+`subagents.extensions:false` → Makora fails to resolve (the exact ADR-003/009 failure), and tools
+inherit the read-only `defaultTools` (no `edit`/`write`). Automatic prewalk would force a global
+reversal of ADR-009; rejected.
+**Decision:** Flip `.pi/fabric.json` `fullCodeMode:false → true`. This is isolated to Main:
+children and the supervisor use their own allowed tools directly (`configuration.md:167`), so
+ADR-009 read-only children and the direct Makora `agents.run` lane are unaffected. Use explicit
+`agents.handoff({model:"makora/zai-org/GLM-5.2-NVFP4", extensions:true,
+tools:["read","grep","find","ls","edit","write"], thinking:"max"})` inside a `fabric_exec`
+program. `runRequest` forwards `extensions`/`tools`/`thinking` from args when supplied
+(`agents-provider.js:517,536`), so the Makora executor gets `extensions:true` + the exact writable
+allowlist + `thinking:"max"` per call — ADR-009's per-call discipline preserved unchanged. The
+handoff is trajectory-preserving: Fabric forks the finalized `fabric_exec` call/result and spawns
+the executor from that branch; the source session is not switched or historically rewritten
+(`docs/agents.md:50-69`). The prewalk lane shares the one blocking-writable-run ceiling with the
+direct Makora lane; the two never overlap and never silently fall back; a handoff failure is
+terminal for that invocation (`docs/agents.md:94`). Selective routing: prewalk handoff for
+novel/multi-file M–L implementation; direct Makora `agents.run` for S/single-file mechanical work.
+`prewalk.model` is left unset (`prewalk:{}`) because explicit handoff carries the model per call.
+**Consequences:** Easier: no custom router code to maintain; the native trajectory fork is faithful
+to "warm session inheritance" without a synthetic provider; ADR-009 safety posture fully preserved;
+the direct Makora lane still works unchanged. Harder: Main's operating model changes — Main authors
+`fabric_exec` programs for file work, and Pi core tools move behind `pi.*` inside `fabric_exec`
+(`configuration.md:143-149`). Native prewalk is coarser than Stencil/OMP: the first successful
+mutation marks the outer `fabric_exec` invocation, but remaining calls in that program still run
+before the executor starts; Fabric disclaims benchmark equivalence (`docs/agents.md:73`). There is
+no TODO gate (simpler than the superseded design's 5–9 item gate); the executor receives the forked
+frontier trajectory, so Main must not put secrets into a prewalk `fabric_exec` program
+(`docs/architecture.md:66`).
+**Alternatives:** (a) Automatic `/fabric prewalk` — rejected; inherits `subagents.extensions:false`
++ read-only `defaultTools` → Makora can't resolve or edit, the exact ADR-009 clash, and would
+require a global reversal of ADR-009. (b) The superseded synthetic-router extension (a project-local
+`prewalk` provider with a `prewalk_todo` gate, dynamic `promptGuidelines`, fail-closed
+`auth.resolve()`, and a parent-side log validator) — correct for the 0.22.4 gap but now redundant;
+0.23.0 ships the native primitive and the explicit-handoff path preserves ADR-009 per-call without
+custom code. (c) Leave `fullCodeMode:false` and ship without a prewalk lane — leaves the native
+primitive present-but-locked; rejected in favor of unlocking it under ADR-009. Chosen the explicit
+handoff: native, trajectory-preserving, ADR-009-safe, no custom code.
