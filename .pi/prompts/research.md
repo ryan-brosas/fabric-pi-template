@@ -94,8 +94,11 @@ If complexity is simple, execute directly:
 | `explore`    | Codebase patterns, LSP analysis |
 | `scout`      | External docs, best practices   |
 | `context7`   | Official API references         |
+| `exa`        | Web search (`web_search_exa`/`web_fetch_exa`) |
 | `opensrc`    | Package source code inspection  |
 | `grepsearch` | GitHub code search / real-world examples |
+
+**Research tools (ADR-013):** Read-only `explore`/`scout` children run `extensions:false` with `tools:["read","grep","find","ls","resolve-library-id","query-docs","web_search_exa","web_fetch_exa"]` — the four MCP tools (`context7` `resolve-library-id`+`query-docs`, `exa` `web_search_exa`+`web_fetch_exa`) load under `extensions:false` via the MCP config and give children library-doc + web-search lookup. `codex_search` (a Pi extension) is blocked by `extensions:false`, so Main runs it directly for premium ChatGPT-Codex-subscription web search with citations; delegate `context7`+`exa` to children. Multi-angle research fans out in parallel (bounded by `maxConcurrent`).
 
 ### Phase 1: Load Context
 
@@ -162,7 +165,7 @@ Derive `candidateNextPhases` and `namespaceState` from the slug's namespace stat
 
 Send a blocking first round via `agents.ask({id, message, data})` with the `proactive-supervisor/v1` protocol, `kind:"phase-complete"`, a unique `requestId`, the `<slug>`, `completedPhase:"research"`, the derived candidates and namespace state, artifact paths, and an explicit non-secret path allowlist. The supervisor responds with `action:"silent"` and `data` of kind `no-advice`, `direction-steer`, or `research-request`.
 
-If the supervisor requests research, run at most ONE read-only gather via `agents.run({task, name:"supervisor-research-research", runner:"pi", model:"openai-codex/gpt-5.4-mini", thinking:"max", extensions:false, recursive:false, tools:["read","grep","find","ls"], worktree:false})` (encode scout/explore in the task; no role field), synthesize a summary at most 8 KiB (non-secret, with source paths), and send a blocking second round `agents.ask({id, message, data})` with `protocol:"proactive-supervisor/v1"`, `kind:"research-result"`, the same `requestId`, status, summary, and sources. The supervisor responds with `action:"silent"` and final `direction-steer` or `no-advice`.
+If the supervisor requests research, run at most ONE read-only gather via `agents.run({task, name:"supervisor-research-research", runner:"pi", model:"openai-codex/gpt-5.4-mini", thinking:"max", extensions:false, recursive:false, tools:["read","grep","find","ls","resolve-library-id","query-docs","web_search_exa","web_fetch_exa"], worktree:false})` (encode scout/explore in the task; no role field), synthesize a summary at most 8 KiB (non-secret, with source paths), and send a blocking second round `agents.ask({id, message, data})` with `protocol:"proactive-supervisor/v1"`, `kind:"research-result"`, the same `requestId`, status, summary, and sources. The supervisor responds with `action:"silent"` and final `direction-steer` or `no-advice`. `codex_search` is Main-direct (see ADR-013); this delegated child uses `context7`+`exa` MCP.
 
 The blocking wait orders transport only — the actor has no independent blocking authority. Main independently validates every steer (Worker Distrust) and may proceed past it. Independently validated Critical/High defects and binding-authority (ADR/AGENTS) violations retain their existing blocking semantics under Main. Unknown response kind or `requestId` mismatch: ignore, warn, continue.
 
