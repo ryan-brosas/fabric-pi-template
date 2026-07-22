@@ -153,7 +153,7 @@
     },
     {
       "criterion": "D/E/F: five lifecycle prompts corrected to Main-mediated — every research child dispatch has exactly tools:[\"read\",\"grep\",\"find\",\"ls\"], extensions:false, recursive:false, worktree:false; NO external name (resolve-library-id|query-docs|web_search_exa|web_fetch_exa|codex_search|mcp) appears in any child tools array; Main-direct acquisition + <=8192-byte packet + 5 status fallback documented; ADR-011 review-gate markers, ADR-012 handshake phases, <slug>, frontmatter, ship 'cannot declare', verify authority all preserved",
-      "verify": "for f in supervise create plan research ship; do rg -nF 'tools:[\"read\",\"grep\",\"find\",\"ls\"]' \".pi/prompts/$f.md\" || exit 1; done && ! rg -n 'tools\\\\s*:\\s*\\[[^]]*(resolve-library-id|query-docs|web_search_exa|web_fetch_exa|codex_search|mcp)' .pi/prompts/supervise.md .pi/prompts/create.md .pi/prompts/plan.md .pi/prompts/research.md .pi/prompts/ship.md && rg -nF 'proactive-supervisor/v1' .pi/prompts/supervise.md && rg -q 'cannot declare' .pi/prompts/ship.md && rg -q '<slug>' .pi/prompts/create.md && rg -q '<slug>' .pi/prompts/plan.md && git diff --check"
+      "verify": "for f in supervise create plan research ship; do rg -nF 'tools:[\"read\",\"grep\",\"find\",\"ls\"]' \".pi/prompts/$f.md\" || exit 1; done && ! rg -n 'tools\\s*:\\s*\\[[^]]*(resolve-library-id|query-docs|web_search_exa|web_fetch_exa|codex_search|mcp)' .pi/prompts/supervise.md .pi/prompts/create.md .pi/prompts/plan.md .pi/prompts/research.md .pi/prompts/ship.md && rg -nF 'proactive-supervisor/v1' .pi/prompts/supervise.md && rg -q 'cannot declare' .pi/prompts/ship.md && rg -q '<slug>' .pi/prompts/create.md && rg -q '<slug>' .pi/prompts/plan.md && git diff --check"
     },
     {
       "criterion": "G: cross-prompt behavioral regression — static scan clean; one live supervisor research-request exercised end-to-end (Main calls external, child receives only sanitized packet, child cannot resolve MCP/codex/bash/fabric_exec/recursion, supervisor receives bounded research-result); decision table reviewed for codex-fail/one-MCP-fail/all-external-fail/sensitive-reject/oversized",
@@ -165,7 +165,7 @@
     },
     {
       "criterion": "J: final verification — L3 review dispositions complete; before/after fingerprint captured and equal; node>=24; pi-fabric 0.23.0; pi --approve --list-models resolves; slug in 5 prompts; forbidden-token clean across .pi/prompts/*.md; no external research tool names (Context7/Exa/codex/mcp) inside any child tools array; git diff --check clean; protected files (.pi/settings.json, verify.md, .opencode/command) unchanged across the feature; NO repository write after the final fingerprint",
-      "verify": "node --version && node -p 'require(\"./.pi/npm/node_modules/pi-fabric/package.json\").version' | rg -x '0\\.23\\.0' && pi --approve --list-models >/dev/null 2>&1 && for f in create plan ship verify research; do rg -q '<slug>' \".pi/prompts/$f.md\" || exit 1; done && ! rg -n 'agent:|task\\(|question\\(|skill\\(|write\\(|\\.active|spec\\.md|prd\\.json|review-state\\.json' .pi/prompts/*.md && ! rg -n 'tools\\\\s*:\\s*\\[[^]]*(resolve-library-id|query-docs|web_search_exa|web_fetch_exa|codex_search|mcp)' .pi/prompts/*.md && git diff --check"
+      "verify": "node --version && node -p 'require(\"./.pi/npm/node_modules/pi-fabric/package.json\").version' | rg -x '0\\.23\\.0' && pi --approve --list-models >/dev/null 2>&1 && for f in create plan ship verify research; do rg -q '<slug>' \".pi/prompts/$f.md\" || exit 1; done && ! rg -n 'agent:|task\\(|question\\(|skill\\(|write\\(|\\.active|spec\\.md|prd\\.json|review-state\\.json' .pi/prompts/*.md && ! rg -n 'tools\\s*:\\s*\\[[^]]*(resolve-library-id|query-docs|web_search_exa|web_fetch_exa|codex_search|mcp)' .pi/prompts/*.md && git diff --check"
     }
   ],
   "tasks": [
@@ -215,7 +215,7 @@
       "depends_on": ["A"],
       "checkpoint": false,
       "files": [".pi/prompts/supervise.md"],
-      "verify": "rg -nF 'tools:[\"read\",\"grep\",\"find\",\"ls\"]' .pi/prompts/supervise.md && ! rg -n 'tools\\\\s*:\\s*\\[[^]]*(resolve-library-id|query-docs|web_search_exa|web_fetch_exa|codex_search|mcp)' .pi/prompts/supervise.md && rg -nF 'proactive-supervisor/v1' .pi/prompts/supervise.md && git diff --check"
+      "verify": "rg -nF 'tools:[\"read\",\"grep\",\"find\",\"ls\"]' .pi/prompts/supervise.md && ! rg -n 'tools\\s*:\\s*\\[[^]]*(resolve-library-id|query-docs|web_search_exa|web_fetch_exa|codex_search|mcp)' .pi/prompts/supervise.md && rg -nF 'proactive-supervisor/v1' .pi/prompts/supervise.md && git diff --check"
     },
     {
       "id": "E",
@@ -225,7 +225,7 @@
       "depends_on": ["A"],
       "checkpoint": false,
       "files": [".pi/prompts/create.md", ".pi/prompts/plan.md"],
-      "verify": "for f in create plan; do rg -nF 'tools:[\"read\",\"grep\",\"find\",\"ls\"]' \".pi/prompts/$f.md\" || exit 1; done && ! rg -n 'tools\\\\s*:\\s*\\[[^]]*(resolve-library-id|query-docs|web_search_exa|web_fetch_exa|codex_search|mcp)' .pi/prompts/create.md .pi/prompts/plan.md && rg -n '^## Phase 10A: Spec Review Gate$|^## Phase 10B: Supervisor Boundary Handshake$' .pi/prompts/create.md && rg -n '^## Phase 8A: Planning Review Gate$|^## Phase 8B: Supervisor Boundary Handshake$' .pi/prompts/plan.md && rg -q '<slug>' .pi/prompts/create.md && rg -q '<slug>' .pi/prompts/plan.md && git diff --check"
+      "verify": "for f in create plan; do rg -nF 'tools:[\"read\",\"grep\",\"find\",\"ls\"]' \".pi/prompts/$f.md\" || exit 1; done && ! rg -n 'tools\\s*:\\s*\\[[^]]*(resolve-library-id|query-docs|web_search_exa|web_fetch_exa|codex_search|mcp)' .pi/prompts/create.md .pi/prompts/plan.md && rg -n '^## Phase 10A: Spec Review Gate$|^## Phase 10B: Supervisor Boundary Handshake$' .pi/prompts/create.md && rg -n '^## Phase 8A: Planning Review Gate$|^## Phase 8B: Supervisor Boundary Handshake$' .pi/prompts/plan.md && rg -q '<slug>' .pi/prompts/create.md && rg -q '<slug>' .pi/prompts/plan.md && git diff --check"
     },
     {
       "id": "F",
@@ -235,7 +235,7 @@
       "depends_on": ["A"],
       "checkpoint": false,
       "files": [".pi/prompts/research.md", ".pi/prompts/ship.md"],
-      "verify": "for f in research ship; do rg -nF 'tools:[\"read\",\"grep\",\"find\",\"ls\"]' \".pi/prompts/$f.md\" || exit 1; done && ! rg -n 'tools\\\\s*:\\s*\\[[^]]*(resolve-library-id|query-docs|web_search_exa|web_fetch_exa|codex_search|mcp)' .pi/prompts/research.md .pi/prompts/ship.md && rg -n '^### Phase 5: Supervisor Boundary Handshake$' .pi/prompts/research.md && rg -n '^## Phase 6A: Supervisor Boundary Handshake$' .pi/prompts/ship.md && rg -q 'cannot declare' .pi/prompts/ship.md && rg -n '^### Tier-Gated Diff Review$' .pi/prompts/ship.md && git diff --check"
+      "verify": "for f in research ship; do rg -nF 'tools:[\"read\",\"grep\",\"find\",\"ls\"]' \".pi/prompts/$f.md\" || exit 1; done && ! rg -n 'tools\\s*:\\s*\\[[^]]*(resolve-library-id|query-docs|web_search_exa|web_fetch_exa|codex_search|mcp)' .pi/prompts/research.md .pi/prompts/ship.md && rg -n '^### Phase 5: Supervisor Boundary Handshake$' .pi/prompts/research.md && rg -n '^## Phase 6A: Supervisor Boundary Handshake$' .pi/prompts/ship.md && rg -q 'cannot declare' .pi/prompts/ship.md && rg -n '^### Tier-Gated Diff Review$' .pi/prompts/ship.md && git diff --check"
     },
     {
       "id": "G",
@@ -245,7 +245,7 @@
       "depends_on": ["D", "E", "F"],
       "checkpoint": false,
       "files": [],
-      "verify": "for f in supervise create plan research ship; do rg -nF 'tools:[\"read\",\"grep\",\"find\",\"ls\"]' \".pi/prompts/$f.md\" || exit 1; done && ! rg -n 'tools\\\\s*:\\s*\\[[^]]*(resolve-library-id|query-docs|web_search_exa|web_fetch_exa|codex_search|mcp)' .pi/prompts/supervise.md .pi/prompts/create.md .pi/prompts/plan.md .pi/prompts/research.md .pi/prompts/ship.md && git diff --check"
+      "verify": "for f in supervise create plan research ship; do rg -nF 'tools:[\"read\",\"grep\",\"find\",\"ls\"]' \".pi/prompts/$f.md\" || exit 1; done && ! rg -n 'tools\\s*:\\s*\\[[^]]*(resolve-library-id|query-docs|web_search_exa|web_fetch_exa|codex_search|mcp)' .pi/prompts/supervise.md .pi/prompts/create.md .pi/prompts/plan.md .pi/prompts/research.md .pi/prompts/ship.md && git diff --check"
     },
     {
       "id": "G2",
@@ -293,7 +293,7 @@
       "checkpoint_type": "human-verify",
       "checkpoint_reason": "Final verification requires operator confirmation of the before/after fingerprint equality and L3 review dispositions before the plan is marked complete. No write after the final fingerprint (a post-fingerprint write invalidates the PASS).",
       "files": [],
-      "verify": "node --version && node -p 'require(\"./.pi/npm/node_modules/pi-fabric/package.json\").version' | rg -x '0\\.23\\.0' && pi --approve --list-models >/dev/null 2>&1 && for f in create plan ship verify research; do rg -q '<slug>' \".pi/prompts/$f.md\" || exit 1; done && ! rg -n 'agent:|task\\(|question\\(|skill\\(|write\\(|\\.active|spec\\.md|prd\\.json|review-state\\.json' .pi/prompts/*.md && ! rg -n 'tools\\\\s*:\\s*\\[[^]]*(resolve-library-id|query-docs|web_search_exa|web_fetch_exa|codex_search|mcp)' .pi/prompts/*.md && git diff --check"
+      "verify": "node --version && node -p 'require(\"./.pi/npm/node_modules/pi-fabric/package.json\").version' | rg -x '0\\.23\\.0' && pi --approve --list-models >/dev/null 2>&1 && for f in create plan ship verify research; do rg -q '<slug>' \".pi/prompts/$f.md\" || exit 1; done && ! rg -n 'agent:|task\\(|question\\(|skill\\(|write\\(|\\.active|spec\\.md|prd\\.json|review-state\\.json' .pi/prompts/*.md && ! rg -n 'tools\\s*:\\s*\\[[^]]*(resolve-library-id|query-docs|web_search_exa|web_fetch_exa|codex_search|mcp)' .pi/prompts/*.md && git diff --check"
     }
   ]
 }

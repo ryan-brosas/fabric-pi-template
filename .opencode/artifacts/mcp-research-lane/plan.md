@@ -62,10 +62,10 @@ Task D (supervise.md): needs Task A (protocol described generically; exact names
 Task E (create.md + plan.md): needs Task A, creates corrected gather + handshake  [DONE 8a1631b]
 Task F (research.md + ship.md): needs Task A, creates corrected research/ship text  [DONE 8a1631b]
 Task G-static (cross-prompt static regression): needs D + E + F, creates static behavior proof  [DONE]
-Task G-live (live supervisor handshake smoke): needs G-static + C, creates live behavior proof  [operator-gated; folds into C/J]
+Task G2 (live supervisor handshake smoke): needs G-static + C, creates live behavior proof  [operator-gated; folds into C/J]
 Task H (canonical authority): needs G-static, creates ADR-013 + corrected PLAN/AGENTS  [DONE 5dd5e34]
 Task I (summaries): needs H, creates synced tech-stack/roadmap/state  [DONE 5dd5e34]
-Task J (final review + verification): needs I + C + G-live, has_checkpoint, creates terminal fingerprint  [operator-gated]
+Task J (final review + verification): needs I + C + G2, has_checkpoint, creates terminal fingerprint  [operator-gated]
 
 Wave 1: A  [done]
 Wave 2: B  [operator-gated]
@@ -74,7 +74,7 @@ Wave 4: D, E, F  [done — executed on Task A, not Task C, since they describe t
 Wave 5: G-static  [done]
 Wave 6: H  [done]
 Wave 7: I  [done]
-Wave 8: G-live  [operator-gated]
+Wave 8: G2  [operator-gated]
 Wave 9: J  [operator-gated]
 ```
 
@@ -186,7 +186,7 @@ Context7 is documentation; Exa is search/fetch; Codex is general cited search. T
      - Assert its active set is exactly `read`, `grep`, `find`, `ls`.
      - `await runtime.dispose()` in `finally` so `session_shutdown` cleans up MCP processes (`agent-session-runtime.js:102-110`; `pi-mcp-adapter/index.ts:141-151`).
   4. Assert tool provenance with `getAllTools()` / `sourceInfo.path` — not model self-report.
-- **Verify:** probe script exits non-zero on current bytes (RED); the limited resource-loader pre-check (noExtensions:true does NOT load the Fabric `-e` extension real children receive via worker.js:326-333) resolves exactly `["read","grep","find","ls"]` and nothing else — it proves the no-extension principle for MCP/Codex, while the exact child proof (fabric_exec filtered by `--tools`) is the operator's live `agents.run` smoke in Task C/G-live.
+- **Verify:** probe script exits non-zero on current bytes (RED); the limited resource-loader pre-check (noExtensions:true does NOT load the Fabric `-e` extension real children receive via worker.js:326-333) resolves exactly `["read","grep","find","ls"]` and nothing else — it proves the no-extension principle for MCP/Codex, while the exact child proof (fabric_exec filtered by `--tools`) is the operator's live `agents.run` smoke in Task C/G2.
 - **Checkpoint:** if exact direct MCP tools are absent, operator must enable only those tools and restart Pi. Do not expose `mcp` automatically. STOP for operator disposition.
 
 #### Task C: Make Main visibility GREEN
@@ -241,7 +241,7 @@ Context7 is documentation; Exa is search/fetch; Codex is general cited search. T
 
 ---
 
-### Packet 3: Complete lifecycle prompt coverage (Wave 4-5)
+### Packet 3: Complete lifecycle prompt coverage (Wave 4-5, 8)
 
 #### Task F: Correct `.pi/prompts/research.md` and `.pi/prompts/ship.md`
 
@@ -279,7 +279,7 @@ Context7 is documentation; Exa is search/fetch; Codex is general cited search. T
   2. Add explicit per-location assertions for: `extensions:false`, `recursive:false`, `worktree:false`, `proactive-supervisor/v1`, `action:"silent"`, 8192-byte packet limit, `source-check-required`.
 - **Verify:** scan exits 0; per-location assertions pass.
 
-#### Task G-live: Live supervisor research-request smoke + decision-table review
+#### Task G2: Live supervisor research-request smoke + decision-table review
 
 - **Needs:** Tasks G, C.
 - **has_checkpoint:** yes (live Pi session with capture.keepVisible external tools registered + live network path).
@@ -291,7 +291,7 @@ Context7 is documentation; Exa is search/fetch; Codex is general cited search. T
 
 ---
 
-### Packet 4: Canonical authority + closure (Wave 6-8)
+### Packet 4: Canonical authority + closure (Wave 6-7, 9)
 
 #### Task H: Correct canonical authority
 
@@ -321,7 +321,7 @@ Context7 is documentation; Exa is search/fetch; Codex is general cited search. T
 
 #### Task J: Review and final verification
 
-- **Needs:** Task I + C + G-live.
+- **Needs:** Task I + C + G2.
 - **has_checkpoint:** yes (L3 review disposition).
 - **Creates:** terminal fingerprint.
 - **Steps:**
