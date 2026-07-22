@@ -54,6 +54,21 @@ export function resolveEffectiveRef(ref, args) {
   return String(ref);
 }
 
+// Fabric captures pi.registerTool tools under the "extensions.<name>" namespace
+// (the model reaches a captured tool via extensions.<name>(args) or
+// tools.call({ref:"extensions.<name>"}), both producing effective ref
+// "extensions.<name>"). The lane allowlist uses BARE names (away_read,
+// away_stage_write, ...). Strip the capture namespace so the filter checks
+// the SEMANTIC tool name, not Fabric's routing prefix. The original (prefixed)
+// ref is still forwarded verbatim to the Fabric host, which routes
+// "extensions.<name>" to the captured tool.
+export function semanticRef(effective) {
+  if (typeof effective === "string" && effective.startsWith("extensions.")) {
+    return effective.slice("extensions.".length);
+  }
+  return effective;
+}
+
 // Validates the exact Fabric spawn argv shape.
 export function validateFabricArgv(argv) {
   if (!Array.isArray(argv) || argv.length !== 4) {
@@ -302,18 +317,19 @@ async function main() {
     }
     seenIds.add(msg.id);
     const effective = resolveEffectiveRef(msg.ref, msg.args);
-    if (!allowlist.has(effective)) {
-      deniedRefs.push(effective);
+    const semantic = semanticRef(effective);
+    if (!allowlist.has(semantic)) {
+      deniedRefs.push(semantic);
       // Reject in-guest: do NOT forward to Fabric. The guest's pending call rejects.
       writeLine(child.stdin, {
         type: "response",
         id: msg.id,
         ok: false,
-        error: `away-sandbox: denied ref '${effective}' not in lane '${laneId}' allowlist`,
+        error: `away-sandbox: denied ref '${semantic}' not in lane '${laneId}' allowlist`,
       });
       return;
     }
-    forwardedRefs.push(effective);
+    forwardedRefs.push(semantic);
     sendToFabric({ type: "call", id: msg.id, ref: msg.ref, args: msg.args });
   }
 

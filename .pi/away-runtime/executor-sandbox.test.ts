@@ -22,6 +22,7 @@ import * as os from "node:os";
 import {
   PINNED_CHILD_SOURCE_DIGEST,
   resolveEffectiveRef,
+  semanticRef,
   validateFabricArgv,
   validateChildSourceDigest,
   loadLaneProfile,
@@ -97,6 +98,26 @@ describe("resolveEffectiveRef (Fabric __resolvedCallRef)", () => {
     assert.equal(resolveEffectiveRef("fabric.$call", { ref: 42 }), "fabric.$call");
     assert.equal(resolveEffectiveRef("fabric.$call", null), "fabric.$call");
     assert.equal(resolveEffectiveRef("fabric.$call", {}), "fabric.$call");
+  });
+});
+
+describe("semanticRef (strip Fabric capture namespace)", () => {
+  it("strips the extensions. prefix so the bare allowlist matches", () => {
+    assert.equal(semanticRef("extensions.away_read"), "away_read");
+    assert.equal(semanticRef("extensions.away_stage_write"), "away_stage_write");
+  });
+  it("leaves bare refs unchanged (no double-strip)", () => {
+    assert.equal(semanticRef("away_read"), "away_read");
+    assert.equal(semanticRef("agents.run"), "agents.run");
+    assert.equal(semanticRef("fabric.$providers"), "fabric.$providers");
+  });
+  it("rejects unknown captured tools after the strip (deny non-allowlisted)", () => {
+    // The wrapper's allowlist check is `allowlist.has(semanticRef(effective))`.
+    // extensions.evil -> semanticRef -> "evil" -> not in ["away_read",...] -> denied.
+    const allowlist = new Set(["away_read", "away_list"]);
+    assert.ok(allowlist.has(semanticRef("extensions.away_read")));
+    assert.ok(!allowlist.has(semanticRef("extensions.evil")));
+    assert.ok(!allowlist.has(semanticRef("extensions.fabric_exec")));
   });
 });
 
