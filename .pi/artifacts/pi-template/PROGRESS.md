@@ -37,7 +37,9 @@ de-duplicated authority (single owner per theme). Created `.pi/.gitignore` and
 changelog mention), no `agent()`-fan-out references.
 
 ### Verification fingerprint
-- HEAD: `dbf74b7` (pre-init-deep-pass)
+- HEAD pre-init-deep-pass: `dbf74b7`
+- HEAD post-init-deep-pass: `5d257c4` (pushed to `origin/main` + `origin/master`,
+  fast-forward — no force-push; incremental per per-artifact policy)
 - Checks run this pass: `rg` cross-file stale-reference scan (PASS).
 - Not yet run: `pi --approve --list-models` for this worktree (pending milestone 1),
   structural checks (pending `.pi/tools/`).
