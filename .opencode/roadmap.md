@@ -4,7 +4,7 @@
 
 A Pi-native coding template powered by `pi-fabric`: a thin, readable agent-driven
 development baseline that other repositories can adopt. GPT-5.6-sol Main is the sole
-scheduler, integrator, and commit authority; a small persistent advisory council steers
+scheduler, integrator, and commit authority; a persistent advisory supervisor steers
 on drift; a bounded GLM worker pool implements. Lifecycle ergonomics are inspired by
 `.opencode` (`/create` → optional `/plan` → `/ship` → `/verify`) but realized with Pi
 prompts (full command bodies ported from `.opencode/command/`) and Markdown artifacts. Authority, routing, topology, and the council contract
@@ -37,13 +37,13 @@ Each milestone is independently verifiable. Authority/topology decisions are rec
    disabled memory-indexing, `compaction.engine:"fabric"`).
    - Acceptance: `pi --approve --list-models` resolves all three model IDs; Main retains
      native tools; a review child's edit attempt fails; recursive delegation is rejected.
-2. **Advisory council (hybrid, session-scoped)** — native `agents.create` persistent actors
-   per `AGENTS.md` (supervisor ambient + mailbox-only security/architecture advisors;
-   blocking `agents.ask()` gate mechanics). Create/inspect via `.pi/prompts/supervise.md`
-   (done — static); gate workflow via `.pi/prompts/gate.md` (deferred to a separate
-   milestone).
-   - Acceptance: re-running setup reuses IDs; resume restores actors with correct immutable
-     fields; a second session gets distinct IDs; failed/errored advisor blocks the gate.
+2. **Advisory supervisor (session-scoped)** — a single native `agents.create` persistent
+   actor per `AGENTS.md` (ambient supervisor; custom instructions, never self-stops). Create/
+   reconcile via `.pi/prompts/supervise.md` (done — static). The earlier security/architecture
+   advisor + gate design was dropped as redundant (ADR-008).
+   - Acceptance: re-running setup reuses the ID; resume restores the actor with correct
+     immutable fields; a second session gets a distinct ID; the supervisor steers on drift
+     and stays silent otherwise.
 3. **Lifecycle prompts** — Main-owned prompts under `.pi/prompts/` porting **all nine**
    `.opencode/command/*.md` bodies (`audit`, `create`, `fix`, `gc`, `init`, `plan`,
    `research`, `ship`, `verify`): take all of each body, strip only OpenCode-only syntax,

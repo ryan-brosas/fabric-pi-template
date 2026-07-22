@@ -39,7 +39,8 @@ milestone-3 + milestone-4 static suites); runtime enforcement pending bootstrap.
 
 Authority, routing, topology, and the council contract live in `AGENTS.md`; trade-offs
 in `.pi/artifacts/pi-template/DECISIONS.md`. Summary only — do not edit here for authority:
-- Hybrid per-session council (supervisor steers; advisors mailbox-only at lifecycle gates).
+- Single advisory supervisor (ambient; steers on drift; stays silent otherwise). The earlier
+  advisor + gate design was dropped as redundant (ADR-008).
 - 1 Makora worker/session; `extensions:true`; GPT read-only `extensions:false`.
 - Markdown lifecycle artifacts; no kernel/schemas/manifests/receipts/CAS board.
 - No `.pi/config.json`; dispatch params are per-call.
@@ -53,12 +54,9 @@ in `.pi/artifacts/pi-template/DECISIONS.md`. Summary only — do not edit here f
 
 1. Milestone 4 final no-write static verification (Task C3): capture fingerprint tuple,
    run all validators read-only, declare VERIFIED externally only — no repo write after.
-2. Gate workflow (separate, deferred) — `.pi/prompts/gate.md` (blocking `agents.ask()` to
-   applicable advisors, validate each, one blocking `agents.ask(supervisor)` on conflict).
-3. Verification fingerprint — `.pi/tools/` capture (HEAD, digests, file hashes).
-4. Smoke — model resolution, Main native tools, review-child edit rejection, gate block
-   on errored advisor, freshness invalidation, prompt discovery, slug validation. Requires
-   `/trust` + restart.
+2. Verification fingerprint — `.pi/tools/` capture (HEAD, digests, file hashes).
+3. Smoke — model resolution, Main native tools, review-child edit rejection, freshness
+   invalidation, prompt discovery, slug validation. Requires `/trust` + restart.
 
 ## Verification Status
 

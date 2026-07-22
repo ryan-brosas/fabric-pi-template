@@ -31,7 +31,7 @@ live in `.pi/settings.json`; child defaults in `.pi/fabric.json`; every dispatch
 | Read-only GPT | `plan`, `review`, `debug` | `openai-codex/gpt-5.6-sol` | max | `false` |
 | Read-only gatherers | `explore`, `scout` | `openai-codex/gpt-5.4-mini` | supported max | `false` |
 | Writable pool (1 per session) | `implement` / general edits | `makora/zai-org/GLM-5.2-NVFP4` | max | **`true`** |
-| Advisory council | supervisor + security/architecture advisors; read-only | `openai-codex/gpt-5.6-sol` | max | `false` |
+| Advisory supervisor | ambient supervisor; read-only | `openai-codex/gpt-5.6-sol` | max | `false` |
 
 **Extension split (load-bearing):** `extensions:false` makes Fabric pass Pi `--no-extensions`,
 which fails to resolve the Makora provider. GPT council and read-only children use
@@ -40,9 +40,10 @@ which fails to resolve the Makora provider. GPT council and read-only children u
 never a native Claude runner.
 
 One Makora GLM worker per session; the host runs 4-5 concurrent sessions, so total GLM
-concurrency is bounded by session count, not a per-session pool. The advisory council is
+concurrency is bounded by session count, not a per-session pool. The advisory supervisor is
 per-session (`mesh.actorScope: "session"`); only the supervisor steers Main. Authority,
-routing, and the council contract live in `AGENTS.md` — this table is the model wiring only.
+routing, and the supervisor contract live in `AGENTS.md` — this table is the model wiring only.
+The earlier security/architecture advisor + gate design was dropped as redundant (ADR-008).
 
 ## Project Structure (intended)
 

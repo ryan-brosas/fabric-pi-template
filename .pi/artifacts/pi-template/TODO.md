@@ -63,14 +63,6 @@ status: done (implementation; final no-write verification pending)
       source immutability against `bebd044`; heading preservation 6/6; `git diff --check` exit=0.
 - [ ] C3: Final no-write static verification (external declaration only) — pending.
 
-### 2026-07-22 - Gate workflow (separate, deferred)
-status: pending
-- [ ] Author `.pi/prompts/gate.md` (blocking `agents.ask()` to applicable advisors,
-      validate each, one blocking `agents.ask(supervisor)` on conflict).
-- [ ] Verify: errored/silent advisor blocks the gate; no duplicate steer loop.
-- [ ] Commit+push.
-- Note: separate milestone, not part of milestone 3.
-
 ### 2026-07-22 - Milestone 5: Verification fingerprint
 status: pending
 - [ ] Add `.pi/tools/` fingerprint capture (HEAD, staged/unstaged digests, untracked
@@ -80,5 +72,5 @@ status: pending
 
 ### 2026-07-22 - Milestone 6: Smoke
 status: pending
-- [ ] Model resolution, Main native tools, review-child edit rejection, gate block on
-      errored advisor, freshness invalidation.
+- [ ] Model resolution, Main native tools, review-child edit rejection, freshness
+      invalidation, prompt discovery, slug validation.

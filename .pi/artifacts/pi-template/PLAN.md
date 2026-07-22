@@ -7,7 +7,7 @@ contract for the `.pi/` runtime. Trade-offs are in `DECISIONS.md`.
 ## Goal
 
 A thin, portable Pi-native coding template powered by `pi-fabric` 0.22.4: GPT-5.6-sol Main
-as sole scheduler/integrator/commit authority, a per-session advisory council, one Makora
+as sole scheduler/integrator/commit authority, a per-session advisory supervisor, one Makora
 worker per session, and a Markdown lifecycle — adoptable by copying `.pi/`.
 
 ## Non-goals
@@ -97,7 +97,7 @@ No file-routed roles.
 |---|---|---|---|---|---|---|
 | GPT read-only (plan/review/debug/explore/scout) | `pi` | `openai-codex/gpt-5.6-sol` or `gpt-5.4-mini` | `max` | `false` | `read,grep,find,ls` | `false` |
 | Makora implement | `pi` | `makora/zai-org/GLM-5.2-NVFP4` | `max` | **`true`** | `read,grep,find,ls,edit,write,bash` (exact allowlist) | `true` for isolated impl; `false` for in-place |
-| Council (supervisor + advisors) | `pi` | `openai-codex/gpt-5.6-sol` | `max` | `false` | `read,grep,find,ls` | N/A (persistent actors reject `worktree`) |
+| Supervisor (ambient) | `pi` | `openai-codex/gpt-5.6-sol` | `max` | `false` | `read,grep,find,ls` | N/A (persistent actor rejects `worktree`) |
 
 **Extension split (load-bearing):** `extensions:false` → Fabric passes Pi `--no-extensions`
 → Makora provider fails to resolve. GPT council and read-only children use `extensions:false`;
@@ -107,9 +107,9 @@ writable tool allowlist.
 **Writable work is blocking:** use `agents.run()` (not `spawn`/`parallel`) for the Makora
 lane. No writable fan-out. Main does not edit until the run settles.
 
-## Advisory Council
+## Advisory Supervisor
 
-Per `AGENTS.md` "Advisory council, not orchestrator". Hybrid, per-session.
+Per `AGENTS.md` "Advisory supervisor, not orchestrator". Per-session, single actor.
 
 - **Supervisor** — persistent, ambient. `events:["agent_settled","tool_error"]`,
   `delivery:"steer"`, `triggerTurn:true`, `responseMode:"directive"`, `coalesce:true`,
@@ -118,25 +118,11 @@ Per `AGENTS.md` "Advisory council, not orchestrator". Hybrid, per-session.
   self-stops on "Goal verified complete"): the supervisor reports missing evidence/blockers
   but never certifies readiness and never stops itself; teardown follows `/verify` or
   explicit operator action.
-- **Security advisor** — persistent, mailbox-only (no `events`). Same model/tools/extensions.
-  Invoked only at lifecycle gates for security-domain changes.
-- **Architecture advisor** — persistent, mailbox-only (no `events`). Same model/tools.
-  Invoked only at lifecycle gates for structural concerns.
-
-**Gate mechanics (blocking, not fire-and-forget):**
-1. Main calls each applicable advisor with blocking `agents.ask()`. Never `tell()` — a
-   failed directive run resolves as `action:"silent"`+`error` and yields no steer.
-2. Main validates each result: accept only `action:"message"`, no `error`, structurally
-   valid verdict. Missing/silent/stopped/malformed/errored responses **block** the gate.
-3. On material conflict, Main issues one blocking `agents.ask(supervisor)` for synthesis.
-4. Main independently validates cited evidence (actor output is untrusted advice); never
-   executes commands or authorizes side effects solely from a steer.
-5. The decision (coverage, failures, snapshot digest, evidence refs) is persisted in the
-   artifact before Main proceeds.
 
 Actor IDs are resolved locally each session via `agents.create()`/`agents.actors()`; never
-address actors by canonical name over mesh (session scope does not isolate name-addressed
-mesh messages).
+address the actor by canonical name over mesh (session scope does not isolate name-addressed
+mesh messages). (The earlier security/architecture advisor + gate design was dropped as
+redundant — see ADR-008.)
 
 ## Lifecycle
 
@@ -218,10 +204,7 @@ Missing, skipped, timed-out, or non-zero checks cannot produce PASS.
    reuses IDs; exact-session restart restores same IDs; immutable/stopped drift blocks
    (no removal); new session uses distinct registry — risk: stock supervisor self-stops on
    completion; same-name create over a stopped actor deletes history.
-3. `.pi/prompts/gate.md` (blocking advisor ask + supervisor synthesis) — **deferred to a
-   separate milestone** (not part of the nine-command lifecycle port). verify: errored
-   advisor blocks; no duplicate steer loop — risk: `tell()` fire-and-forget yields no steer.
-4. `.pi/prompts/{create,plan,ship,verify,research,fix,init,gc,audit}.md` — port **all nine**
+3. `.pi/prompts/{create,plan,ship,verify,research,fix,init,gc,audit}.md` — port **all nine**
    `.opencode/command/*.md` bodies (operator-approved scope: take all of each body, strip
    only OpenCode-only syntax, re-point to `.pi/artifacts/<slug>/`). The five lifecycle
    commands take an explicit validated `<slug>`; the four operational commands keep natural
@@ -230,20 +213,17 @@ Missing, skipped, timed-out, or non-zero checks cannot produce PASS.
    loses runnable behavior; prompt pseudo-tool calls give false enforcement.
 5. `.pi/tools/` verification fingerprint capture — verify: byte change after PASS
    invalidates — risk: stale PASS on concurrent edit.
-6. Smoke: model resolution, Main native tools, review-child edit rejection, gate block on
-   errored advisor, freshness invalidation.
+6. Smoke: model resolution, Main native tools, review-child edit rejection, freshness
+   invalidation.
 
 ## Open Questions
 
 - Cross-worktree shared mesh: default mesh root is worktree-local — do concurrent
   worktree sessions need shared mesh visibility, or is per-session isolation sufficient?
 - Single-writer lease: stay operator/prompt policy in v1, or add an atomic lease later?
-- Gate timeout: actor call-level timeouts cannot shorten the configured Fabric
-  `subagents.timeoutMs` — define a practical gate deadline.
 
 ## Stop Conditions
 
-- A failed/errored/silent required advisor blocks the gate; no silent model substitution.
 - A byte change after a PASS invalidates verification; rerun before any commit.
 - Two sessions contending the same slug fail closed or acquire explicit ownership.
 - Stop and ask before destructive Git, push beyond per-artifact commits, or secrets.

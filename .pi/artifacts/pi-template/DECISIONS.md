@@ -5,7 +5,7 @@ as a fact, not here. Format: Status / Date / Context / Decision / Consequences /
 Alternatives.
 
 ## ADR-001: Hybrid per-session advisory council
-**Status:** accepted
+**Status:** superseded by ADR-008
 **Date:** 2026-07-22
 **Context:** Need ambient senior-engineering review without a `/team`-style orchestrator
 or a fixed role matrix every cycle. 4-5 concurrent Pi sessions share this project;
@@ -173,3 +173,37 @@ OpenCode scaffold when memory is missing — violates the "no `.pi`-only adopter
 carry `.opencode`" portability goal and the lazy-creation discipline. Chosen the optional
 two-surface design with `/init` as the sole scaffold establisher and `/verify` as the sole
 pre-fingerprint appender.
+
+## ADR-008: Single supervisor — drop the advisors and the gate
+**Status:** accepted
+**Date:** 2026-07-22
+**Context:** ADR-001 specified a hybrid council: one ambient supervisor plus mailbox-only
+security/architecture advisors invoked at lifecycle gates via a `/gate` prompt. On review
+the advisor+gate half was redundant: the advisors were mailbox-only (no host events), so they
+could never wake on their own — the only thing that would consult them was `/gate`, which was
+never built and, as a standalone operator command, would depend on the operator manually
+deciding "this change is security-sensitive" and remembering to invoke it. That is the kind
+of easy-to-forget, rarely-used machinery that accumulates as dead weight. The supervisor, by
+contrast, runs ambiently (host events + steer delivery) and steers Main on drift with no
+invocation — it pays for itself; the advisors did not. The supervisor also cannot substitute
+for the gate (it runs `extensions:false` with read-only tools, no `agents.ask`), so the
+advisor mailboxes created by `/supervise` were genuinely unused.
+**Decision:** Drop the security/architecture advisors and the `/gate` workflow entirely. The
+council is now a single persistent supervisor (per-session, `mesh.actorScope:"session"`,
+custom instructions, never self-stops). `/supervise` creates/reconciles one actor. There is
+no `/gate` prompt and no advisor consultation. The supervisor remains the sole and final steer
+authority, ambient only. This supersedes ADR-001's advisor+gate half.
+**Consequences:** Easier: one actor to create/reconcile instead of three; no dormant mailboxes;
+no never-built gate milestone; no manual-invocation burden; less surface to verify at runtime.
+Harder: no specialist-depth consultation at security/architecture boundaries — the supervisor
+is a generalist; if a change genuinely needs a security or architecture specialist review, the
+operator dispatches a read-only `explore`/`review` child ad hoc rather than relying on a fixed
+advisor panel. ADR-005 (session scope), ADR-006 (external verification), and ADR-007 (two
+surfaces) are unaffected.
+**Alternatives:** (a) Keep the advisors dormant and just never build `/gate` — leaves the
+redundant actor-creation overhead in `/supervise` and the stale advisor/gate language in the
+authority docs. (b) Embed gate mechanics into `/ship`/`/verify` so advisors are always consulted
+— adds cost/noise on every slug and the trigger rules become load-bearing. (c) Keep `/gate` as
+a standalone manual command (the original plan) — redundant with `/supervise` in practice and
+easy to forget, the exact concern raised. Chosen the single supervisor as the only part that
+earns its keep.
