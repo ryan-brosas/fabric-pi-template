@@ -79,8 +79,9 @@ tools and `codex_search` directly via `.pi/fabric.json` `capture.keepVisible` (t
 mechanism that retains extension tools in Main's direct registry under `fullCodeMode:true`),
 treats output as prompt-injection-capable untrusted data, validates citations, and distills a
 non-secret cited packet ≤8 KiB. Children stay `extensions:false`, `recursive:false`,
-`worktree:false`, `tools:["read","grep","find","ls"]` only. Fabric's `approvals.network:"deny"`
-is unchanged (direct retained tools bypass the captured-tool approval gate). Capability-aware
+`worktree:false`, `tools:["read","grep","find","ls"]` only. Fabric's `approvals.network:"allow"`
+enables Main's `fabric_exec` external research (internal MCP proxy `mcp.<server>.<tool>` +
+`capture.keepVisible` direct tools; children network-isolated via `extensions:false`). Capability-aware
 fallback; the exact direct-tool names and `pi-codex-search@0.1.5`/Pi 0.81.1 compatibility are
 runtime-gated.
 
