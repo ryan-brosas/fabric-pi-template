@@ -437,6 +437,13 @@ broker-controlled argv from command IDs) and a stale PASS is invalidated by any 
 opt-in away lane; normal interactive sessions are unaffected. ADR-015 (autonomous-away-loop) adds the
 real ledger/Git/GitHub crash-replay full loop on top of this foundation; this feature defers that loop.
 
+**Pi-native closure (ADR-016).** The startup closure contains no `.opencode` path — all closure
+inputs resolve under `.pi/` or host paths, so a copied `.pi` runtime operates with `.opencode`
+absent (verified by `confinement.test.ts`). The manifest `protected_paths` cover the init packet
+(managed `AGENTS.md` boilerplate region + five `.pi/{ROADMAP,user,tech-stack,state,memory}.md`
+context files) from autonomous mutation, added by ADR-016; `.opencode/command/**` remains protected
+as source.
+
 ## Lifecycle
 
 Every lifecycle command takes an explicit `<slug>` (lowercase-hyphen, validated) and

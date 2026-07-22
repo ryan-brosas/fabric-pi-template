@@ -601,6 +601,15 @@ and are unaffected.
   this is an opt-in away lane, not a widening of normal sessions. Provider credentials and the trusted
   Pi RPC host stay in the parent; only generated node-process code is sandboxed.
 
+**Pi-native closure (ADR-016 relationship).** The startup closure contains no `.opencode` path
+— all closure inputs (manifest, wrapper, inner guest, lane extension, config, pinned source) resolve
+under `.pi/` or host paths, so a copied `.pi` runtime operates with `.opencode` absent (verified by
+`confinement.test.ts`). The manifest `protected_paths` cover the init packet (managed `AGENTS.md`
+boilerplate region + five `.pi/{ROADMAP,user,tech-stack,state,memory}.md` context files) from
+autonomous mutation, added by ADR-016's P7.1; `.opencode/command/**` remains protected as source.
+This does not change ADR-014's independent confinement authority; it records the relationship to
+ADR-016's Pi-native init packet.
+
 **Forward dependency.** ADR-015 (autonomous-away-loop) adds the real ledger/Git/GitHub crash-replay
 full loop on top of this confinement foundation; this feature defers that loop.
 
