@@ -57,7 +57,17 @@ Each milestone is independently verifiable. Authority/topology decisions are rec
    - Acceptance: two concurrent sessions on different slugs stay disjoint; `/ship` cannot
      declare completion; `/verify` declares verified status externally only.
 4. **Canonical artifacts** — `.pi/artifacts/<slug>/{PLAN,TODO,PROGRESS,DECISIONS}.md` as
-   the sole lifecycle record (lazy creation, tracked). No `.active` pointer, no "latest".
+   the sole lifecycle record (tracked). `/create` is the sole namespace creator (an
+   established namespace requires both `PLAN.md` and `TODO.md`); downstream lifecycle
+   commands fail closed on a missing/partial namespace (no adoption/overwrite/deletion);
+   pre-`/create` `/research` is response-only. `/gc` is project-wide, slugless, and
+   response-only. Two writable surfaces (ADR-007): lifecycle state (confined to the slug)
+   vs optional project memory (`.opencode/artifacts/MEMORY.md`; missing = non-blocking; `/init`
+   sole scaffold establisher; `/verify` sole pre-fingerprint appender). No `.active` pointer,
+   no "latest".
+   - **Implementation status:** done (implementation) — tasks A1-C2 complete (commits
+     `5193d85`, `8a6912d`, `3896cf5`, `25620dc`, `bc4ae6a`, `8b79382`, this commit); static
+     suite 12/12 success criteria PASS; final no-write verification pending (Task C3).
    - Acceptance: only `/verify` may declare verified status (externally); no repository
      write after the final before/after fingerprint (candidate evidence may be written to
      PROGRESS before the final pass).

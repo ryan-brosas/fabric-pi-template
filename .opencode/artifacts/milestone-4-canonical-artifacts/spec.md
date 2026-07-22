@@ -1,6 +1,6 @@
 # Milestone 4 — Canonical Artifacts (Audit + Hardening)
 
-> **Status:** proposed · **ID:** ms4-001 · **Created:** 2026-07-22
+> **Status:** implementation done — final no-write verification pending (Task C3; not VERIFIED) · **ID:** ms4-001 · **Created:** 2026-07-22
 > **Roadmap item:** `4. Canonical artifacts` (`.opencode/roadmap.md:59-63`)
 > **Approach (operator-approved):** audit + hardening pass. Milestones 1-3 already encoded most of the canonical-artifact contract (the 4-file set exists at `.pi/artifacts/pi-template/`, ADR-006 external verification, the nine ported prompts reference `.pi/artifacts/<slug>/`, `.pi/.gitignore` tracks artifacts). This spec captures the done-state, audits the nine prompts for residual gaps, hardens them to fully encode the contract, and formalizes the two-surface design (lifecycle state vs project memory).
 
