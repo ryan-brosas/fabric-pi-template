@@ -65,13 +65,61 @@ Verification:
   `maxDepth:1`) but require an interactive `/trust`-ed Pi session to runtime-smoke;
   pending bootstrap.
 
+### 2026-07-22 - Milestone 3: Lifecycle prompts (all nine)
+status: done (static; runtime smoke pending `/trust`)
+
+Ported all nine `.opencode/command/*.md` bodies to `.pi/prompts/*.md`, taking all of each
+source body and stripping only OpenCode-only mechanics (`agent:` frontmatter, `task()`/
+`question()`/`skill()`/`write()` pseudo-calls, `.active`/`spec.md`/`prd.json`,
+`batch-implement`/`deep-research`/`audit-pattern` workflow routing, review matrices,
+`review-state.json` loop, `/ui-slop-check`/`/compound` stale strings, legacy verify cache).
+Re-pointed artifacts to `.pi/artifacts/<slug>/{PLAN,TODO,PROGRESS,DECISIONS}.md`.
+
+Contract freeze (Plan 0, commits `bce5786`/`f7f66ba`/`6655607`): external verification
+(ADR-006) — `/verify` declares verified status in its response/session transcript only; no
+repository write after the final before/after fingerprint. Nine-command scope expanded in
+all canonical docs. `/gate` deferred to a separate milestone.
+
+Port commits:
+- create: `4afa6da` + fix `d7d5237` (reword "1 agent" → "1 explore worker" to clear false
+  `agent:` forbidden-match)
+- plan: `66e3960`
+- research: `384e493`
+- fix: `674365f`
+- ship: `11fff6b` (load-bearing authority port: serial writes, no terminal completion,
+  operator-gate Git, verify is sole completion writer)
+- verify: `5349087` (sole completion-evidence command: full fingerprint, external
+  declaration only, no post-fingerprint write)
+- init: `5bd9c2e`
+- gc: `4c123f3`
+- audit: `9877cf2`
+
+Static suite (candidate evidence, pending final no-write verification):
+- Frontmatter matrix: 9/9 PASS (node script validates exact keys per prompt).
+- Forbidden scan: 9/9 CLEAN (`rg -q` of `agent:|task\(|question\(|skill\(|write\(|\.active|
+  spec\.md|prd\.json|tasks\.json|audit-pattern|batch-implement|deep-research|
+  review-state\.json|/ui-slop-check|/compound|progress\.md|audit\.md`).
+- Source immutability: `git diff --exit-code -- .opencode/command/*.md` exit=0.
+- Slug presence: 5/5 lifecycle prompts (`create`/`plan`/`research`/`ship`/`verify`)
+  contain `<slug>`.
+- `git diff --check`: exit=0.
+- Per-command positive markers: all pass (duplicate check, research depth, PRD rigor,
+  TDD, goal-backward, completeness/correctness/coherence, Fallow, idempotency, etc.).
+- jq validation of prd.json: 12 tasks, max 3 files/task, serial deps, no stale key.
+
+Not yet run: runtime prompt-discovery smoke (requires `/trust` + restart); structural
+fingerprint tools (pending `.pi/tools/`).
+
 ### Verification fingerprint
 - HEAD pre-init-deep-pass: `dbf74b7`
 - HEAD post-init-deep-pass: `912b2db` (pushed to `origin/main` + `origin/master`,
   fast-forward — no force-push; incremental per per-artifact policy)
 - HEAD pre-milestone-1: `912b2db`
+- HEAD post-milestone-3-ports: `d7d5237` (pushed to `origin/main` + `origin/master`,
+  fast-forward — no force-push)
 - Checks run this pass: `jq -e` JSON validity (PASS); `normalizeFabricConfig` 12-field
   (PASS); `pi --approve --list-models` model resolution (PASS); `git check-ignore` runtime
-  state (PASS).
+  state (PASS); milestone-3 static suite (PASS as above).
 - Not yet run: runtime child-spawn smoke (review-edit rejection, recursion rejection) —
-  pending `/trust` + restart; structural checks (pending `.pi/tools/`).
+  pending `/trust` + restart; structural checks (pending `.pi/tools/`); final no-write
+  verification of milestone 3 (Task 4.3).

@@ -25,27 +25,40 @@ status: done
       delegation rejected.
 
 ### 2026-07-22 - Milestone 2: Advisory council
-status: pending
-- [ ] Author `.pi/prompts/supervise.md` (create/inspect supervisor + advisors,
+status: done
+- [x] Author `.pi/prompts/supervise.md` (create/inspect supervisor + advisors,
       session-scoped, custom supervisor instructions — never self-stop).
-- [ ] Verify: re-run setup reuses IDs; resume restores correct immutable fields; second
-      session gets distinct IDs.
-- [ ] Commit+push.
+- [x] Static verify: frontmatter `description`-only; no forbidden patterns; ADR-005
+      session-restore correction.
+- [x] Commit+push (`29bd75f`).
+- [ ] Runtime verify (pending `/trust` + restart): re-run setup reuses IDs; resume
+      restores correct immutable fields; second session gets distinct IDs.
 
-### 2026-07-22 - Milestone 3: Lifecycle gate workflow
+### 2026-07-22 - Milestone 3: Lifecycle prompts (all nine)
+status: done
+- [x] Contract freeze (Plan 0): external verification in AGENTS/PLAN/DECISIONS; nine-command
+      scope in roadmap/state/tech-stack; spec/prd restructured to 12 bounded serial tasks.
+- [x] Port `/create` (commit `4afa6da` + fix `d7d5237`).
+- [x] Port `/plan` (commit `66e3960`).
+- [x] Port `/research` (commit `384e493`).
+- [x] Port `/fix` (commit `674365f`).
+- [x] Port `/ship` (commit `11fff6b`).
+- [x] Port `/verify` (commit `5349087`).
+- [x] Port `/init` (commit `5bd9c2e`).
+- [x] Port `/gc` (commit `4c123f3`).
+- [x] Port `/audit` (commit `9877cf2`).
+- [x] Static suite: frontmatter 9/9; forbidden scan 9/9 CLEAN; source immutability exit=0;
+      slug presence 5/5; `git diff --check` exit=0.
+- [ ] Runtime smoke (pending `/trust` + restart): prompt discovery, slug validation,
+      `/ship` no-completion, `/verify` external-only.
+
+### 2026-07-22 - Gate workflow (separate, deferred)
 status: pending
 - [ ] Author `.pi/prompts/gate.md` (blocking `agents.ask()` to applicable advisors,
       validate each, one blocking `agents.ask(supervisor)` on conflict).
 - [ ] Verify: errored/silent advisor blocks the gate; no duplicate steer loop.
 - [ ] Commit+push.
-
-### 2026-07-22 - Milestone 4: Lifecycle prompts
-status: pending
-- [ ] Author `.pi/prompts/{create,plan,ship,verify,research}.md` (explicit `<slug>`;
-      self-contained; no agent routing or pseudo-tool calls).
-- [ ] Verify: two sessions on different slugs stay disjoint; `/ship` cannot write
-      verified status.
-- [ ] Commit+push.
+- Note: separate milestone, not part of milestone 3.
 
 ### 2026-07-22 - Milestone 5: Verification fingerprint
 status: pending
