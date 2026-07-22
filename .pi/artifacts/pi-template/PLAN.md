@@ -97,7 +97,7 @@ No file-routed roles.
 |---|---|---|---|---|---|---|
 | GPT read-only (plan/review/debug/explore/scout) | `pi` | `openai-codex/gpt-5.6-sol` or `gpt-5.4-mini` | `max` | `false` | `read,grep,find,ls` | `false` |
 | Makora implement | `pi` | `makora/zai-org/GLM-5.2-NVFP4` | `max` | **`true`** | `read,grep,find,ls,edit,write,bash` (exact allowlist) | `true` for isolated impl; `false` for in-place |
-| Council (supervisor + advisors) | `pi` | `openai-codex/gpt-5.6-sol` | `max` | `false` | `read,grep,find,ls` | `false` (persistent actors) |
+| Council (supervisor + advisors) | `pi` | `openai-codex/gpt-5.6-sol` | `max` | `false` | `read,grep,find,ls` | N/A (persistent actors reject `worktree`) |
 
 **Extension split (load-bearing):** `extensions:false` → Fabric passes Pi `--no-extensions`
 → Makora provider fails to resolve. GPT council and read-only children use `extensions:false`;
@@ -185,9 +185,10 @@ skipped, timed-out, or non-zero checks cannot produce PASS.
 1. `.pi/settings.json` + `.pi/fabric.json` — verify: `pi --approve --list-models` resolves
    all three IDs; Main retains native tools; review child edit fails — risk: inherited
    `schema.mode:"enforce"` silently disables subagents.
-2. `.pi/prompts/supervise.md` (create/inspect council, session-scoped) — verify: re-run
-   reuses IDs; resume restores correct immutable fields; second session gets distinct IDs —
-   risk: stock supervisor self-stops on completion.
+2. `.pi/prompts/supervise.md` (create/reconcile council, session-scoped) — verify: re-run
+   reuses IDs; exact-session restart restores same IDs; immutable/stopped drift blocks
+   (no removal); new session uses distinct registry — risk: stock supervisor self-stops on
+   completion; same-name create over a stopped actor deletes history.
 3. `.pi/prompts/gate.md` (blocking advisor ask + supervisor synthesis) — verify: errored
    advisor blocks; no duplicate steer loop — risk: `tell()` fire-and-forget yields no steer.
 4. `.pi/prompts/{create,plan,ship,verify,research}.md` — verify: two sessions on different

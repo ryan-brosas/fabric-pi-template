@@ -6,92 +6,103 @@
   "status": "approved",
   "depends_on": ["Milestone 1 — Pi project config"],
   "blocks": ["Milestone 3 — gate.md", "Milestone 6 — smoke test"],
-  "affected_files": [".pi/prompts/supervise.md"],
+  "affected_files": [
+    ".pi/prompts/supervise.md",
+    ".pi/artifacts/pi-template/PLAN.md",
+    ".pi/artifacts/pi-template/DECISIONS.md",
+    ".pi/artifacts/pi-template/PROGRESS.md",
+    ".pi/artifacts/pi-template/TODO.md",
+    ".opencode/state.md"
+  ],
   "success_criteria": [
     {
-      "criterion": "/supervise creates 3 actors with exact fields",
+      "criterion": "/supervise creates 3 actors with exact canonical fields",
       "verify": "agents.actors() lists supervisor, security-advisor, architecture-advisor with extensions:false, model openai-codex/gpt-5.6-sol, thinking max, tools read/grep/find/ls"
     },
     {
-      "criterion": "Re-running /supervise reuses IDs (idempotent)",
+      "criterion": "Same-session rerun reuses IDs (idempotent)",
       "verify": "capture IDs from first run; second run returns identical IDs with no agents.create calls"
     },
     {
-      "criterion": "Resume restores actors with correct immutable fields",
-      "verify": "fresh session /supervise resolves or recreates with canonical fields; no immutable drift"
+      "criterion": "Exact-session restart restores same IDs/createdAt; new session uses distinct registry",
+      "verify": "pi --session-id milestone2-a restart restores same IDs; pi --session-id milestone2-b gets distinct registry (observed evidence, not a formal uniqueness guarantee)"
     },
     {
-      "criterion": "Second concurrent session gets distinct IDs",
-      "verify": "two sessions' agents.actors() lists are disjoint by ID"
+      "criterion": "Observable immutable drift blocks (no removal, no recreation)",
+      "verify": "pre-create security-advisor with wrong immutable responseMode; /supervise returns BLOCKED, unchanged existing actor, no other actors created"
+    },
+    {
+      "criterion": "Stopped actor blocks (no same-name create, no deletion)",
+      "verify": "stop one actor via /fabric stop <id>; /supervise returns BLOCKED, unchanged IDs and actor directory, no setters, no create calls"
     },
     {
       "criterion": "Supervisor instructions contain no self-stop directive",
-      "verify": "rg -n \"Goal verified complete|stop\" .pi/prompts/supervise.md returns no supervisor self-stop text"
+      "verify": "rg -n \"Goal verified complete\" .pi/prompts/supervise.md returns no matches in supervisor block; never self-stop is instruction policy + stopped-state detection (bounded, not host enforcement)"
     },
     {
-      "criterion": "Immutable-field mismatch fails closed (remove + recreate)",
-      "verify": "fault-inject wrong tools value; /supervise removes + recreates and reports remediation"
+      "criterion": "Mutable drift repaired in place, IDs preserved",
+      "verify": "fault-inject via supported provider setters (instructions/events/tools/delivery); rerun /supervise; same IDs with canonical fields restored"
+    },
+    {
+      "criterion": "Mid-reconcile failure returns BLOCKED with action trace + post-read",
+      "verify": "temporarily make a fresh actor's instructions empty; expect one success, one caught error, no third mutation, BLOCKED, post-read trace; restore and rerun"
     }
   ],
   "tasks": [
     {
-      "title": "Author custom supervisor instruction text",
+      "title": "Correct the source contracts",
       "category": "content",
-      "end_state": "Supervisor instructions written with no self-stop, no readiness certification, silent-by-default directive contract.",
+      "end_state": "spec.md, prd.json, and PLAN.md corrected to match installed source: mutable set (instructions/events/tools/delivery), immutable-block (not remove+recreate), no worktree for persistent actors, exact-session restore vs new-session registry, partial-failure trace.",
       "depends_on": [],
       "parallel": false,
       "conflicts_with": [],
-      "files": [".pi/prompts/supervise.md"],
-      "verification": [
-        "rg -n \"Goal verified complete\" .pi/prompts/supervise.md returns no matches in supervisor-instruction block",
-        "instruction block has action:\"silent\" default and forbids action:\"stop\""
-      ]
-    },
-    {
-      "title": "Author security + architecture advisor instruction text",
-      "category": "content",
-      "end_state": "Both advisor instructions written, mailbox-only, domain-scoped, no steer-direct, no stop.",
-      "depends_on": [],
-      "parallel": true,
-      "conflicts_with": [],
-      "files": [".pi/prompts/supervise.md"],
-      "verification": [
-        "both advisor blocks contain mailbox-only, stay silent outside your domain, never steer Main directly"
-      ]
-    },
-    {
-      "title": "Author the idempotent create-or-inspect algorithm",
-      "category": "logic",
-      "end_state": "Prompt contains resolve-by-name -> create-or-compare -> fail-closed-on-immutable-mismatch -> update-mutable flow using locally-resolved IDs only.",
-      "depends_on": [
-        "Author custom supervisor instruction text",
-        "Author security + architecture advisor instruction text"
+      "files": [
+        ".opencode/artifacts/milestone-2-supervise/spec.md",
+        ".opencode/artifacts/milestone-2-supervise/prd.json",
+        ".pi/artifacts/pi-template/PLAN.md"
       ],
-      "parallel": false,
-      "conflicts_with": [],
-      "files": [".pi/prompts/supervise.md"],
       "verification": [
-        "re-run /supervise reuses IDs (no duplicate agents.create)",
-        "fault-injected immutable mismatch -> remove + recreate reported, not silent reuse"
+        "jq -e '.tasks | length == 3' .opencode/artifacts/milestone-2-supervise/prd.json",
+        "no remove + recreate / worktree:false for council / events/tools as immutable in spec or PLAN"
       ]
     },
     {
-      "title": "Validate prompt frontmatter + auto-discovery",
-      "category": "verify",
-      "end_state": "File has description (+ optional argument-hint) frontmatter and no agent routing or pseudo-tool calls.",
-      "depends_on": ["Author the idempotent create-or-inspect algorithm"],
+      "title": "Implement /supervise + same-session reconciliation",
+      "category": "logic",
+      "end_state": "ADR-005 corrected (exact-session restore vs new-session registry; session scope does not isolate name-addressed mesh); .pi/prompts/supervise.md created with canonical actor definitions and serial reconcile program (block on immutable/stopped/busy drift, unconditional instruction reapply, tools/delivery via tools.call, no agents.remove); static GREEN checks pass; same-session runtime test reuses IDs and repairs mutable drift.",
+      "depends_on": ["Correct the source contracts"],
       "parallel": false,
       "conflicts_with": [],
-      "files": [".pi/prompts/supervise.md"],
+      "files": [
+        ".pi/artifacts/pi-template/DECISIONS.md",
+        ".pi/prompts/supervise.md",
+        ".pi/artifacts/pi-template/PROGRESS.md"
+      ],
       "verification": [
-        "head -5 .pi/prompts/supervise.md shows description: frontmatter",
-        "rg -n \"agent:|task\\(|question\\(\" .pi/prompts/supervise.md returns no routing/pseudo-tool-call lines"
+        "frontmatter has only description; no agent:/task(/question( routing",
+        "no agents.remove(, no worktree:, no direct agents.setTools(/setDeliveryPolicy( (must use tools.call)",
+        "same-session rerun reuses IDs; mutable drift repaired in place; partial failure returns BLOCKED + trace"
+      ],
+      "checkpoint": "human-action: /trust the project root, restart Pi, run /supervise in pi --session-id milestone2-a"
+    },
+    {
+      "title": "Restart, isolation, blocking, completion evidence",
+      "category": "verify",
+      "end_state": "Exact-session restart restores same IDs; separate concurrent session uses distinct registry; immutable drift and stopped actor both block with zero mutation; adversarial self-stop probe leaves actor active; lifecycle evidence and final freshness tuple recorded.",
+      "depends_on": ["Implement /supervise + same-session reconciliation"],
+      "parallel": false,
+      "conflicts_with": [],
+      "files": [
+        ".pi/artifacts/pi-template/PROGRESS.md",
+        ".pi/artifacts/pi-template/TODO.md",
+        ".opencode/state.md"
+      ],
+      "verification": [
+        "restart restores same IDs; separate session uses distinct registry",
+        "immutable drift and stopped actor both block with zero mutation",
+        "final freshness tuple captured; explicit-path staging; normal per-artifact pushes"
       ]
     }
   ],
-  "open_questions": [
-    "Should /supervise accept an inspect-only mode (no create)?",
-    "Confirm worktree:false acceptable for read-only persistent actors (assumed yes)",
-    "Exact advisor instruction wording finalized at ship time (draft in spec)"
-  ]
+  "open_questions": []
 }
