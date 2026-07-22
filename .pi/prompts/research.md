@@ -28,11 +28,32 @@ Accepted pattern:
 ^(?=.{1,64}$)[a-z0-9]+(?:-[a-z0-9]+)*$
 ```
 
-If the slug is invalid, stop and report the exact failure. Do not access `.pi/artifacts/` or `.opencode/artifacts/MEMORY.md` until the slug passes validation.
+If the slug is invalid, stop and report the exact failure. Do not access `.pi/artifacts/` or `.pi/memory.md` until the slug passes validation.
+
+## Validate Ready Packet
+
+After the slug passes validation and before any memory, namespace, or lifecycle access, verify the project is fully initialized. The Pi-native init packet is six files:
+
+- `AGENTS.md`
+- `.pi/tech-stack.md`
+- `.pi/ROADMAP.md`
+- `.pi/state.md`
+- `.pi/user.md`
+- `.pi/memory.md`
+
+Read `.pi/state.md` frontmatter and verify all of the following:
+
+1. All six packet files exist.
+2. `schema_version: 1` is present.
+3. `initialization_status: ready` (not `partial`).
+4. `context_reload_required: false` (if `true`, `AGENTS.md` changed since the last init — instruct the operator to run `/reload` then `/init --refresh` before proceeding).
+5. `agents_boilerplate_sha256` matches the SHA-256 of the managed AGENTS boilerplate region (between the `<!-- pi:init:boilerplate:start -->` and `<!-- pi:init:boilerplate:end -->` markers).
+
+If any check fails, **stop**. Do not access memory or namespace. Report which packet gate failed and instruct the operator to run `/init` (fresh) or `/init --refresh` (established). A `partial` or reload-required state means the packet is not ready and `/research` must fail closed.
 
 **Namespace guard.** `/research` may run before `/create` (research is sideways). Classify the namespace:
 - **Established** (both `PLAN.md` and `TODO.md` exist in `.pi/artifacts/<slug>/`): research may write `.pi/artifacts/<slug>/PROGRESS.md`.
-- **Missing or partial** (neither, or only one, exists): research runs read-only and returns findings in the response only. Do not write `PROGRESS.md`, do not write `.opencode/artifacts/MEMORY.md`, and do not `mkdir`. `/research` never creates a namespace — `/create` is the sole namespace creator.
+- **Missing or partial** (neither, or only one, exists): research runs read-only and returns findings in the response only. Do not write `PROGRESS.md`, do not write `.pi/memory.md`, and do not `mkdir`. `/research` never creates a namespace — `/create` is the sole namespace creator.
 
 ## Complexity Detection
 
@@ -106,10 +127,10 @@ Read `.pi/artifacts/<slug>/PLAN.md` if it exists and extract questions that need
 
 #### Context Search (Required)
 
-Search `.opencode/artifacts/MEMORY.md` for existing findings. Use them to: skip already-answered questions, narrow scope to gaps only, avoid contradicting prior decisions without justification.
+Search `.pi/memory.md` for existing findings. Use them to: skip already-answered questions, narrow scope to gaps only, avoid contradicting prior decisions without justification.
 
 ```bash
-rg -n "topic" .opencode/artifacts/MEMORY.md
+rg -n "topic" .pi/memory.md
 ```
 
 ### Phase 2: Research

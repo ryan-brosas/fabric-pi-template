@@ -25,7 +25,28 @@ Accepted pattern:
 ^(?=.{1,64}$)[a-z0-9]+(?:-[a-z0-9]+)*$
 ```
 
-If the slug is invalid, stop and report the exact failure. Do not access `.pi/artifacts/` or `.opencode/artifacts/MEMORY.md` until the slug passes validation. `/plan` never creates a namespace — `/create` is the sole namespace creator.
+If the slug is invalid, stop and report the exact failure. Do not access `.pi/artifacts/` or `.pi/memory.md` until the slug passes validation. `/plan` never creates a namespace — `/create` is the sole namespace creator.
+
+## Validate Ready Packet
+
+After the slug passes validation and before any memory, namespace, or lifecycle access, verify the project is fully initialized. The Pi-native init packet is six files:
+
+- `AGENTS.md`
+- `.pi/tech-stack.md`
+- `.pi/ROADMAP.md`
+- `.pi/state.md`
+- `.pi/user.md`
+- `.pi/memory.md`
+
+Read `.pi/state.md` frontmatter and verify all of the following:
+
+1. All six packet files exist.
+2. `schema_version: 1` is present.
+3. `initialization_status: ready` (not `partial`).
+4. `context_reload_required: false` (if `true`, `AGENTS.md` changed since the last init — instruct the operator to run `/reload` then `/init --refresh` before proceeding).
+5. `agents_boilerplate_sha256` matches the SHA-256 of the managed AGENTS boilerplate region (between the `<!-- pi:init:boilerplate:start -->` and `<!-- pi:init:boilerplate:end -->` markers).
+
+If any check fails, **stop**. Do not access memory or namespace. Report which packet gate failed and instruct the operator to run `/init` (fresh) or `/init --refresh` (established). A `partial` or reload-required state means the packet is not ready and `/plan` must fail closed.
 
 ## Before You Plan
 
@@ -43,10 +64,10 @@ Before touching the PRD or planning anything, load what the codebase already kno
 
 ### Step 1: Search project context
 
-Search `.opencode/artifacts/MEMORY.md` for: bugfixes, existing plans, prior decisions.
+Search `.pi/memory.md` for: bugfixes, existing plans, prior decisions.
 
 ```bash
-rg -n "topic" .opencode/artifacts/MEMORY.md
+rg -n "topic" .pi/memory.md
 ```
 
 If relevant context found: incorporate it directly into the plan. Don't re-solve solved problems.
