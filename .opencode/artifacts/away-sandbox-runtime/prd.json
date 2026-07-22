@@ -75,7 +75,12 @@
       ".pi/prompts/research.md",
       ".pi/prompts/ship.md",
       ".pi/prompts/supervise.md",
-      ".pi/prompts/verify.md"
+      ".pi/prompts/verify.md",
+      ".pi/ROADMAP.md",
+      ".pi/user.md",
+      ".pi/tech-stack.md",
+      ".pi/state.md",
+      ".pi/memory.md"
     ],
     "verified_paths": [
       ".pi/away-runtime/bootstrap.ts",
@@ -130,6 +135,11 @@
       ".pi/artifacts/pi-template/DECISIONS.md",
       ".pi/artifacts/pi-template/PLAN.md",
       "AGENTS.md",
+      ".pi/ROADMAP.md",
+      ".pi/user.md",
+      ".pi/tech-stack.md",
+      ".pi/state.md",
+      ".pi/memory.md",
       ".opencode/command/"
     ],
     "shared_serial_ownership": [
@@ -166,6 +176,10 @@
     },
     {
       "criterion": "The immutable startup-closure hash detects drift and pauses before launch and before result acceptance",
+      "verify": "node --experimental-strip-types --test .pi/away-runtime/confinement.test.ts"
+    },
+    {
+      "criterion": "Closure membership is Pi-native (no .opencode closure member; a copied .pi runtime works with .opencode absent) and the manifest protected_paths cover the init packet (managed AGENTS.md region + five .pi context files) from autonomous mutation",
       "verify": "node --experimental-strip-types --test .pi/away-runtime/confinement.test.ts"
     },
     {
@@ -363,7 +377,7 @@
       "child_plan": "D",
       "title": "Synchronize development documentation",
       "category": "contract",
-      "end_state": "Dev-doc sync only (the runtime operates if .opencode is absent): document ADR-014, the tested node-process wrapper boundary, the strict failure conditions, and the ADR-015 dependency in tech-stack.md, roadmap.md, state.md.",
+      "end_state": "Dev-doc sync only (the runtime operates if .opencode is absent; canonical context lives under .pi per ADR-016): document ADR-014, the tested node-process wrapper boundary, the strict failure conditions, and the ADR-015 dependency in tech-stack.md, roadmap.md, state.md. The manifest protected_paths cover the init packet (managed AGENTS.md region + five .pi context files).",
       "depends_on": ["D1"],
       "files": [".opencode/tech-stack.md", ".opencode/roadmap.md", ".opencode/state.md"],
       "verify": "rg -n 'ADR-014|away sandbox runtime|away-runtime' .opencode/tech-stack.md .opencode/roadmap.md .opencode/state.md"

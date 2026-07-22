@@ -120,7 +120,8 @@ The runtime is hash-pinned: the immutable startup closure is hashed at startup; 
 
 #### Protected closure
 
-- **WHEN** the runtime starts **THEN** it hashes the immutable startup closure: wrapper, inner guest, lane extension, config, pinned Pi/Fabric/provider/Node/bwrap sources, and command catalog. Mutable session/Fabric state is kept outside the immutable closure.
+- **WHEN** the runtime starts **THEN** it hashes the immutable startup closure: wrapper, inner guest, lane extension, config, pinned Pi/Fabric/provider/Node/bwrap sources, and command catalog. Mutable session/Fabric state is kept outside the immutable closure. The closure inputs contain no `.opencode` path (verified by `confinement.test.ts`), so a copied `.pi` runtime operates with `.opencode` absent.
+- **WHEN** the manifest `protected_paths` are evaluated **THEN** they include the project initialization packet (managed `AGENTS.md` boilerplate region + the five `.pi/{ROADMAP,user,tech-stack,state,memory}.md` context files), protecting them from autonomous mutation.
 - **WHEN** the closure hash differs at restart, launch, or before result acceptance **THEN** the run pauses; it never proceeds on a drifted runtime.
 
 #### Cancellation and attestation
@@ -150,6 +151,8 @@ Each invariant is asserted once (no broad alternation). Protected paths are comp
 - [ ] Candidate verification cannot mutate its evidence tree or reach the network or credentials; it uses an immutable exact-OID evidence tree, quota-bounded writable clone, read-only deps/catalog, broker-controlled exact argv.
   - Verify: `node --experimental-strip-types --test .pi/away-runtime/verifier.test.ts` and `! rg -n 'reset --hard|clean -fd|rm -rf|force.push|branch -D' .pi/away-runtime/verifier.ts`
 - [ ] The immutable startup-closure hash detects drift and pauses before launch and before result acceptance.
+  - Verify: `node --experimental-strip-types --test .pi/away-runtime/confinement.test.ts`
+- [ ] The closure contains no `.opencode` path (a copied `.pi` runtime works with `.opencode` absent), and the manifest `protected_paths` cover the init packet (managed `AGENTS.md` region + five `.pi` context files) from autonomous mutation.
   - Verify: `node --experimental-strip-types --test .pi/away-runtime/confinement.test.ts`
 - [ ] A worker with no network grant cannot open a socket.
   - Verify: `node --experimental-strip-types --test .pi/away-runtime/executor-sandbox.test.ts`

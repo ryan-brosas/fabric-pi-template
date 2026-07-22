@@ -381,7 +381,7 @@ The real ledger/Git/GitHub full loop remains ADR-015 work.
 - `.opencode/roadmap.md`
 - `.opencode/state.md`
 
-Record ADR-014, the tested node-process wrapper boundary, strict failure conditions, and ADR-015 dependency. These are development summaries only; `.pi` remains independently usable.
+Record ADR-014, the tested node-process wrapper boundary, strict failure conditions, and ADR-015 dependency. These are development summaries only; `.pi` remains independently usable. The canonical project context lives under `.pi` (ADR-016); the manifest `protected_paths` cover the init packet (managed `AGENTS.md` region + the five `.pi/{ROADMAP,user,tech-stack,state,memory}.md` context files) from autonomous mutation.
 
 ## D3 — Final no-write acceptance
 
@@ -399,7 +399,7 @@ Also require:
 
 - live Makora sandbox smoke with no inner credential/network access;
 - exact wrapper/Node/bwrap/Fabric version hashes;
-- all protected paths equal the P0.2 baseline;
+- all baseline-listed protected paths equal the P0.2 baseline (the init packet — managed `AGENTS.md` region + five `.pi` context files — is protected at runtime via the manifest `protected_paths`, added by pi-native-init P7.1);
 - normal `.pi/fabric.json` and `.pi/settings.json` unchanged;
 - ADR-011/012/013 markers preserved;
 - before/after repository and ref fingerprints identical;
