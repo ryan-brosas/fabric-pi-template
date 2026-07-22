@@ -50,6 +50,10 @@ Each milestone is independently verifiable. Authority/topology decisions are rec
    re-point to `.pi/artifacts/<slug>/`. Self-contained, no agent routing or pseudo-tool
    calls. The five lifecycle commands (`create`, `plan`, `ship`, `verify`, `research`)
    take an explicit validated `<slug>`; the four operational commands keep natural args.
+   - **Implementation status:** done (static) — all nine prompts ported (commits
+     `4afa6da`–`9877cf2` + fix `d7d5237`); static suite PASS (frontmatter 9/9, forbidden
+     9/9 CLEAN, source immutable, slug presence 5/5). Runtime smoke + final no-write
+     verification pending `/trust` + restart.
    - Acceptance: two concurrent sessions on different slugs stay disjoint; `/ship` cannot
      declare completion; `/verify` declares verified status externally only.
 4. **Canonical artifacts** — `.pi/artifacts/<slug>/{PLAN,TODO,PROGRESS,DECISIONS}.md` as

@@ -1,6 +1,7 @@
 # Milestone 3 — Lifecycle Prompts
 
-> **Status:** proposed · **ID:** ms3-001 · **Created:** 2026-07-22
+> **Status:** implementation-done, verification-pending · **ID:** ms3-001 · **Created:** 2026-07-22
+> **Implementation:** all nine prompts ported (commits `4afa6da`–`9877cf2` + fix `d7d5237`); static suite PASS; runtime smoke + final no-write verification pending `/trust` + restart.
 > **Roadmap item:** `3. Lifecycle prompts` (`.opencode/roadmap.md:46-50`), expanded per operator to **all** commands in `.opencode/command/`
 > **Approach (operator-approved):** take **all of** each `.opencode/command/*.md` body into `.pi/prompts/*.md`, stripping **only** OpenCode-only syntax and re-pointing artifact paths to the Pi layer. These commands ARE the lifecycle — keep all content that can run. Do not thin-rewrite; strip is surgical removal of OpenCode-only constructs only.
 
