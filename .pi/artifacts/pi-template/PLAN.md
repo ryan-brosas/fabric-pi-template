@@ -157,6 +157,32 @@ Pi auto-discovers `.pi/prompts/*.md` as slash commands (non-recursive; frontmatt
 no `agent:` routing, no pseudo-tool calls, no command chaining (Pi templates expand Markdown
 only).
 
+### Namespace ownership (fail-closed)
+
+`/create` is the sole slug-namespace creator. An established namespace = both `PLAN.md` AND
+`TODO.md` exist. `/create` validates the slug before any slug-derived access, `mkdir -p
+.pi/artifacts/<slug>/`, and writes both sentinel files, refusing an existing namespace.
+Downstream lifecycle commands (`/plan`, `/ship`, `/verify`) validate the slug, then **fail
+closed** if the namespace is missing or partial — they never `mkdir`, adopt, overwrite, or
+delete. Pre-`/create` `/research` runs read-only and returns findings in the response only
+(no `PROGRESS.md` or memory write). An empty or partial namespace blocks for operator
+recovery — no silent adoption, overwrite, or deletion.
+
+### Two surfaces
+
+The Pi runtime layer carries two distinct writable surfaces (ADR-007):
+- **Lifecycle state** — `.pi/artifacts/<slug>/{PLAN,TODO,PROGRESS,DECISIONS}.md`, the sole
+  per-slug lifecycle record, confined to the slug namespace. Only `/verify` declares terminal
+  verified status (externally).
+- **Project memory** — `.opencode/artifacts/MEMORY.md`, an **optional** separate writable
+  surface for durable cross-slug knowledge, distinct from lifecycle state. Missing memory is
+  treated as absent (non-blocking); prompts must not auto-create the OpenCode scaffold. Only
+  `/init` may establish the OpenCode context surface; `/verify` may append one distilled
+  non-sensitive finding pre-fingerprint. Lifecycle prompts may read project memory for context
+  when it exists; other writes are explicit "record durable finding" steps, never lifecycle
+  state. Memory content is distilled, non-sensitive knowledge only — never secrets,
+  credentials, PII, raw tool output, per-slug status, or final verification results.
+
 ## Verification (Freshness)
 
 A PASS is bound to the bytes tested. `/verify <slug>` captures a fingerprint tuple:

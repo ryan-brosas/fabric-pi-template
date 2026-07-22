@@ -131,3 +131,45 @@ record from its own digest — fragile, requires a special-case normalization, a
 later edit still invalidates it. (b) A separate evidence file excluded from the digest —
 adds an artifact outside the canonical four and the same exclusion machinery. Chosen
 external declaration as the only self-consistent option.
+
+## ADR-007: Two writable surfaces — lifecycle state vs project memory
+**Status:** accepted
+**Date:** 2026-07-22
+**Context:** The roadmap says `.pi/artifacts/<slug>/{PLAN,TODO,PROGRESS,DECISIONS}.md` is the
+"sole lifecycle record," but several ported lifecycle prompts also read or write
+`.opencode/artifacts/MEMORY.md` (project memory). This is intentional — MEMORY.md carries
+durable cross-slug knowledge (architecture, decisions, patterns, gotchas) distinct from
+per-slug lifecycle state — but the separation was undocumented, so a future reader could not
+tell whether a MEMORY.md reference was a confinement violation or intended design. The
+template is adoptable by copying `.pi/`, but MEMORY.md lives outside `.pi/`, so a `.pi`-only
+adopter could fail on a missing `.opencode` tree. Separately, namespace ownership was
+underspecified: `/plan`/`/ship`/`/verify` only required `PLAN.md`, and `/research` wrote
+`PROGRESS.md` with no establishment guard, so a partial directory or a pre-`/create`
+research write could be mistaken for a valid namespace or permanently block `/create`.
+**Decision:** Formalize two writable surfaces. (1) **Lifecycle state** is confined to the
+four canonical slug files. (2) **Project memory** (`.opencode/artifacts/MEMORY.md`) is an
+**optional** separate surface for durable cross-slug knowledge; missing memory is treated
+as absent and non-blocking; ordinary prompts must not auto-create the OpenCode scaffold;
+only `/init` may establish the OpenCode context surface; `/verify` may append one distilled
+non-sensitive finding pre-fingerprint; lifecycle prompts may read memory for context when it
+exists, and other memory writes are explicit "record durable finding" steps, never lifecycle
+state. Memory content is distilled, non-sensitive knowledge only — never secrets,
+credentials, PII, raw tool output, per-slug status, or final verification results.
+Alongside, `/create` is the sole namespace creator; an established namespace requires both
+`PLAN.md` and `TODO.md`; downstream lifecycle commands fail closed on a missing/partial
+namespace (no adoption, overwrite, or deletion); pre-`/create` `/research` is response-only.
+**Consequences:** Easier: the distinction is explicit and auditable; a `.pi`-only adopter is
+not forced to carry `.opencode`; lifecycle state stays slug-confined and cannot leak cross
+slug; the no-post-fingerprint-write rule (ADR-006) bounds the one `/verify` memory append.
+Harder: two surfaces to maintain; project memory is tracked but lives outside the portable
+`.pi/` tree, so adopters who want durable memory must copy or recreate `.opencode/artifacts/`
+themselves; the privacy rule (distilled, non-sensitive only) is prompt-enforced, not
+host-enforced.
+**Alternatives:** (a) Fold memory into the lifecycle files (e.g. a per-slug `MEMORY.md`) —
+loses cross-slug durability and duplicates knowledge per slug. (b) Treat every MEMORY.md
+reference as a confinement violation and forbid lifecycle prompts from touching it — loses
+the durable cross-slug context that justified memory in the first place. (c) Auto-create the
+OpenCode scaffold when memory is missing — violates the "no `.pi`-only adopter is forced to
+carry `.opencode`" portability goal and the lazy-creation discipline. Chosen the optional
+two-surface design with `/init` as the sole scaffold establisher and `/verify` as the sole
+pre-fingerprint appender.
