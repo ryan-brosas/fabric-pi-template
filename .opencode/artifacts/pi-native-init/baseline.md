@@ -1,4 +1,4 @@
-# pi-native-init — P1.1 Baseline (feature-scoped)
+# pi-native-init — P1 Baseline (feature-scoped, frozen at P1.2)
 
 > **Baseline mode:** feature-scoped (operator Option B: reserve pi-native-init; away-sandbox-runtime paused at B3; C1-D3 deferred, reconcile-on-resume). Absolute byte-equality of protected files against this baseline is NOT achievable while concurrent agents continuously churn shared files (same reality already resolved as "D3 = feature-scoped" in `.opencode/artifacts/away-sandbox-runtime/progress.md`). The binding check is **feature-scoped**: pi-native-init's own commits must not touch protected paths; the hashes below are recorded for reference and drift detection, not absolute-equality enforcement.
 
@@ -57,3 +57,7 @@ fb23a75cce934aeb71a442fdae4303223409fd49cd926f0c6f28af9dd9a21070  .opencode/comm
 ## Feature-scoped verification rule
 
 pi-native-init's commits (P1.1 through P8.3) must not modify any `.opencode/command/*.md` (the source commands are frozen) and must not touch protected paths except through the explicitly owned shared-serial-ownership entries (`AGENTS.md`, `DECISIONS.md`, `PLAN.md` owned by P2.1/P7.3; `structural-check.sh` owned by P1.2/P3.1/P4.1/P5.1/P6.3/P8.3; `.pi/state.md` owned by P2.3/P8.3). Drift in hashes above caused by OTHER concurrent agents is not a pi-native-init defect; drift caused by pi-native-init's own commits touching a non-owned protected path IS a defect.
+
+## P1.2 Freeze Stamp
+
+Frozen by P1.2. HEAD `e15881f` and the boilerplate fixture SHA-256 `dcaf935a...` above are the authoritative feature-scoped reference for drift detection. This baseline is not re-captured by later tasks. Protected-file edits owned by pi-native-init through its serial-ownership entries are expected drift, not defects: `AGENTS.md` at P2.1/P7.3 (managed boilerplate region pinned to the fixture), `DECISIONS.md`/`PLAN.md` at P2.1/P7.3 (ADR-016 + canonical contract), `structural-check.sh` at P3.1/P4.1/P5.1/P6.3/P8.3 (appended assertions), `.pi/state.md` at P8.3 (final `ready` promotion). Absolute byte-equality of protected files is not enforced under concurrent churn (see baseline mode note above); the binding check is feature-scoped: pi-native-init's own commits touch only owned paths.

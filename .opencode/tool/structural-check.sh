@@ -19,6 +19,25 @@ pass() {
 	echo "  PASS: $1"
 }
 
+# Fail-closed negative-match helper. A "negative check" asserts that a pattern
+# is ABSENT. rg exit 1 = pattern absent = clean (pass); exit 0 = pattern present
+# = forbidden (fail); exit >=2 = tool error (fail). Never use `! rg` or
+# `rg ... || [ $? -eq 1 ]` (both wrongly pass on the forbidden exit-0 case).
+rg_neg() {
+	local pattern="$1"
+	local path="$2"
+	local label="${3:-negative check}"
+	local rc=0
+	rg -n "$pattern" "$path" >/dev/null 2>&1 || rc=$?
+	if [ "$rc" -eq 0 ]; then
+		fail "$label: forbidden match found"
+	elif [ "$rc" -eq 1 ]; then
+		pass "$label: clean"
+	else
+		fail "$label: rg error (exit $rc)"
+	fi
+}
+
 # --- 1. Plugin isolation: no cross-plugin imports ---
 echo "[Check 1/6] Plugin isolation — no cross-plugin imports..."
 
@@ -118,13 +137,12 @@ pass "Filename convention OK"
 # --- 6. Remediator: if this check fails, instructions are below ---
 echo "[Check 6/6] Remediation readiness..."
 
-# Ensure fallow is available
-if command -v npx &>/dev/null; then
-	if npx fallow --version &>/dev/null; then
-		pass "Fallow available for structural analysis"
-	else
-		echo "  INFO: Fallow not installed — run 'npm install -g fallow' or 'npx fallow'"
-	fi
+# Ensure fallow is available (offline: probe an installed binary only; never
+# install, cache, or contact a registry from this checker).
+if command -v fallow &>/dev/null; then
+	pass "Fallow available for structural analysis"
+else
+	echo "  INFO: Fallow not installed — install it offline (e.g. 'npm install -g fallow') to enable structural analysis; this check is skipped, not failed"
 fi
 
 echo ""
