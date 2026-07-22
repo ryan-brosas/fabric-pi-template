@@ -1,0 +1,72 @@
+---
+description: Run garbage collection — Fallow analysis, quality grading, and cleanup recommendations
+---
+
+# Garbage Collection
+
+Run structural analysis, update quality grades, and recommend cleanup.
+
+## Load Skills
+
+Load the `fallow` skill before running the scan.
+
+Load `verification-before-completion` before recording grades.
+
+## Phase 1: Run Fallow Scan
+
+If `fallow` is installed, run:
+
+```bash
+npx fallow --format json --quiet
+```
+
+If `fallow` is not installed or the command fails, report this as a PARTIAL result and skip to Phase 5. Never auto-install packages or make network calls without operator approval.
+
+Extract:
+- Dead code (unused exports, files, dependencies)
+- Code duplication (clone groups)
+- Complexity hotspots (cyclomatic complexity)
+- Architecture boundary violations
+
+## Phase 2: Read Existing Quality Grades
+
+If a prior quality record exists (in `DECISIONS.md` under the active slug, or in project memory), read it and compare with current Fallow findings. If no prior record exists, treat all grades as fresh.
+
+## Phase 3: Grade Each Domain
+
+If a structural check is available for this project, run it. If no structural check exists, report that structural verification was skipped.
+
+Grade each domain:
+
+| Domain | Source | Grade |
+|---|---|---|
+| Plugins | Plugin source files | A–D |
+| Commands | Command/prompt files | A–D |
+| Skills | Skill directory | A–D |
+| Docs | Memory and artifacts | A–D |
+
+Grades are emitted in the response. If a grade changed materially since the last cycle, record the change and its rationale in `DECISIONS.md` under the active slug. Do not invent a separate quality file outside the canonical artifact set.
+
+## Phase 4: Recommend Cleanup (if findings warrant)
+
+For each P0/P1 finding from Fallow, recommend a specific fix with the exact file and line references. Do not automatically dispatch fix agents or open PRs. Present the recommendations and let the operator decide whether to proceed with `/fix` or `/create` for each finding.
+
+If the operator approves a fix, implement it directly and run verification after. Never auto-dispatch parallel workers for cleanup without explicit operator approval.
+
+## Phase 5: Report
+
+Output:
+
+1. **Quality Grades:** Per-domain status
+2. **Issues Found:** Count by severity
+3. **Cleanup Recommendations:** Listed (not auto-opened)
+4. **Tooling Status:** Which tools ran, which were skipped or unavailable
+5. **Recommendations:** Suggested improvements for next cycle
+
+## Related Commands
+
+| Need | Command |
+|---|---|
+| Full verification | `/verify` |
+| Architecture audit | `/audit` |
+| Fix a finding | `/fix` |
