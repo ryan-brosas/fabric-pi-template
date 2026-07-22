@@ -73,6 +73,8 @@ If complexity is detected as complex, perform multi-angle analysis directly:
 
 **Announce:** "This is complex research requiring multi-angle analysis. Delegating parallel read-only scouts with cross-check."
 
+After synthesis, run `### Phase 5: Supervisor Boundary Handshake` (below) before `## Output` — both execution branches route through the same handshake.
+
 ## Direct Execution (Simple Research)
 
 If complexity is simple, execute directly:
@@ -160,7 +162,7 @@ Derive `candidateNextPhases` and `namespaceState` from the slug's namespace stat
 
 Send a blocking first round via `agents.ask({id, message, data})` with the `proactive-supervisor/v1` protocol, `kind:"phase-complete"`, a unique `requestId`, the `<slug>`, `completedPhase:"research"`, the derived candidates and namespace state, artifact paths, and an explicit non-secret path allowlist. The supervisor responds with `action:"silent"` and `data` of kind `no-advice`, `direction-steer`, or `research-request`.
 
-If the supervisor requests research, run at most ONE read-only gather via `agents.run` on `openai-codex/gpt-5.4-mini` (thinking max, `extensions:false`, `recursive:false`, `tools:["read","grep","find","ls"]`, `worktree:false`; encode scout/explore in the task; no role field), synthesize a summary at most 8 KiB (non-secret, with source paths), and send a blocking second round `agents.ask({id, message, data})` with `kind:"research-result"`, the same `requestId`, status, summary, and sources. The supervisor responds with `action:"silent"` and final `direction-steer` or `no-advice`.
+If the supervisor requests research, run at most ONE read-only gather via `agents.run({task, name:"supervisor-research-research", runner:"pi", model:"openai-codex/gpt-5.4-mini", thinking:"max", extensions:false, recursive:false, tools:["read","grep","find","ls"], worktree:false})` (encode scout/explore in the task; no role field), synthesize a summary at most 8 KiB (non-secret, with source paths), and send a blocking second round `agents.ask({id, message, data})` with `protocol:"proactive-supervisor/v1"`, `kind:"research-result"`, the same `requestId`, status, summary, and sources. The supervisor responds with `action:"silent"` and final `direction-steer` or `no-advice`.
 
 The blocking wait orders transport only — the actor has no independent blocking authority. Main independently validates every steer (Worker Distrust) and may proceed past it. Independently validated Critical/High defects and binding-authority (ADR/AGENTS) violations retain their existing blocking semantics under Main. Unknown response kind or `requestId` mismatch: ignore, warn, continue.
 

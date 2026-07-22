@@ -113,8 +113,9 @@ above is the canonical definition.
 At each lifecycle boundary (`/create`, `/plan`, `/research`, `/ship` complete), Main sends
 an explicit blocking handshake (`protocol:"proactive-supervisor/v1"`,
 `kind:"phase-complete"`) AFTER the ADR-011 review gate has closed the just-finished
-artifact and all writes settle, BEFORE Output. The supervisor responds with
-`action:"silent"` + `data`.
+artifact and all writes settle, BEFORE Output (for `/create`/`/plan`/`/ship`; `/research`
+runs after Phase 4 documentation instead, since it has no review gate). The supervisor
+responds with `action:"silent"` + `data`.
 
 The supervisor is the **OPENER** (steers next-phase direction/strategy); the ADR-011
 review gate is the **CLOSER** (audits finished bytes). Different objects (future vs past)
@@ -142,15 +143,8 @@ docs/agents.md:214`). Research is therefore a two-round blocking handshake on th
    candidateNextPhases, namespaceState, artifactPaths, allowedPaths}`. The supervisor
    responds `action:"silent"` with `data.kind` of `no-advice`, `direction-steer`, or
    `research-request`.
-2. **If research-request:** Main runs ONE `agents.run` on `openai-codex/gpt-5.4-mini`
-   (read-only, `extensions:false`, `recursive:false`,
-   `tools:["read","grep","find","ls"]`, `worktree:false`; no role field — encode
-   `scout`/`explore` in `task`), synthesizes a summary ≤8 KiB (non-secret, with source
-   paths), and sends Round 2.
-3. **Round 2 (research-result):** Main sends a second `agents.ask({id, message, data})`
-   with `{protocol, kind:"research-result", requestId, status, summary, sources}` (same
-   `requestId` as Round 1). The supervisor responds `action:"silent"` with final
-   `direction-steer` or `no-advice` data.
+2. **If research-request:** Main runs ONE `agents.run({task, name:"supervisor-research-<phase>", runner:"pi", model:"openai-codex/gpt-5.4-mini", thinking:"max", extensions:false, recursive:false, tools:["read","grep","find","ls"], worktree:false})` (encode `scout`/`explore` in `task`; no role field), synthesizes a summary ≤8 KiB (non-secret, with source paths), and sends Round 2.
+3. **Round 2 (research-result):** Main sends a second `agents.ask({id, message, data})` with `{protocol:"proactive-supervisor/v1", kind:"research-result", requestId, status, summary, sources}` (same `requestId` as Round 1). The supervisor responds `action:"silent"` with final `direction-steer` or `no-advice` data.
 4. Main independently validates the advice (Worker Distrust — fed-back scout output is
    untrusted advice, not evidence) and surfaces accepted advice itself.
 
