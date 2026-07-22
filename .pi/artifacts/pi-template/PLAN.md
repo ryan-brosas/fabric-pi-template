@@ -15,7 +15,7 @@ worker per session, and a Markdown lifecycle — adoptable by copying `.pi/`.
 - No `/team`, lifecycle kernel, schemas, typed handoffs, candidate manifests, receipts, or
   CAS board.
 - No `.pi/config.json` (no consumer exists).
-- No mandatory council per task; no mandatory research/review every cycle.
+- No mandatory council per task; no fixed review matrix — evidence-based boundary review is tier-gated (ADR-011).
 - No automatic commits/push/publication; no worker commits.
 - No host-enforced single-writer lease (v1 is operator/prompt policy).
 
@@ -173,6 +173,73 @@ await agents.handoff({
 **Selective routing:** prewalk handoff for novel/multi-file M–L implementation; direct Makora
 `agents.run` (the block above) for S/single-file mechanical work. Main picks the lane by task
 complexity; both lanes serialize on the same one-writable-run ceiling.
+
+### Lifecycle Review Gates (ADR-011)
+
+Tier-gated read-only `review` child gates at all four lifecycle boundaries. No new lane, no new
+model tier, no capability widening — the existing GPT read-only lane (`extensions:false`,
+`read,grep,find,ls`, non-recursive, no `bash`) is reused. This supersedes ADR-008's
+no-consultation clause only; the single supervisor, no mailbox panel, and no standalone `/gate`
+remain.
+
+| Boundary | Gate | Phase | Blocking |
+|---|---|---|---|
+| `/create` | Spec review (final validated PLAN+TODO) | Phase 10A | L2-3 only |
+| `/plan` | Planning review (final compliant plan) | Phase 8A | L2-3 only; L0-1 advisory |
+| `/ship` | Diff review (settled candidate bytes) | Tier-Gated Diff Review | L2-3 only |
+| `/verify` | Evidence review (commands + coherence + freshness) | Phase 5A | always advisory |
+
+**Effective Review Level** = `max(stored Discovery Level, stored Effective Review Level, current
+risk floor)`. `/create` persists both numeric levels because `/plan` is optional; missing data
+never defaults to L0. Risk floor >= L2 for authentication, secrets/PII, destructive, schema,
+concurrency, public APIs, new deps, cross-subsystem.
+
+**Dispatch (exact):**
+
+```typescript
+await agents.run({
+  task: "<phase-specific sanitized review packet>",
+  name: "lifecycle-review-<phase>",
+  runner: "pi",
+  model: "openai-codex/gpt-5.6-sol",
+  thinking: "max",
+  extensions: false,
+  recursive: false,
+  tools: ["read", "grep", "find", "ls"],
+  worktree: false,
+});
+```
+
+Only `status === "completed"` is a completed review. There is no role field on `agents.run`; the
+focused role is encoded in the task text.
+
+**Packet (in-memory, host-supplied):** the read-only child cannot run `git diff` or verification,
+so Main supplies an inline sanitized packet — diff, hashes, commands/exit codes/modes, versions,
+source excerpts, effective level, path allowlist excluding secrets. Do not silently truncate;
+split by disjoint subsystem when large.
+
+**Finding authority:** children return `[Critical|High|Medium|Low][category] path:line` +
+violated authority + concrete failure scenario and cost + smallest correction + confidence +
+evidence status only. A child never blocks by its own authority. Main reopens every cited
+`path:line` (Worker Distrust) and only Main's validated disposition blocks. A clean review never
+certifies readiness. Critical/High validated defects block at every level.
+
+**Objective Generated-Code Quality:** report only concrete costs — untraceable scope, duplicate
+implementations with divergence risk, dead/unwired code, speculative abstractions, behaviorless
+wrappers, placeholder/no-op behavior, invented/version-incompatible APIs, error swallowing,
+mock-only tests, unnecessary compatibility shims, large unrelated generated edits. "Looks
+AI-generated" alone is not a finding.
+
+**Language and Framework Overlay:** establish exact framework/version from the packet, then apply
+an authoritative rule (official material > maintained source > maintainer guidance > local skills >
+model memory — never). At L2-3, `source-check-required` stops acceptance until Main or a
+network-capable scout obtains authoritative evidence and the review is rerun. Do not invent a best
+practice from memory.
+
+**Freshness:** any candidate-byte change invalidates an L2-3 review and requires a new
+packet/review. Accepted findings trigger bounded convergence (max two review-integration rounds,
+then escalate). `/verify` runs 5A→5B→5C→5D (advisory review, candidate writes, fresh final no-write
+pass, transcript-only result); ADR-006 no-write preserved.
 
 ### Milestone 6 Observational Worker-Policy Smoke
 

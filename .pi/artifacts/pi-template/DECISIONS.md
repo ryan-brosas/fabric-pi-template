@@ -192,7 +192,7 @@ advisor mailboxes created by `/supervise` were genuinely unused.
 council is now a single persistent supervisor (per-session, `mesh.actorScope:"session"`,
 custom instructions, never self-stops). `/supervise` creates/reconciles one actor. There is
 no `/gate` prompt and no advisor consultation. The supervisor remains the sole and final steer
-authority, ambient only. This supersedes ADR-001's advisor+gate half.
+authority, ambient only. This supersedes ADR-001's advisor+gate half. (Superseded in part by ADR-011, which embeds tier-gated read-only review children at the `/create`/`/plan`/`/ship`/`/verify` boundaries — reversing this ADR's no-consultation clause and rejected alternative (b); the single supervisor, no mailbox panel, and no standalone `/gate` remain.)
 **Consequences:** Easier: one actor to create/reconcile instead of three; no dormant mailboxes;
 no never-built gate milestone; no manual-invocation burden; less surface to verify at runtime.
 Harder: no specialist-depth consultation at security/architecture boundaries — the supervisor
@@ -300,3 +300,69 @@ require a global reversal of ADR-009. (b) The superseded synthetic-router extens
 custom code. (c) Leave `fullCodeMode:false` and ship without a prewalk lane — leaves the native
 primitive present-but-locked; rejected in favor of unlocking it under ADR-009. Chosen the explicit
 handoff: native, trajectory-preserving, ADR-009-safe, no custom code.
+
+## ADR-011: Tier-gated lifecycle review gates
+**Status:** accepted
+**Date:** 2026-07-22
+**Context:** ADR-008 dropped the dormant advisor panel and the standalone `/gate`, keeping only an
+ad-hoc read-only `review` child escape hatch: "if a change genuinely needs a security or
+architecture specialist review, the operator dispatches a read-only `explore`/`review` child ad
+hoc." That escape hatch is exactly the easy-to-forget, rarely-invoked machinery ADR-008 criticized
+`/gate` for being. The four lifecycle prompts (`/create`, `/plan`, `/ship`, `/verify`) had no
+systematic judgment layer over artifacts, diffs, or evidence — `/create`/`/plan` dispatch
+read-only children only for research, `/ship` commits before its Standard/Iterative scored review,
+and `/verify` runs mechanical gates with no evidence judgment. ADR-008 also explicitly rejected
+embedding gate mechanics into `/ship`/`/verify` (its alternative (b)).
+**Decision:** Partially supersede ADR-008. Embed a tier-gated read-only `review` child gate at all
+four lifecycle boundaries (`/create` Phase 10A spec review, `/plan` Phase 8A planning review,
+`/ship` Tier-Gated Diff Review, `/verify` Phase 5A advisory evidence review). This reverses
+ADR-008's no-consultation clause and its rejected alternative (b). ADR-008's other decisions are
+preserved: the single ambient supervisor, no mailbox panel, no standalone `/gate`. Review remains
+a read-only child — no new lane, no new model tier, no capability widening (`extensions:false`,
+`read,grep,find,ls`, non-recursive, no `bash`).
+**Effective Review Level:** `max(stored Discovery Level, stored Effective Review Level, current
+risk floor)`. `/create` persists both numeric levels because `/plan` is optional; missing/malformed
+data never defaults to L0. Risk floor >= L2 for authentication, secrets/PII, destructive actions,
+schema/persistence, concurrency, public APIs, new dependencies, cross-subsystem work. L0-1 review
+is advisory and non-blocking; L2-3 requires a completed current-byte review and disposition of
+every Critical/High finding. `/verify`'s advisor is always advisory.
+**Dispatch (exact):** `agents.run({task, name:"lifecycle-review-<phase>", runner:"pi",
+model:"openai-codex/gpt-5.6-sol", thinking:"max", extensions:false, recursive:false,
+tools:["read","grep","find","ls"], worktree:false})`. Only `status === "completed"` is a completed
+review; there is no role field on `agents.run`, so the focused role is encoded in the task text.
+**Packet:** the read-only child cannot run `git diff` or verification, so Main supplies an inline
+sanitized in-memory packet (diff, hashes, commands/exit codes/modes, versions, source excerpts,
+effective level, path allowlist excluding secrets). Do not silently truncate; split by disjoint
+subsystem when large.
+**Finding authority:** children return `[Critical|High|Medium|Low][category] path:line` + violated
+authority + concrete failure scenario and cost + smallest correction + confidence + evidence
+status only. A child never blocks by its own authority. Main reopens every cited `path:line`
+(Worker Distrust) and only Main's validated disposition blocks or proceeds. A clean review never
+certifies readiness. Critical/High independently validated defects block at every level.
+**Objective Generated-Code Quality:** report only concrete costs — untraceable scope, duplicate
+implementations with divergence risk, dead/unwired code, speculative abstractions, behaviorless
+wrappers, placeholder/no-op behavior, invented/version-incompatible APIs, error swallowing,
+mock-only tests, unnecessary compatibility shims, large unrelated generated edits. "Looks
+AI-generated" alone is not a finding.
+**Language and Framework Overlay:** establish exact framework/version from the packet, then apply
+an authoritative rule (official material > maintained source > maintainer guidance > local skills >
+model memory — never). At L2-3, `source-check-required` stops acceptance until Main or a
+network-capable scout obtains authoritative evidence and the review is rerun. Do not invent a best
+practice from memory.
+**Freshness:** any candidate-byte change invalidates an L2-3 review and requires a new
+packet/review. Accepted findings trigger bounded convergence (max two review-integration rounds,
+then escalate). `/verify` runs its advisor after coherence, before candidate evidence writes and a
+fresh final no-write pass (5A→5B→5C→5D); ADR-006 no-write is preserved.
+**Failure behavior:** L0-1 child failure warns and proceeds; L2-3 retries once then stops for
+operator disposition; `/verify` child failure is advisory only; `source-check-required` halts L2-3
+acceptance; candidate mutation invalidates; two rounds without convergence escalate.
+**Consequences:** Easier: ADR-008's escape hatch is systematic, not forgotten; evidence-backed
+judgment at every boundary catches what mechanical gates miss. Harder: a read-only child
+round-trip at L2-3 before `/ship`/`/verify` adds latency (L0-1 stays non-blocking); the in-memory
+packet contract is load-bearing — Main must supply it, or the reviewer audits current files, not
+the final diff/evidence.
+**Alternatives:** (a) Keep ADR-008's ad-hoc-only escape hatch — the easy-to-forget failure mode it
+itself criticized. (b) Restore the dormant mailbox advisor panel + standalone `/gate` — ADR-008
+rejected this; preserved. (c) A fixed review perspective matrix run every cycle — rejected: review
+runs at every invocation but is evidence-based and tier-gated, not a fixed matrix. Chosen the
+tier-gated read-only child at the boundaries, superseding ADR-008's no-consultation clause only.
