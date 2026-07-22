@@ -250,6 +250,8 @@ git branch --show-current
 
 Do not create branches, worktrees, or stashes from this command. Workspace readiness is inspection and an operator gate only; any branch or worktree setup must be an explicit operator action.
 
+Additionally, offer the operator a "Create worktree" option for isolated workspace setup. If the operator accepts, load the `using-git-worktrees` skill (read its `SKILL.md`) and follow its guidance. Worktree creation remains an explicit operator action — never automatic from this command.
+
 ## Phase 10: Convert PRD to Tasks
 
 Convert the PRD into an executable task list in `.pi/artifacts/<slug>/TODO.md` (with `depends_on`, `parallel`, `conflicts_with`, and `files` metadata per task).
