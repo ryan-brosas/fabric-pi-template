@@ -103,8 +103,8 @@ Before research, determine discovery level based on PRD:
 
 **Decision:** Ask the operator to confirm or adjust the discovery level, with these options:
 
-- **Deep (Recommended for complex work)** — Level 2-3: delegate scout + explore children
-- **Standard** — Level 1: quick doc lookup
+- **Deep (Recommended for complex work)** — Level 3: delegate scout + explore children
+- **Standard** — Level 2: quick doc lookup
 - **Skip research** — Level 0: I know the codebase
 
 Determine level from PRD content: Level 2+ if new library, external API, or "choose/evaluate" language. Level 3 if "architecture/design/system".
@@ -389,7 +389,7 @@ Compute the **Effective Review Level** = `max(stored Discovery Level, stored Eff
 
 ```typescript
 const result = await agents.run({
-  task: "Planning review for <slug>. Audit the final constitutionally compliant PLAN.md: spec coverage, observable-truth completeness, key-link risk, slice quality, dependency-wave consistency, failure/recovery/security paths, framework source citations, abstraction necessity. Return evidence-backed findings only. <inline sanitized packet: PLAN.md, applicable AGENTS.md/DECISIONS excerpts, effective level + rationale>",
+  task: "Planning review for <slug>. Audit the final constitutionally compliant PLAN.md: spec coverage, observable-truth completeness, key-link risk, slice quality, dependency-wave consistency, failure/recovery/security paths, framework source citations, abstraction necessity. Return evidence-backed findings only. <inline sanitized packet: PLAN.md, applicable AGENTS.md/DECISIONS excerpts, effective level + rationale, explicit path allowlist excluding secrets>",
   name: "lifecycle-review-plan",
   runner: "pi",
   model: "openai-codex/gpt-5.6-sol",

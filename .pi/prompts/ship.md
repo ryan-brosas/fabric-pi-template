@@ -115,7 +115,7 @@ git diff --cached --binary
 git diff --binary
 ```
 
-Record, for every path that is already dirty or untracked at baseline: `git hash-object --no-filters` of the current bytes. Record the candidate path set (the task-owned paths across all waves) and their baseline hashes. The final review packet is built from this baseline and the settled candidate bytes after all writable workers settle and Phase 4 verification runs.
+Record, for every path that is already dirty or untracked at baseline: `git hash-object --no-filters` of the current bytes. Record the candidate path set (the task-owned paths across all waves) and their baseline hashes. For untracked candidate paths, also retain a sanitized in-memory snapshot of the baseline bytes — a hash alone cannot produce a baseline→candidate unified diff after the file is mutated. The final review packet is built from this baseline and the settled candidate bytes after all writable workers settle and Phase 4 verification runs.
 
 ## Phase 3: Wave-Based Execution
 
@@ -408,7 +408,11 @@ Main reopens every cited `path:line` and reproduces the reasoning before accepti
 
 #### Convergence
 
-Any accepted fix or concurrent byte change invalidates both the Phase 4 verification and this review. After any candidate mutation: rerun full Phase 4 verification, regenerate the packet from the updated baseline, and re-review at L2-3. Bound convergence to **two review-integration rounds**; if unresolved findings remain after two rounds, escalate to the operator with the accumulated findings.
+Any accepted fix or concurrent byte change invalidates both the Phase 4 verification and this review. After any candidate mutation: rerun full Phase 4 verification, regenerate the packet against the immutable ship-level baseline (the candidate bytes are updated; the baseline stays fixed), and re-review at L2-3. Bound convergence to **two review-integration rounds**; if unresolved findings remain after two rounds, escalate to the operator with the accumulated findings.
+
+#### Persistence
+
+Persist the review dispositions to `.pi/artifacts/<slug>/PROGRESS.md` so `/verify` can reconstruct the adjudication: for each finding, record severity, `path:line`, and Main's validated outcome — resolved / rejected-with-evidence / accepted-with-rationale.
 
 ## Phase 6: Close
 
@@ -447,8 +451,9 @@ Report:
 
 5. **Review Summary:**
    - Critical issues: [N]
-   - Important issues: [N]
-   - Minor issues: [N]
+   - High issues: [N]
+   - Medium issues: [N]
+   - Low issues: [N]
    - Overall assessment: [pass/needs work]
 
 6. **Next Steps:**

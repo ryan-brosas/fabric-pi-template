@@ -154,6 +154,7 @@ The read-only reviewer has only `read,grep,find,ls`. Main builds an inline sanit
 - The before-fingerprint tuple (HEAD, staged/unstaged digests, untracked manifest, verified-file hashes).
 - The effective level and rationale, plus prior review dispositions from `/ship`.
 - PLAN/TODO/DECISIONS excerpts relevant to the claim being verified.
+- An explicit file allowlist excluding secrets; the reviewer must not access unlisted or secret-bearing paths.
 
 #### Dispatch (exact)
 

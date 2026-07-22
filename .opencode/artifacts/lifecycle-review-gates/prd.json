@@ -92,7 +92,7 @@
     },
     {
       "criterion": "B2: /verify has ordered Phase 5A-5D subsections; ADR-006 no-write phrase preserved",
-      "verify": "rg -n '^### Phase 5A: Advisory Evidence Review$|^### Phase 5B: Candidate Evidence Writes$|^### Phase 5C: Final No-Write Pass$|^### Phase 5D: Transcript-Only Result$' .pi/prompts/verify.md && node -e 'const s=require(\"fs\").readFileSync(\".pi/prompts/verify.md\",\"utf8\");const h=[\"## Phase 4: Coherence\",\"### Phase 5A: Advisory Evidence Review\",\"### Phase 5B: Candidate Evidence Writes\",\"### Phase 5C: Final No-Write Pass\",\"### Phase 5D: Transcript-Only Result\"];let last=-1;for(const x of h){const i=s.indexOf(x);if(i<=last)process.exit(1);last=i}}' && rg -ni 'sole.*verified|transcript only|no repository write' .pi/prompts/verify.md"
+      "verify": "rg -n '^### Phase 5A: Advisory Evidence Review$|^### Phase 5B: Candidate Evidence Writes$|^### Phase 5C: Final No-Write Pass$|^### Phase 5D: Transcript-Only Result$' .pi/prompts/verify.md && node -e 'const s=require(\"fs\").readFileSync(\".pi/prompts/verify.md\",\"utf8\");const h=[\"## Phase 4: Coherence\",\"### Phase 5A: Advisory Evidence Review\",\"### Phase 5B: Candidate Evidence Writes\",\"### Phase 5C: Final No-Write Pass\",\"### Phase 5D: Transcript-Only Result\"];let last=-1;for(const x of h){const i=s.indexOf(x);if(i<=last)process.exit(1);last=i}' && rg -ni 'sole.*verified|transcript only|no repository write' .pi/prompts/verify.md"
     },
     {
       "criterion": "C1: ADR-011 present and references ADR-008 supersession; AGENTS + canonical PLAN have reviewer/quality/source markers",
@@ -104,7 +104,7 @@
     },
     {
       "criterion": "C3: static closure — pi-fabric 0.23.0, list-models resolve, slug in 5 prompts, forbidden-token clean, git diff --check",
-      "verify": "git diff --check && node -p 'require(\"./.pi/npm/node_modules/pi-fabric/package.json\").version' | rg -x '0\\.23\\.0' && pi --approve --list-models | rg -F 'openai-codex/gpt-5.6-sol' && for f in create plan ship verify research; do rg -q '<slug>' \".pi/prompts/$f.md\" || exit 1; done && ! rg -n 'agent:|task\\(|question\\(|skill\\(|write\\(|\\.active|spec\\.md|prd\\.json|review-state\\.json' .pi/prompts/*.md"
+      "verify": "git diff --check && node -p 'require(\"./.pi/npm/node_modules/pi-fabric/package.json\").version' | rg -x '0\\.23\\.0' && pi --approve --list-models | rg -F 'gpt-5.6-sol' && for f in create plan ship verify research; do rg -q '<slug>' \".pi/prompts/$f.md\" || exit 1; done && ! rg -n 'agent:|task\\(|question\\(|skill\\(|write\\(|\\.active|spec\\.md|prd\\.json|review-state\\.json' .pi/prompts/*.md"
     },
     {
       "criterion": "milestone-5 regression invariants preserved: <slug> in create/plan/ship/verify/research, ship 'cannot declare verified' phrase, verify 'sole verified/transcript only/no repository write' phrase, frontmatter intact",
@@ -158,7 +158,7 @@
       "end_state": "verify.md has ordered Phase 5A (Advisory Evidence Review), 5B (Candidate Evidence Writes), 5C (Final No-Write Pass), 5D (Transcript-Only Result) subsections after Phase 4 Coherence; preserves the 'sole verified / transcript only / no repository write' phrase and <slug>.",
       "depends_on": ["B1"],
       "files": [".pi/prompts/verify.md"],
-      "verify": "rg -n '^### Phase 5A: Advisory Evidence Review$|^### Phase 5B: Candidate Evidence Writes$|^### Phase 5C: Final No-Write Pass$|^### Phase 5D: Transcript-Only Result$' .pi/prompts/verify.md && node -e 'const s=require(\"fs\").readFileSync(\".pi/prompts/verify.md\",\"utf8\");const h=[\"## Phase 4: Coherence\",\"### Phase 5A: Advisory Evidence Review\",\"### Phase 5B: Candidate Evidence Writes\",\"### Phase 5C: Final No-Write Pass\",\"### Phase 5D: Transcript-Only Result\"];let last=-1;for(const x of h){const i=s.indexOf(x);if(i<=last)process.exit(1);last=i}}' && rg -ni 'sole.*verified|transcript only|no repository write' .pi/prompts/verify.md && rg -q '<slug>' .pi/prompts/verify.md && git diff --check"
+      "verify": "rg -n '^### Phase 5A: Advisory Evidence Review$|^### Phase 5B: Candidate Evidence Writes$|^### Phase 5C: Final No-Write Pass$|^### Phase 5D: Transcript-Only Result$' .pi/prompts/verify.md && node -e 'const s=require(\"fs\").readFileSync(\".pi/prompts/verify.md\",\"utf8\");const h=[\"## Phase 4: Coherence\",\"### Phase 5A: Advisory Evidence Review\",\"### Phase 5B: Candidate Evidence Writes\",\"### Phase 5C: Final No-Write Pass\",\"### Phase 5D: Transcript-Only Result\"];let last=-1;for(const x of h){const i=s.indexOf(x);if(i<=last)process.exit(1);last=i}' && rg -ni 'sole.*verified|transcript only|no repository write' .pi/prompts/verify.md && rg -q '<slug>' .pi/prompts/verify.md && git diff --check"
     },
     {
       "id": "C1",
@@ -192,7 +192,7 @@
       "end_state": "No-write static verification: pi-fabric 0.23.0, list-models resolve both endpoints, slug in 5 prompts, forbidden-token clean across .pi/prompts/*.md, baseline-aware heading validator permits only the retired /ship headings, protected files unchanged from A1 baseline, git diff --check clean. Optional read-only review-child smoke under unchanged fingerprint.",
       "depends_on": ["C2"],
       "files": [],
-      "verify": "git diff --check && node -p 'require(\"./.pi/npm/node_modules/pi-fabric/package.json\").version' | rg -x '0\\.23\\.0' && pi --approve --list-models | rg -F 'openai-codex/gpt-5.6-sol' && pi --approve --list-models | rg -F 'makora/zai-org/GLM-5.2-NVFP4' && for f in create plan ship verify research; do rg -q '<slug>' \".pi/prompts/$f.md\" || exit 1; done && ! rg -n 'agent:|task\\(|question\\(|skill\\(|write\\(|\\.active|spec\\.md|prd\\.json|review-state\\.json' .pi/prompts/*.md"
+      "verify": "git diff --check && node -p 'require(\"./.pi/npm/node_modules/pi-fabric/package.json\").version' | rg -x '0\\.23\\.0' && pi --approve --list-models | rg -F 'gpt-5.6-sol' && pi --approve --list-models | rg -F 'zai-org/GLM-5.2-NVFP4' && for f in create plan ship verify research; do rg -q '<slug>' \".pi/prompts/$f.md\" || exit 1; done && ! rg -n 'agent:|task\\(|question\\(|skill\\(|write\\(|\\.active|spec\\.md|prd\\.json|review-state\\.json' .pi/prompts/*.md"
     }
   ]
 }

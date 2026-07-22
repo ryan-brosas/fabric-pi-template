@@ -230,11 +230,12 @@ wrappers, placeholder/no-op behavior, invented/version-incompatible APIs, error 
 mock-only tests, unnecessary compatibility shims, large unrelated generated edits. "Looks
 AI-generated" alone is not a finding.
 
-**Language and Framework Overlay:** establish exact framework/version from the packet, then apply
-an authoritative rule (official material > maintained source > maintainer guidance > local skills >
-model memory — never). At L2-3, `source-check-required` stops acceptance until Main or a
-network-capable scout obtains authoritative evidence and the review is rerun. Do not invent a best
-practice from memory.
+**Source authority:** binding first — (1) latest operator decision; (2) applicable
+`AGENTS.md`; (3) accepted `DECISIONS.md`/PLAN requirements; (4) project tests/configuration and
+established local patterns. For external language/framework facts: official material > maintained
+source > maintainer guidance > local skills > model memory — never. At L2-3, `source-check-required`
+stops acceptance until Main or a network-capable scout obtains authoritative evidence and the
+review is rerun. Do not invent a best practice from memory.
 
 **Freshness:** any candidate-byte change invalidates an L2-3 review and requires a new
 packet/review. Accepted findings trigger bounded convergence (max two review-integration rounds,

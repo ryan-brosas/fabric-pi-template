@@ -266,7 +266,7 @@ Compute the **Effective Review Level** = `max(stored Discovery Level, stored Eff
 
 ```typescript
 const result = await agents.run({
-  task: "Spec review for <slug>. Audit the final validated PLAN.md and TODO.md: scope clarity, observable-truth completeness, ambiguous non-goals, open questions that block /plan, task-to-criterion traceability, versioned source obligations in the Review Profile. Return evidence-backed findings only. <inline sanitized packet: PLAN.md, TODO.md, applicable AGENTS.md/DECISIONS excerpts, effective level + rationale>",
+  task: "Spec review for <slug>. Audit the final validated PLAN.md and TODO.md: scope clarity, observable-truth completeness, ambiguous non-goals, open questions that block /plan, task-to-criterion traceability, versioned source obligations in the Review Profile. Return evidence-backed findings only. <inline sanitized packet: PLAN.md, TODO.md, applicable AGENTS.md/DECISIONS excerpts, effective level + rationale, explicit path allowlist excluding secrets>",
   name: "lifecycle-review-create",
   runner: "pi",
   model: "openai-codex/gpt-5.6-sol",
