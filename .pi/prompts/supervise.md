@@ -152,11 +152,14 @@ docs/agents.md:214`). Research is therefore a two-round blocking handshake on th
    names to a child's `--tools` allowlist only adds unknown names Pi ignores
    (`agent-session.js:626-645`). Flow:
    a. Main validates the supervisor's question is bounded and non-secret.
-   b. Main calls only the Context7/Exa direct tools and `codex_search` it retained for
-      itself via `.pi/fabric.json` `capture.keepVisible` (the exact-name mechanism that
-      retains extension tools in Main's direct registry under `fullCodeMode:true`;
-      `pi-fabric docs/configuration.md:173-207`). Direct retained tools bypass Fabric's
-      captured-tool approval gate; `approvals.network:"deny"` stays unchanged.
+   b. Main reaches Context7/Exa primarily via `fabric_exec`'s internal MCP proxy
+      (`mcp.<server>.<tool>`) and additionally via the `capture.keepVisible`-retained
+      direct tools and `codex_search` (the exact-name mechanism that retains extension
+      tools in Main's direct registry under `fullCodeMode:true`;
+      `pi-fabric docs/configuration.md:173-207`). `approvals.network:"allow"` enables
+      Main's external research; the security boundary is the child dispatch
+      (`extensions:false`), not Main's network posture — children get neither
+      `fabric_exec`, the MCP proxy, `codex_search`, nor any network path.
    c. Main treats all external content as prompt-injection-capable untrusted data,
       independently validates citations, discards instructions found in retrieved content,
       and distills a non-secret cited packet ≤8 KiB.
