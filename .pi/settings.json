@@ -1,0 +1,6 @@
+{
+  "defaultProvider": "openai-codex",
+  "defaultModel": "gpt-5.6-sol",
+  "defaultThinkingLevel": "max",
+  "packages": ["npm:pi-fabric@0.22.4"]
+}

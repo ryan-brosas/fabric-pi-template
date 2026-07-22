@@ -42,23 +42,29 @@ trust is required or this file is ignored.
 {
   "fullCodeMode": false,
   "schema": { "mode": "off" },
+  "approvals": {
+    "read": "allow",
+    "write": "deny",
+    "execute": "deny",
+    "network": "deny",
+    "agent": "allow"
+  },
   "subagents": {
     "runner": "pi",
-    "transport": "process",
     "extensions": false,
     "maxDepth": 1,
-    "maxConcurrent": 4,
-    "maxPerExecution": 8,
+    "maxConcurrent": 8,
+    "maxPerExecution": 16,
     "timeoutMs": 600000,
-    "defaultTools": ["read", "grep", "find", "ls"]
+    "defaultTools": ["read", "grep", "find", "ls"],
+    "budgetUsd": 10,
+    "maxTokensPerChild": 500000
   },
   "mesh": {
-    "enabled": true,
     "actorScope": "session"
   },
-  "memory": { "indexToolOutput": false, "indexThinking": false },
-  "compaction": { "engine": "fabric" },
-  "approvals": { "read": true, "write": false, "execute": false, "network": false, "agent": true }
+  "memory": { "enabled": false, "indexToolOutput": false, "indexThinking": false },
+  "compaction": { "engine": "fabric" }
 }
 ```
 
@@ -66,12 +72,21 @@ trust is required or this file is ignored.
   Fabric orchestration. `schema.mode:"off"` is mandatory — inherited `"enforce"` forces
   full-code mode and disables subagents.
 - Default child tools are read-only; writable tools are granted per-call only on the
-  Makora lane. `maxDepth:1` makes all workers leaves.
-- `actorScope:"session"` isolates actor registries per Pi session under
-  `.pi/fabric/mesh/actors/<sessionId>/`.
-- Memory tool-output indexing is off (transcripts may retain tool args/results).
-- `approvals.write/execute:false` means child code cannot mutate the repo without an
-  explicit per-call tool grant; `agent:true` permits actor/subagent dispatch.
+  Makora lane. `maxDepth:1` makes all workers leaves. `maxConcurrent:8` gives headroom for
+  the hybrid council (3 actors) + 1 Makora + read-only gatherers; the writable pool is
+  still 1 Makora (enforced by per-call dispatch + single-writer policy, not by
+  `maxConcurrent`).
+- `approvals` gates `fabric_exec` operations only (in orchestration-only mode, native
+  Pi tools bypass it); `write/execute/network:"deny"` blocks autonomous fabric_exec
+  mutation while `agent:"allow"` permits actor/subagent dispatch.
+- `mesh.actorScope:"session"` isolates actor registries per Pi session under
+  `.pi/fabric/mesh/actors/<sessionId>/`. `mesh.enabled:true` is inherited from global.
+- `memory.enabled:false` disables Fabric session indexing (Markdown artifacts are the
+  lifecycle record); `indexToolOutput:false` prevents transcripts retaining tool output.
+- `compaction.engine:"fabric"` is deterministic and LLM-free.
+- `budgetUsd:10` and `maxTokensPerChild:500000` are finite template defaults; tune before
+  autonomous use. Global values inherit for everything not listed (transport, executor,
+  capture, ui).
 
 ## Dispatch Rules
 

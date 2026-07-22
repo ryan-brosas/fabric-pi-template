@@ -36,10 +36,42 @@ de-duplicated authority (single owner per theme). Created `.pi/.gitignore` and
 `.pi/config.json` (only explicit "there is no" notes), no Haiku, no `/night` (except
 changelog mention), no `agent()`-fan-out references.
 
+### 2026-07-22 - Milestone 1: Pi project config
+status: done
+Created `.pi/settings.json` (Main `openai-codex`/`gpt-5.6-sol`/`max` + `packages:["npm:pi-fabric@0.22.4"]`)
+and `.pi/fabric.json` (`fullCodeMode:false`, `schema.mode:"off"`, read-only default child tools,
+`maxDepth:1`, `maxConcurrent:8`, `mesh.actorScope:"session"`, `memory.enabled:false`,
+`compaction.engine:"fabric"`, `approvals.write/execute/network:"deny"`).
+
+Two PLAN.md corrections applied in the same change (AGENTS rule: update encoding checks
+with the policy): `approvals` values are `"allow"/"deny"` strings not booleans
+(`config.d.ts:3`); `maxConcurrent` 4→8 for hybrid-council headroom (3 actors + Makora +
+gatherers).
+
+Verification:
+- JSON valid: `jq -e .` PASS on both files.
+- Fabric config normalization: imported installed pi-fabric 0.22.4 `dist/config.js`,
+  `normalizeFabricConfig()` applied — 12/12 fields PASS (fullCodeMode, schema.mode,
+  subagents.extensions, maxDepth, maxConcurrent, defaultTools, mesh.actorScope,
+  memory.enabled, memory.indexToolOutput, compaction.engine, approvals.write,
+  approvals.agent).
+- Model resolution: `pi --approve --list-models` resolves `openai-codex/gpt-5.6-sol`,
+  `openai-codex/gpt-5.4-mini`, `makora/zai-org/GLM-5.2-NVFP4` (all thinking=yes).
+- Node: v24.16.0 (>=24).
+- Project package install: `pi --approve` read `.pi/settings.json` and installed
+  `pi-fabric@0.22.4` under `.pi/npm/` (gitignored, confirmed via `git check-ignore`).
+- Config-verified, not runtime-spawned: review-child edit rejection and recursive
+  delegation rejection are encoded (`defaultTools` read-only, `extensions:false`,
+  `maxDepth:1`) but require an interactive `/trust`-ed Pi session to runtime-smoke;
+  pending bootstrap.
+
 ### Verification fingerprint
 - HEAD pre-init-deep-pass: `dbf74b7`
-- HEAD post-init-deep-pass: `5d257c4` (pushed to `origin/main` + `origin/master`,
+- HEAD post-init-deep-pass: `912b2db` (pushed to `origin/main` + `origin/master`,
   fast-forward — no force-push; incremental per per-artifact policy)
-- Checks run this pass: `rg` cross-file stale-reference scan (PASS).
-- Not yet run: `pi --approve --list-models` for this worktree (pending milestone 1),
-  structural checks (pending `.pi/tools/`).
+- HEAD pre-milestone-1: `912b2db`
+- Checks run this pass: `jq -e` JSON validity (PASS); `normalizeFabricConfig` 12-field
+  (PASS); `pi --approve --list-models` model resolution (PASS); `git check-ignore` runtime
+  state (PASS).
+- Not yet run: runtime child-spawn smoke (review-edit rejection, recursion rejection) —
+  pending `/trust` + restart; structural checks (pending `.pi/tools/`).

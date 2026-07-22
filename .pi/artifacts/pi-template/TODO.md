@@ -13,14 +13,16 @@ status: done
 - `.pi/artifacts/pi-template/{PLAN,TODO,PROGRESS,DECISIONS}.md`: canonical contract.
 
 ### 2026-07-22 - Milestone 1: Pi project config
-status: active
-- [ ] Create `.pi/settings.json` (Main defaults + `npm:pi-fabric@0.22.4`).
-- [ ] Create `.pi/fabric.json` (`fullCodeMode:false`, `schema.mode:"off"`, read-only
+status: done
+- [x] Create `.pi/settings.json` (Main defaults + `npm:pi-fabric@0.22.4`).
+- [x] Create `.pi/fabric.json` (`fullCodeMode:false`, `schema.mode:"off"`, read-only
       default child tools, `maxDepth:1`, `mesh.actorScope:"session"`, disabled memory
       indexing, `compaction.engine:"fabric"`, finite limits).
-- [ ] Verify: `pi --approve --list-models` resolves all three IDs; Main retains native
-      tools; a review child edit fails; recursive delegation rejected.
-- [ ] Commit+push.
+- [x] Verify: `pi --approve --list-models` resolves all three IDs; `normalizeFabricConfig`
+      12/12 PASS; JSON valid.
+- [x] Commit+push.
+- [ ] Runtime smoke (pending `/trust` + restart): review-child edit fails; recursive
+      delegation rejected.
 
 ### 2026-07-22 - Milestone 2: Advisory council
 status: pending

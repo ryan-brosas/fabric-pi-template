@@ -1,0 +1,33 @@
+{
+  "fullCodeMode": false,
+  "schema": { "mode": "off" },
+  "approvals": {
+    "read": "allow",
+    "write": "deny",
+    "execute": "deny",
+    "network": "deny",
+    "agent": "allow"
+  },
+  "subagents": {
+    "runner": "pi",
+    "extensions": false,
+    "maxDepth": 1,
+    "maxConcurrent": 8,
+    "maxPerExecution": 16,
+    "timeoutMs": 600000,
+    "defaultTools": ["read", "grep", "find", "ls"],
+    "budgetUsd": 10,
+    "maxTokensPerChild": 500000
+  },
+  "mesh": {
+    "actorScope": "session"
+  },
+  "memory": {
+    "enabled": false,
+    "indexToolOutput": false,
+    "indexThinking": false
+  },
+  "compaction": {
+    "engine": "fabric"
+  }
+}
