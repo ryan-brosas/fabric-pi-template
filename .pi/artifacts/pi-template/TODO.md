@@ -52,6 +52,17 @@ status: done
 - [ ] Runtime smoke (pending `/trust` + restart): prompt discovery, slug validation,
       `/ship` no-completion, `/verify` external-only.
 
+### 2026-07-22 - Milestone 4: Canonical artifacts (audit + hardening)
+status: done (implementation; final no-write verification pending)
+- [x] A1: Correct spec/prd + persist plan.md (commit `5193d85`).
+- [x] A2: Formalize canonical contract + ADR-007 (AGENTS/PLAN/DECISIONS) (commit `8a6912d`).
+- [x] B1: Harden create/plan/research (commit `3896cf5`).
+- [x] B2: Align ship/verify (commit `25620dc`).
+- [x] B3: Make gc project-wide slugless response-only (commit `bc4ae6a`).
+- [x] Static suite: 12/12 success criteria PASS; milestone-3 regression intact;
+      source immutability against `bebd044`; heading preservation 6/6; `git diff --check` exit=0.
+- [ ] C3: Final no-write static verification (external declaration only) — pending.
+
 ### 2026-07-22 - Gate workflow (separate, deferred)
 status: pending
 - [ ] Author `.pi/prompts/gate.md` (blocking `agents.ask()` to applicable advisors,

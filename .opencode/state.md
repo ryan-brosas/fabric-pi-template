@@ -2,13 +2,15 @@
 
 ## Current Status
 
-Clean-slate. HEAD `d7d5237` (local + remote `main`/`master`). Milestone 1 done: `.pi/settings.json`
+Clean-slate. HEAD `bc4ae6a` (local + remote `main`/`master`). Milestone 1 done: `.pi/settings.json`
 + `.pi/fabric.json` created and verified. Milestone 2 static done: `.pi/prompts/supervise.md`
 authored (council create/reconcile). Milestone 3 static done: all nine `.pi/prompts/*.md`
 lifecycle prompts ported from `.opencode/command/*.md` (took all of each body, stripped only
-OpenCode-only syntax, re-pointed to `.pi/artifacts/<slug>/`). Contract freeze applied:
-external verification (ADR-006), nine-command scope, `/gate` deferred. Verification
-fingerprint tools and runtime smoke remain.
+OpenCode-only syntax, re-pointed to `.pi/artifacts/<slug>/`). Milestone 4 implementation done:
+canonical-artifact hardening — `/create` sole namespace owner (established = PLAN+TODO,
+downstream fail-closed), `/gc` project-wide slugless response-only, two-surface contract
+(ADR-007: lifecycle state vs optional project memory). Verification fingerprint tools and
+runtime smoke remain.
 
 This pass:
 - `AGENTS.md` + `.opencode/{tech-stack,roadmap,state,user}.md` + `.pi/.gitignore` +
@@ -20,13 +22,18 @@ This pass:
 - `.pi/prompts/{audit,create,fix,gc,init,plan,research,ship,verify}.md` (milestone 3):
   all nine lifecycle prompts, self-contained, explicit `<slug>` on the five lifecycle
   commands, serial writes, `/ship` no-completion, `/verify` sole external completion writer.
+- Milestone 4 (`bebd044..bc4ae6a`, 5 commits): AGENTS/PLAN/DECISIONS ADR-007 + namespace
+  ownership + two surfaces; create/plan/research slug-regex + established-namespace guard +
+  research response-only; ship/verify two-surface wording + established-namespace guard;
+  gc project-wide slugless response-only. 12/12 success criteria PASS (pending final
+  no-write verification).
 
 ## Blockers
 
 Runtime smoke (prompt discovery, slug validation, review-child edit rejection, recursive
 delegation rejection, `/ship` no-completion, `/verify` external-only) requires `/trust` the
 project root + restart Pi. Static contracts encode all constraints (verified via the
-milestone-3 static suite); runtime enforcement pending bootstrap.
+milestone-3 + milestone-4 static suites); runtime enforcement pending bootstrap.
 
 ## Active Decisions
 
@@ -38,13 +45,18 @@ in `.pi/artifacts/pi-template/DECISIONS.md`. Summary only — do not edit here f
 - No `.pi/config.json`; dispatch params are per-call.
 - External verification (ADR-006): `/verify` declares verified status externally only; no
   repository write after the final before/after fingerprint.
+- Canonical namespace (ADR-007): `/create` sole owner; established = PLAN+TODO; downstream
+  fail-closed; `/gc` project-wide slugless response-only; two writable surfaces (lifecycle
+  state confined vs optional project memory; missing memory non-blocking).
 
 ## Next Priorities
 
-1. Gate workflow (separate, deferred) — `.pi/prompts/gate.md` (blocking `agents.ask()` to
+1. Milestone 4 final no-write static verification (Task C3): capture fingerprint tuple,
+   run all validators read-only, declare VERIFIED externally only — no repo write after.
+2. Gate workflow (separate, deferred) — `.pi/prompts/gate.md` (blocking `agents.ask()` to
    applicable advisors, validate each, one blocking `agents.ask(supervisor)` on conflict).
-2. Verification fingerprint — `.pi/tools/` capture (HEAD, digests, file hashes).
-3. Smoke — model resolution, Main native tools, review-child edit rejection, gate block
+3. Verification fingerprint — `.pi/tools/` capture (HEAD, digests, file hashes).
+4. Smoke — model resolution, Main native tools, review-child edit rejection, gate block
    on errored advisor, freshness invalidation, prompt discovery, slug validation. Requires
    `/trust` + restart.
 
@@ -53,9 +65,16 @@ in `.pi/artifacts/pi-template/DECISIONS.md`. Summary only — do not edit here f
 - `pi --approve --list-models` resolves `openai-codex/gpt-5.6-sol`,
   `openai-codex/gpt-5.4-mini`, `makora/zai-org/GLM-5.2-NVFP4` (all thinking=yes).
 - `normalizeFabricConfig` 12/12 PASS against installed pi-fabric 0.22.4.
-- JSON valid (`jq -e`) on `.pi/settings.json` + `.pi/fabric.json` + milestone-3 `prd.json`.
+- JSON valid (`jq -e`) on `.pi/settings.json` + `.pi/fabric.json` + milestone-3 `prd.json`
+  + milestone-4 `prd.json`.
 - Node v24.16.0 (>=24).
 - Milestone 3 static suite: frontmatter 9/9; forbidden scan 9/9 CLEAN; source immutability
   exit=0; slug presence 5/5; `git diff --check` exit=0; per-command positive markers pass.
+- Milestone 4 static suite (pending final no-write verification): 12/12 success criteria
+  PASS (slug-regex ordering 5/5; `/create` sole owner; plan/ship/verify require PLAN+TODO;
+  research response-only; gc slugless response-only; two-surface ADR-007; milestone-3
+  regression intact; source immutability baseline-bound to `bebd044` exit=0; target-heading
+  preservation 6/6; completion-authority split; no .active/latest; prd graph A:2/B:3/C:3);
+  `git diff --check` exit=0; local HEAD = remote main = remote master = `bc4ae6a`.
 - Runtime child-spawn + prompt-discovery smoke pending `/trust` + restart.
 - Per-artifact commit+push standing policy active.

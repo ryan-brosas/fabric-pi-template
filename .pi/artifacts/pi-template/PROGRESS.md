@@ -110,6 +110,66 @@ Static suite (candidate evidence, pending final no-write verification):
 Not yet run: runtime prompt-discovery smoke (requires `/trust` + restart); structural
 fingerprint tools (pending `.pi/tools/`).
 
+### 2026-07-22 - Milestone 4: Canonical artifacts (audit + hardening)
+status: done (implementation; final no-write verification PENDING — not VERIFIED)
+
+Audit + hardening pass on the nine milestone-3 prompts. Operator resolutions (binding):
+(1) `/create` is the sole slug-namespace creator; an established namespace = both `PLAN.md`
+AND `TODO.md`; downstream lifecycle commands fail closed on a missing/partial namespace
+(no adoption/overwrite/deletion); pre-`/create` `/research` is response-only.
+(2) `/gc` is project-wide, slugless, response-only (no `<slug>`, no active/latest, no
+lifecycle-artifact writes, no MEMORY.md write). Per-slug grading is separate future scope.
+
+Changes (5 commits, `bebd044..bc4ae6a`, all pushed to `main` + `main:master`, fast-forward):
+- A1 `5193d85`: corrected `.opencode/artifacts/milestone-4-canonical-artifacts/{spec,prd,plan}.md`
+  to operator resolutions; prd restructured to A1-C3 task IDs + child_plan + exhaustive
+  manifests + baseline-bound immutability + fail-closed validators + ID-based deps; persisted
+  the 8-task serial plan to `plan.md`.
+- A2 `8a6912d`: AGENTS.md + PLAN.md + DECISIONS.md — added Namespace ownership (fail-closed)
+  and Two surfaces blocks; added ADR-007 (lifecycle state vs optional project memory;
+  portability + privacy: missing memory non-blocking; `/init` sole scaffold establisher;
+  `/verify` sole pre-fingerprint appender; memory distilled non-sensitive only).
+- B1 `3896cf5`: create.md reordered Validate Slug before Duplicate Check (validation precedes
+  any slug-derived access); added established/partial/absent distinction. plan.md + research.md
+  added canonical slug regex + established-namespace guard; research response-only when
+  namespace missing/partial; none of plan/research/ship/verify mkdir (create sole owner).
+- B2 `25620dc`: ship.md + verify.md — replaced blanket "All artifact reads and writes are
+  confined to .pi/artifacts/<slug>/" with two-surface wording; added established-namespace
+  guard (require both PLAN.md and TODO.md); preserved completion-authority split.
+- B3 `bc4ae6a`: gc.md — removed "active slug" inference + lifecycle DECISIONS.md read/write;
+  project-wide slugless response-only; reads project memory if it exists, never writes it.
+
+Candidate evidence (12/12 success criteria PASS; pending final no-write verification):
+- Criterion 1 (slug regex precedes first access, 5 lifecycle prompts): PASS (node order check).
+- Criterion 2 (/create sole namespace creator; plan/research/ship/verify never mkdir): PASS.
+- Criterion 3 (plan/ship/verify require both PLAN.md and TODO.md): PASS.
+- Criterion 4 (research response-only when namespace missing/partial): PASS.
+- Criterion 5 (gc slugless, response-only, description-only frontmatter, no
+  active/latest/<slug>/lifecycle-write/MEMORY-write): PASS.
+- Criterion 6 (two-surface contract in AGENTS + PLAN + ADR-007): PASS.
+- Criterion 7 (milestone-3 regression): frontmatter 9/9 PASS; forbidden scan 9/9 CLEAN
+  (rg exit 1); slug presence 5/5 PASS.
+- Criterion 8 (source immutability, baseline-bound to `bebd044`): `git diff --exit-code
+  bebd0449eb501fe9e7dd5fa66781ad1f1613a459 -- .opencode/command/{audit,create,fix,gc,init,plan,research,ship,verify}.md`
+  exit=0 (all 9 source commands byte-unchanged).
+- Criterion 9 (target-heading preservation, 6 changed prompts): PASS (every baseline
+  `##`/`###` heading in create/plan/research/ship/verify/gc remains verbatim).
+- Criterion 10 (completion-authority split): ship "cannot declare terminal verified status";
+  verify "sole...verified", "transcript only", "no repository write" — PASS.
+- Criterion 11 (no .active/latest in the nine prompts): rg exit 1 (CLEAN) — PASS.
+- Criterion 12 (prd graph bounded): jq PASS; A:2/B:3/C:3 child plans; max 3 files/task;
+  ID-based deps point backward — PASS.
+- `git diff --check`: exit=0.
+
+Verification fingerprint (candidate; final no-write verification is Task C3):
+- Source-command immutability baseline OID: `bebd0449eb501fe9e7dd5fa66781ad1f1613a459`.
+- HEAD post-implementation: `bc4ae6aaaff94cd2eb36c53763b535f8e8367304` (local = remote main =
+  remote master; pushed fast-forward, no force-push).
+- Commit chain `bebd044..bc4ae6a`: 5193d85, 8a6912d, 3896cf5, 25620dc, bc4ae6a.
+- Not yet run: final no-write fingerprint tuple + external VERIFIED declaration (Task C3);
+  runtime smoke (prompt discovery, slug validation, `/ship` no-completion, `/verify`
+  external-only) — pending `/trust` + restart; structural fingerprint tools — pending `.pi/tools/`.
+
 ### Verification fingerprint
 - HEAD pre-init-deep-pass: `dbf74b7`
 - HEAD post-init-deep-pass: `912b2db` (pushed to `origin/main` + `origin/master`,
