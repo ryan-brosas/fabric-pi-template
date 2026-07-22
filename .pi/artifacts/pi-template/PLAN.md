@@ -274,6 +274,47 @@ address the actor by canonical name over mesh (session scope does not isolate na
 mesh messages). (The earlier security/architecture advisor + gate design was dropped as
 redundant — see ADR-008.)
 
+### Proactive Supervisor (ADR-012)
+
+ADR-012 extends the supervisor from reactive-only to reactive + boundary-proactive. The
+supervisor is the **opener** for the next lifecycle phase; the ADR-011 review gate is the
+**closer** that audits the just-finished artifact (past vs future object split — no overlap).
+
+**Explicit blocking handshake.** Each of `/create`, `/plan`, `/research`, `/ship` adds a
+phase-complete handshake (Phase 10B, 8B, 5, 6A) AFTER the phase's writes/review/close settle
+and BEFORE Output. `/verify` gets NO handshake (supervisor is opener-only; verify remains
+closer + sole terminal-verified authority per ADR-006). No mid-writable-run injection — the
+handshake fires between phases only.
+
+**Main-mediated read-only research (two-round, `proactive-supervisor/v1`).** The supervisor
+is `extensions:false` and cannot spawn (`pi-fabric 0.23.0 docs/agents.md:214`). Round 1: Main
+resolves the session-local `supervisor` actor by exact `id` (never by canonical name over mesh)
+and sends `agents.ask({id, message, data})` with `kind:"phase-complete"`, a unique `requestId`,
+the `<slug>`, completed phase, namespace-state-derived candidates, and a non-secret path
+allowlist. The supervisor responds `action:"silent"` with `data` of `no-advice`,
+`direction-steer`, or `research-request`. If research-request: Main runs ONE `agents.run` on
+`openai-codex/gpt-5.4-mini` (read-only, `extensions:false`, `recursive:false`,
+`read/grep/find/ls`, `worktree:false`; no role field — encode scout/explore in `task`),
+synthesizes a summary at most 8 KiB (non-secret, with source paths), and sends Round 2 with
+`kind:"research-result"` and the same `requestId`. The supervisor responds `action:"silent"`
+with final `direction-steer` or `no-advice`. Main validates and surfaces accepted advice
+(Worker Distrust).
+
+**Silent-response discipline.** Direct protocol responses MUST use `action:"silent"` with
+payload in `data` — `delivery:"steer"` auto-delivers `action:"message"` before `agents.ask`
+resolves (`manager.js:734-758`), bypassing Main validation. `action:"message"` is reserved
+for ambient reactive steering only.
+
+**Authority.** Advisory always; the actor has no independent blocking authority. Main may
+proceed past advice. Independently validated Critical/High defects and binding-authority
+(ADR/AGENTS) violations retain their existing blocking semantics under Main. Absent, stopped,
+or ambiguous supervisor actor → warn and continue (optional, advisory).
+
+**Research candidates by namespace state:** absent → `["create"]`; established →
+`["plan","ship"]`; partial → `[]` + operator-recovery. The actor configuration is unchanged
+(model/tools/events/responseMode/scope); only the instructions and the lifecycle prompt
+phases change.
+
 ## Lifecycle
 
 Every lifecycle command takes an explicit `<slug>` (lowercase-hyphen, validated) and

@@ -192,7 +192,7 @@ advisor mailboxes created by `/supervise` were genuinely unused.
 council is now a single persistent supervisor (per-session, `mesh.actorScope:"session"`,
 custom instructions, never self-stops). `/supervise` creates/reconciles one actor. There is
 no `/gate` prompt and no advisor consultation. The supervisor remains the sole and final steer
-authority, ambient only. This supersedes ADR-001's advisor+gate half. (Superseded in part by ADR-011, which embeds tier-gated read-only review children at the `/create`/`/plan`/`/ship`/`/verify` boundaries — reversing this ADR's no-consultation clause and rejected alternative (b); the single supervisor, no mailbox panel, and no standalone `/gate` remain.)
+authority, ambient only. This supersedes ADR-001's advisor+gate half. (Superseded in part by ADR-011, which embeds tier-gated read-only review children at the `/create`/`/plan`/`/ship`/`/verify` boundaries — reversing this ADR's no-consultation clause and rejected alternative (b); the single supervisor, no mailbox panel, and no standalone `/gate` remain. Superseded in part by ADR-012, which extends the supervisor from reactive-only to reactive + boundary-proactive via an explicit blocking handshake at the `/create`/`/plan`/`/research`/`/ship` boundaries with Main-mediated read-only research — reversing this ADR's "steers ONLY on drift" clause; the ABSOLUTE never-dispatches, single supervisor, no mailbox panel, and no standalone `/gate` remain.)
 **Consequences:** Easier: one actor to create/reconcile instead of three; no dormant mailboxes;
 no never-built gate milestone; no manual-invocation burden; less surface to verify at runtime.
 Harder: no specialist-depth consultation at security/architecture boundaries — the supervisor
@@ -366,3 +366,66 @@ itself criticized. (b) Restore the dormant mailbox advisor panel + standalone `/
 rejected this; preserved. (c) A fixed review perspective matrix run every cycle — rejected: review
 runs at every invocation but is evidence-based and tier-gated, not a fixed matrix. Chosen the
 tier-gated read-only child at the boundaries, superseding ADR-008's no-consultation clause only.
+
+## ADR-012: Proactive supervisor boundary handshake
+
+**Status:** accepted · **Date:** 2026-07-22
+
+**Context:** ADR-008's supervisor is reactive-only — it steers Main ONLY on observed material drift,
+blockers, or missing verification, and it never reaches out for its own context. A senior engineer
+who only reacts to drift, and who cannot scout, is weaker than the role implies: the lifecycle's
+biggest decisions (what to build, how) get no ambient senior review until something breaks. The
+supervisor is `extensions:false`, so it cannot spawn (`pi-fabric 0.23.0 docs/agents.md:214`), and
+`delivery:"steer"` auto-delivers `action:"message"` responses before `agents.ask` resolves
+(`manager.js:734-758`), so direct protocol replies need a silent-response discipline.
+
+**Decision:** Partially supersede ADR-008's "steers ONLY on drift" clause (narrower than ADR-011's
+supersession). Extend the supervisor from reactive-only to reactive + boundary-proactive via an
+**explicit blocking handshake** in each of `/create`, `/plan`, `/research`, `/ship` (Phase 10B, 8B,
+5, 6A — after the phase's writes/review/close settle and before Output). `/verify` gets NO handshake
+(the supervisor is opener-only; verify remains closer + sole terminal-verified authority per
+ADR-006). At each boundary the supervisor steers DIRECTION/STRATEGY (prior art, cross-slug redundancy,
+superseded decisions, gold-plating, a better path) as the **OPENER** for the next phase, leaving the
+ADR-011 review gate as the **CLOSER** that audits the just-finished artifact (past vs future object
+split — no overlap).
+
+Research is **Main-mediated** via a two-round blocking handshake on the `proactive-supervisor/v1`
+protocol: the supervisor is `extensions:false` and cannot spawn, so it *requests* read-only research;
+Main (which is `fullCodeMode:true`) runs ONE `agents.run` on `openai-codex/gpt-5.4-mini` (read-only,
+`extensions:false`, `recursive:false`, `read/grep/find/ls`, `worktree:false`), synthesizes a summary
+at most 8 KiB (non-secret, with source paths), and feeds it back via a second `agents.ask`. The
+supervisor then emits its final direction. Direct protocol responses MUST use `action:"silent"` with
+payload in `data` — `action:"message"` is auto-delivered before `ask` resolves and is reserved for
+ambient reactive steering only.
+
+ADR-008's other decisions are **preserved unchanged**: the **ABSOLUTE** never-dispatches (not "never
+dispatches writable" — the supervisor never dispatches anything; it requests, Main spawns), never
+edits, never integrates, never mutates lifecycle state, never certifies readiness, never self-stops;
+the single ambient supervisor; no mailbox panel; no standalone `/gate`; `extensions:false` read-only
+posture; per-session actor scope; Main sole integrator. The supervisor actor *configuration* is
+unchanged (same model/tools/events/responseMode/scope); only the instructions and the lifecycle
+prompt phases change. ADR-011 review gates are independent and unchanged.
+
+**Authority:** Advisory always. The supervisor never blocks by its own authority; Main independently
+validates every steer (Worker Distrust) and may proceed past it. Independently validated Critical/High
+defects and binding-authority (ADR/AGENTS) violations retain their **existing** blocking semantics
+under Main — not because the actor declared itself blocking. No mid-writable-run injection: the
+handshake fires between phases only. Research candidates derive from namespace state (absent→create,
+established→plan/ship, partial→[]+operator-recovery).
+
+**Consequences:** Easier: the supervisor becomes a proactive senior engineer that scouts for
+direction before lifecycle transitions, using cheap mini research while staying read-only and
+unable to dispatch. Harder: the V2 run model burns `gpt-5.6-sol` thinking-max on every
+`agent_settled` wake (accepted cost for steering quality); the Main-mediated round-trip is one extra
+hop; boundary mis-detection is eliminated by the explicit handshake (V1 had relied on unreliable
+ambient inference). The `supervise.md` stale pi-fabric 0.22.4 field matrix remains a separate
+NOTICED BUT NOT TOUCHING defect.
+
+**Alternatives:** (a) Best-effort ambient inference from `agent_settled` snapshots — rejected:
+`agent_settled` is a bounded snapshot with no lifecycle-boundary marker; the closer-then-opener
+ordering could not be guaranteed. (b) Flip the supervisor to `extensions:true` so it spawns directly
+— rejected: it opts the actor into `fabric_exec` + `mesh.*` + recursive children, a massive capability
+widening that breaks the read-only safety posture. (c) Make the supervisor a blocking gate at
+boundaries — rejected: it would turn the supervisor into a second lifecycle gate and edge toward the
+ADR-008 advisor panel; ADR-011 review gates own blocking at L2-3. Chosen the explicit handshake with
+Main-mediated read-only research, superseding ADR-008's "steers ONLY on drift" clause only.
