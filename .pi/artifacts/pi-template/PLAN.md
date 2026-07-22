@@ -97,6 +97,7 @@ No file-routed roles.
 |---|---|---|---|---|---|---|
 | GPT read-only (plan/review/debug/explore/scout) | `pi` | `openai-codex/gpt-5.6-sol` or `gpt-5.4-mini` | `max` | `false` | `read,grep,find,ls` | `false` |
 | Makora implement | `pi` | `makora/zai-org/GLM-5.2-NVFP4` | `max` | **`true`** | `read,grep,find,ls,edit,write` (exact, no `bash`) | `false` (in-place; a Fabric worktree breaks host-derived intake) |
+| Prewalk handoff (frontier→Makora) | `pi` | `makora/zai-org/GLM-5.2-NVFP4` (executor) | `max` | **`true`** (per-call) | `read,grep,find,ls,edit,write` (executor; exact, no `bash`) | N/A (handoff has no `worktree`; stays in caller workspace) |
 | Supervisor (ambient) | `pi` | `openai-codex/gpt-5.6-sol` | `max` | `false` | `read,grep,find,ls` | N/A (persistent actor rejects `worktree`) |
 
 **Extension split (load-bearing):** `extensions:false` → Fabric passes Pi `--no-extensions`
@@ -131,6 +132,47 @@ await agents.run({
 - Main issues at most one blocking writable `agents.run()` at a time, does not issue the next writable run until settlement, and makes no edit or write call while it is active.
 - `maxConcurrent` is shared child headroom bounding total concurrent children across writable and read-only tiers — it is not the writable pool. Read-only `spawn`/`parallel` children may overlap the writable run up to `maxConcurrent`.
 - If an implementation genuinely needs an intermediate command, Main splits the work into serial worker runs around a Main-owned command; there is no general exact-argv child command runner (`schema.trustedCommands` is schema-verification machinery only).
+
+### Canonical prewalk handoff dispatch
+
+When the task is novel or multi-file M–L, Main authors a `fabric_exec` program (full code
+mode) that does frontier work on GPT-5.6 Sol, performs the first real mutation, then hands the
+trajectory off to a Makora executor via explicit `agents.handoff()`. The handoff is
+trajectory-preserving: Fabric forks the finalized `fabric_exec` call/result and spawns the
+executor from that branch — the Makora child sees the real frontier work, not a rewritten
+summary (`docs/agents.md:50-69`). The first successful `pi.edit`/`pi.write`/`schema.commit`
+marks the boundary; remaining calls in the frontier `fabric_exec` program still run before
+the executor starts (coarser than literal one-edit Stencil/OMP; Fabric disclaims benchmark
+equivalence, `docs/agents.md:73`). There is no TODO gate (simpler than the superseded
+synthetic-router design).
+
+```typescript
+// inside a fabric_exec program (Main, full code mode, GPT-5.6 Sol):
+// 1. frontier exploration + planning + first real edit via pi.edit / pi.write
+// 2. hand the trajectory off to the Makora executor:
+await agents.handoff({
+  model: "makora/zai-org/GLM-5.2-NVFP4",
+  thinking: "max",
+  extensions: true,
+  tools: ["read", "grep", "find", "ls", "edit", "write"],
+});
+```
+
+- `extensions: true` + the exact writable allowlist reach the Makora executor per call
+  (`runRequest` spreads `extensions`/`tools`/`thinking` from args, `agents-provider.js:517,536`),
+  overriding the `subagents.extensions:false` default — ADR-009 per-call discipline preserved.
+  Automatic `/fabric prewalk` omits these and would inherit `extensions:false` → Makora fails
+  to resolve; that path is rejected (see ADR-010).
+- `worktree` is intentionally unavailable on `agents.handoff`; implementation stays in the
+  caller's workspace so host-derived candidate intake still observes it.
+- The prewalk lane shares the one blocking-writable-run ceiling with the direct Makora lane;
+  the two never overlap and never silently fall back. A handoff failure is terminal for that
+  invocation (`docs/agents.md:94`).
+- `prewalk.model` is left unset (`prewalk:{}`); the executor model is explicit per call.
+
+**Selective routing:** prewalk handoff for novel/multi-file M–L implementation; direct Makora
+`agents.run` (the block above) for S/single-file mechanical work. Main picks the lane by task
+complexity; both lanes serialize on the same one-writable-run ceiling.
 
 ### Milestone 6 Observational Worker-Policy Smoke
 
