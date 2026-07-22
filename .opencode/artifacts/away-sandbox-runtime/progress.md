@@ -110,3 +110,36 @@
 - Frame-discipline (malformed/oversized/dup-id/forged-result/unknown-ref) is tested via pure-function logic + the confinement harness's vm-escape path (defense-in-depth); the verbatim child-source cannot produce adversarial frames (no `process.send` access from the vm). Live adversarial framing is re-validated at A3.
 - Stray debug files `err1.txt`, `err2.txt`, `err3.txt` were created in the repo root during A2 bwrap probes; they are untracked and excluded from the A2 commit. Together with the A1 stray `.pi/_tsprobe/`, **operator permission requested** to remove all four (no-delete-without-permission rule).
 - Next: **A3** BLOCKING operator checkpoint (bwrap userns + cgroup v2 + real Fabric NodeProcessRuntime through the wrapper + authenticated Makora smoke WITHOUT credential/network egress + before/after fingerprint; STOP permanently if any fails). Surface A3 + the D3 feature-scoped-vs-absolute-baseline decision to the operator at that gate.
+
+---
+
+## A3 — Live feasibility checkpoint (BLOCKING) — PASS
+
+Operator-authorized (4 decisions at the gate): (a) live Makora smoke now (externally visible provider call + credentials), (b) D3 = feature-scoped baseline verification, (c) remove 4 stray files, (d) push main + master now. A3 `files:[]` — checkpoint, evidence only.
+
+### Gate results (all 6 PASS — A3 PASSES)
+
+- **A3-1 bwrap strict userns: PASS.** `bwrap --unshare-user --unshare-pid --unshare-ipc --unshare-uts --unshare-net --die-with-parent --ro-bind / / --proc /proc --dev /dev -- echo STRICT_OK` → exit 0. `--unshare-user` strict (NOT fail-open `--unshare-user-try`) works unprivileged.
+- **A3-2 cgroup v2 delegation + enforcement: PASS.** cgroup2fs; user delegated subtree `/sys/fs/cgroup/user.slice/user-1000.slice/user@1000.service` (`Delegate=yes`, `DelegateControllers=cpu memory pids`, `subtree_control=cpu memory pids`). systemd 255, `systemd-run --user` available. Enforcement proven: `TasksMax=1` → libuv thread fork aborts (`uv_thread_create`, status ABRT); `TasksMax=64` → succeeds. `MemoryMax=20M` + touched alloc (`.fill(1)`) → oom-kill (status KILL, peak 20.0M); `MemoryMax=1G` → completes 500MB. `CPUWeight` settable. Enforcement mechanism for B2: `systemd-run --user --wait --pipe --collect -p TasksMax=/MemoryMax=/CPUWeight=` (service mode; `--scope` hangs on long-running children). Caveat: direct `cgroup.procs` cross-domain write fails (shell outside the delegated subtree) — B2 runs under `user@1000.service` or via `systemd-run --user`.
+- **A3-3 real Fabric 0.23.0 NodeProcessRuntime through the wrapper: PASS.** Re-ran `node --experimental-strip-types --test .pi/away-runtime/executor-sandbox.test.ts` live → 25/25 pass (drift guard intact: child-source value digest `ee0bb190...` stable). The writable-`process.execPath` seam (Fabric unconditionally spawns `process.execPath`; the C1 launcher reassigns it to the wrapper before Fabric boots) is proven end-to-end.
+- **A3-4 authenticated Makora parent-provider request without logging/forwarding the credential: PASS.** `/tmp/a3_makora.mjs` reads `~/.pi/agent/auth.json` `makora.key` internally (NEVER printed) and POSTs to `https://inference.makora.com/v1/chat/completions` (`model: zai-org/GLM-5.2-NVFP4`, `max_tokens: 512` so reasoning finishes then content emits) → HTTP 200, `choices[0].message.content = "A3_OK"`, usage 19+19=38 tokens. Credential used host-side only; never forwarded to the sandbox.
+- **A3-5 inner guest no cred env + no net: PASS.** `/tmp/a3_sandbox.mjs` runs a probe INSIDE strict bwrap (the wrapper's `buildBwrapArgs` for the writer lane: `--unshare-user` strict + `--unshare-net` + minimal binding + `--clearenv`). Report: `/home/ryan/.pi/agent/auth.json` → **ENOENT** (CREDENTIAL UNREACHABLE); `/home/ryan/.pi` → ENOENT; `/etc/passwd` → ENOENT (no host /etc); repo manifest `/home/ryan/repo/swastika/.pi/away-sandbox.json` → ENOENT (repo not bound); env = `{LANG, PATH, PWD}` (no credential vars, no `PI_AWAY_*`/`PI_FABRIC_*`); `fetch` → `TypeError: fetch failed` (net namespace denied for writer lane). NOTE: `/home/ryan` is listed and contains `.nvm` ONLY because the node binary is bound at `/home/ryan/.nvm/versions/node/v24.16.0/bin/node` (bwrap creates that directory path for the bind) — it is NOT the host home contents; the credential path `/home/ryan/.pi/...` is ENOENT.
+- **A3-6 before/after fingerprint (feature-scoped): PASS.** HEAD unchanged (`b30abe7` == origin/main == origin/master). Feature commits `7316fd9` (A1) and `0115fc9` (A2) touched ONLY `.pi/away-runtime/*` + `.pi/away-sandbox.json` + `progress.md` — NO protected path leak (verified clean against `.pi/fabric.json`, `.pi/settings.json`, `AGENTS.md`, `.pi/artifacts/pi-template/DECISIONS.md`, `.pi/artifacts/pi-template/PLAN.md`, `.opencode/state/session-summary.md`, `.opencode/artifacts/.active`). The smoke (Makora + sandbox) ran in `/tmp` and added no repo files. Working-tree churn (`.active`, `.pi/fabric.json`, `.pi/settings.json`, `session-summary.md`, mcp-research-lane/*, untracked workspaces) is concurrent agents — not mine, not staged.
+
+### Cleanup (operator-authorized)
+
+- Removed the 4 authorized stray files: `.pi/_tsprobe/p.ts`, `err1.txt`, `err2.txt`, `err3.txt` (verified gone). Empty `.pi/_tsprobe/` directory remains (harmless; rmdir needs permission per the no-delete rule).
+- Push (authorized): `git push origin main` (5dd5e34..b30abe7) then `git push origin main:master`. 5 commits published = A1 `7316fd9` + A2 `0115fc9` + 3 concurrent mcp-research-lane fixes. origin/main=origin/master=HEAD=`b30abe7`, 0 ahead/0 behind.
+
+### Scratch (out of repo, left per no-delete rule; /tmp)
+
+- `/tmp/a3_makora.mjs` (real Makora call), `/tmp/a3_makora_debug.mjs` (response-shape inspector), `/tmp/a3_sandbox.mjs` (bwrap confinement probe), `/tmp/a3_diag.mjs` (bwrap binding diagnostic), `/tmp/a3_pids.mjs`, `/tmp/a3_mem.mjs`, `/tmp/a3_pids_scope.mjs`, `/tmp/a3_mem_scope.mjs` (A3-2 cgroup probes from b5). Empty probe cgroup `/sys/fs/cgroup/user.slice/user-1000.slice/user@1000.service/away_a3_probe` left (harmless; rmdir needs permission).
+
+### Decisions frozen at A3
+
+- **D3 = feature-scoped** (operator). Strict byte-equality of protected files vs the frozen `baseline.md` is unachievable while concurrent agents continuously churn protected files; D3 verifies THIS feature's commits did not touch protected paths, not absolute baseline equality. A3-6 used the feature-scoped fingerprint.
+- **A3-4 = deterministic** (chose host-side real Makora call + live sandbox-isolation proof over a full-pi-loop) to avoid model-unreliability (Makora may not reliably call `fabric_exec`); faithful to the safety property (authenticated request runs host-side; credential structurally unreachable from the sandbox).
+
+### Next
+
+- A3 PASSES → **B1** Freeze ADR-014 authority (DECISIONS.md + PLAN.md + AGENTS.md pin pi-fabric 0.23.0 + child-source value digest `ee0bb190d5af47ff6ee99a0dd5874889b44b0857db23b897b4c57c88956793fb` + the writable-`process.execPath` seam + cgroup-v2 systemd delegation + strict `--unshare-user`). STOP permanently was NOT triggered — no weaker wrapper.
