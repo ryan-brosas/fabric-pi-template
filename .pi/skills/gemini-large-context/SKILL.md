@@ -123,7 +123,7 @@ Assess test coverage:
 - Edge cases covered"
 ```
 
-## Integration with OpenCode Workflow
+## Integration with Pi Workflow
 
 ### For Task-Constrained Research
 
@@ -131,11 +131,11 @@ When researching within task boundaries:
 
 ```bash
 # 1. Include plan spec in context
-gemini -p "@src/ @.opencode/artifacts/$(cat .opencode/artifacts/.active)/spec.md
+gemini -p "@src/ @.pi/artifacts/<slug>/PLAN.md
 Research implementations matching spec constraints"
 
 # 2. Save findings to plan files
-# Write to .opencode/artifacts/$(cat .opencode/artifacts/.active)/research.md
+# Write to .pi/artifacts/<slug>/PROGRESS.md
 ```
 
 ### Delegating Large Research to Gemini

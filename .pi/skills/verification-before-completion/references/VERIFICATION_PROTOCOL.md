@@ -91,62 +91,9 @@ npx vitest run --changed
 | Test      | `npx vitest run --changed`   | `npm test`          | Always            |
 | Build     | Skip                         | `npm run build`     | Ship/release only |
 
-## Verification Cache
+## Candidate Evidence
 
-Avoid redundant verification when nothing changed since the last successful run.
-
-### Cache Protocol
-
-After all gates pass, record a verification stamp:
-
-```bash
-# Compute fingerprint: commit hash + full diff content + untracked files
-# This ensures the stamp changes on ANY code change (commit, edit, or new file)
-STAMP=$(printf '%s\n%s\n%s' \
-  "$(git rev-parse HEAD)" \
-  "$(git diff HEAD -- '*.ts' '*.tsx' '*.js' '*.jsx')" \
-  "$(git ls-files --others --exclude-standard -- '*.ts' '*.tsx' '*.js' '*.jsx' | xargs cat 2>/dev/null)" \
-  | shasum -a 256 | cut -d' ' -f1)
-
-echo "$STAMP $(date -u +%Y-%m-%dT%H:%M:%SZ) PASS" >> .opencode/artifacts/verify.log
-```
-
-### Skip Check (before running gates)
-
-```bash
-# Read last verification stamp
-LAST_STAMP=$(tail -1 .opencode/artifacts/verify.log 2>/dev/null | awk '{print $1}')
-
-# Recompute current fingerprint (same formula as recording)
-CURRENT_STAMP=$(printf '%s\n%s\n%s' \
-  "$(git rev-parse HEAD)" \
-  "$(git diff HEAD -- '*.ts' '*.tsx' '*.js' '*.jsx')" \
-  "$(git ls-files --others --exclude-standard -- '*.ts' '*.tsx' '*.js' '*.jsx' | xargs cat 2>/dev/null)" \
-  | shasum -a 256 | cut -d' ' -f1)
-
-if [ "$LAST_STAMP" = "$CURRENT_STAMP" ]; then
-  echo "Verification cached: no changes since last PASS"
-  # Skip gates — report cached result
-else
-  # Run gates normally
-fi
-```
-
-### When Cache is Invalidated
-
-- Any file edited, staged, or committed since last verification
-- `--full` flag always bypasses cache
-- Manual `--no-cache` flag bypasses cache
-- Different plan context (plan ID changed)
-
-### Agent Behavior
-
-When another command needs verification (e.g., closing a plan, `/ship`):
-
-1. **Check cache first** — if clean, report `"Verification: cached PASS (no changes since <timestamp>)"`
-2. **If cache miss** — run incremental gates normally
-3. **Always record** — append to `verify.log` after successful run
-4. **Never skip on ship/release** — always run full mode regardless of cache
+Candidate evidence (command output, exit codes, file hashes) may be persisted in per-slug `PROGRESS.md` before the final verification pass. The final verified declaration is emitted externally (response/session transcript only) — no repository write occurs after the final before/after fingerprint. A post-fingerprint write would invalidate the PASS it records.
 
 ## Gate Results Format
 
@@ -168,4 +115,4 @@ Include the mode column so it's clear whether incremental or full was used.
 - If any gate fails, stop and fix before proceeding
 - Show the FULL error output for failed gates
 - After fixing, re-run ONLY the failed gate(s) + any downstream gates
-- Cache is NOT written on failure — next run will execute gates normally
+- Failed runs produce no evidence — next run will execute gates normally

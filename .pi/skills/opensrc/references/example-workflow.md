@@ -39,7 +39,7 @@ read({
 
 // 6. Document findings
 write({
-  filePath: ".opencode/artifacts/<slug>/research.md",
+  filePath: ".pi/artifacts/<slug>/PROGRESS.md",
   content: `# Zod Async Refinements
 
 **Finding:** Async refinements use \`parseAsync()\` not \`parse()\`
