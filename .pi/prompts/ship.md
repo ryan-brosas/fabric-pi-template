@@ -132,6 +132,22 @@ For each task (wave-based or sequential fallback):
 9. **Mark** the task complete in `.pi/artifacts/<slug>/TODO.md`
 10. **Append** progress to `.pi/artifacts/<slug>/PROGRESS.md`
 
+### Host-Derived Candidate Intake
+
+When a task is dispatched to a writable worker (Makora), Main derives the candidate changed paths and per-file bytes from the worktree — never from worker self-report. The worker report is advisory only, never the basis for staging.
+
+**Pre-task baseline (host):** before issuing the blocking writable run, capture:
+- `git rev-parse HEAD`
+- `git status --porcelain=v1 -z --untracked-files=all`
+- `git diff --cached --binary`
+- `git diff --binary`
+- `git hash-object --no-filters` for every already-dirty and untracked path
+- `git hash-object --no-filters` (or a missing sentinel) for every task-owned path in the task's `files` list
+
+Issue one blocking writable `agents.run()` (Main makes no edit or write while it is active).
+
+**Post-settlement intake (host):** after the worker settles, recompute the same data. Derive candidates from path/hash changes against the pre-task baseline. Task-owned paths that were already dirty are included — the pre-task baseline hash lets Main attribute the worker's contribution even for pre-existing dirty bytes. Main runs verification after settlement, using host-derived candidates only. Preserve unrelated changes; exclude unowned bytes. Block only when a task-owned path has ambiguous concurrent authorship the baseline cannot resolve.
+
 ### Checkpoint Protocol
 
 When task has `checkpoint:*` type:

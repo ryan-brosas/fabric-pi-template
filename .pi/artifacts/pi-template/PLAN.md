@@ -132,6 +132,21 @@ await agents.run({
 - `maxConcurrent` is shared child headroom bounding total concurrent children across writable and read-only tiers — it is not the writable pool. Read-only `spawn`/`parallel` children may overlap the writable run up to `maxConcurrent`.
 - If an implementation genuinely needs an intermediate command, Main splits the work into serial worker runs around a Main-owned command; there is no general exact-argv child command runner (`schema.trustedCommands` is schema-verification machinery only).
 
+### Milestone 6 Observational Worker-Policy Smoke
+
+This milestone-6 smoke validates Main's routing policy observationally — it is **not host-enforced**. The single-writer discipline is operator/prompt policy, not an atomic lease (see "Single writer per worktree" in `AGENTS.md`).
+
+Steps:
+
+1. Hold a second writable request (request 2) in Main's queue — **request 2 remains undispatched** while request 1 is active.
+2. Start a **read-only child** (GPT `agents.spawn`/`parallel`) and allow it to overlap the active writable run; read-only children may overlap up to the **shared child headroom** (`maxConcurrent`).
+3. Issue writable request 1 as a **blocking `agents.run()`** (the Makora lane).
+4. Observe: Main makes **no edit or write** while request 1 is active, and request 2 is not dispatched during the active interval.
+5. Dispatch request 2 only **after request 1 settles**.
+6. Record whether the observations hold; if request 2 was dispatched or Main edited during the active interval, the policy is violated and must be corrected in prompt/`AGENTS.md` text.
+
+This validates Main routing policy, not host enforcement — the **shared child headroom** allows read-only overlap; the single-writable-run discipline is the policy boundary, enforced by the **blocking `agents.run()`** contract and Main's self-restraint, not a host semaphore. Runtime smoke requires `/trust` + restart and therefore runs in milestone 6, not this milestone.
+
 ## Advisory Supervisor
 
 Per `AGENTS.md` "Advisory supervisor, not orchestrator". Per-session, single actor.
