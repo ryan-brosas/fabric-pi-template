@@ -12,6 +12,27 @@ Load the `fallow` skill before running the scan.
 
 Load `verification-before-completion` before recording grades.
 
+## Validate Ready Packet
+
+`/gc` is project-wide and slugless, but still requires a fully initialized project before any memory or action. The Pi-native init packet is six files:
+
+- `AGENTS.md`
+- `.pi/tech-stack.md`
+- `.pi/ROADMAP.md`
+- `.pi/state.md`
+- `.pi/user.md`
+- `.pi/memory.md`
+
+Read `.pi/state.md` frontmatter and verify all of the following:
+
+1. All six packet files exist.
+2. `schema_version: 1` is present.
+3. `initialization_status: ready` (not `partial`).
+4. `context_reload_required: false` (if `true`, `AGENTS.md` changed since the last init — instruct the operator to run `/reload` then `/init --refresh` before proceeding).
+5. `agents_boilerplate_sha256` matches the SHA-256 of the managed AGENTS boilerplate region (between the `<!-- pi:init:boilerplate:start -->` and `<!-- pi:init:boilerplate:end -->` markers).
+
+If any check fails, **stop**. Do not read memory or run any scan. Report which packet gate failed and instruct the operator to run `/init` (fresh) or `/init --refresh` (established). A `partial` or reload-required state means the packet is not ready and `/gc` must fail closed. `/gc` remains response-only — it never writes lifecycle artifacts or project memory.
+
 ## Phase 1: Run Fallow Scan
 
 If `fallow` is installed, run:
@@ -30,7 +51,7 @@ Extract:
 
 ## Phase 2: Read Existing Quality Grades
 
-`/gc` is project-wide and slugless. Read project memory (`.opencode/artifacts/MEMORY.md`) if it exists, for prior quality context, and compare with current Fallow findings. If no prior record exists, treat all grades as fresh. `/gc` never writes lifecycle artifacts (PLAN/TODO/PROGRESS/DECISIONS) and never writes project memory — grades and changes are emitted in the response only.
+`/gc` is project-wide and slugless. Read project memory (`.pi/memory.md`) if it exists, for prior quality context, and compare with current Fallow findings. If no prior record exists, treat all grades as fresh. `/gc` never writes lifecycle artifacts (PLAN/TODO/PROGRESS/DECISIONS) and never writes project memory — grades and changes are emitted in the response only.
 
 ## Phase 3: Grade Each Domain
 
