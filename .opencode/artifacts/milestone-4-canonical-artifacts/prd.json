@@ -3,145 +3,215 @@
   "slug": "milestone-4-canonical-artifacts",
   "created": "2026-07-22",
   "id": "ms4-001",
-  "approach": "audit + hardening pass: milestones 1-3 already encoded most of the canonical-artifact contract. This spec audits the nine ported prompts for four residual gaps (lazy creation absent in plan/research/ship/verify; slug validation absent in plan/research; gc active-slug inference wrong for the slugless Pi layer; two-surface contract not formalized), hardens them, and formalizes the lifecycle-state vs project-memory separation (ADR-007). No changes to substantive procedural content; only the four enumerated hardening edits + contract formalization.",
+  "approach": "audit + hardening pass: milestones 1-3 already encoded most of the canonical-artifact contract. This spec audits the nine ported prompts for four residual gaps (namespace ownership not fail-closed; slug validation inconsistent/out-of-order in create/plan/research; gc active-slug inference wrong for the slugless Pi layer; two-surface contract not formalized), hardens them, and formalizes the lifecycle-state vs project-memory separation (ADR-007). No changes to substantive procedural content; only the enumerated hardening edits + contract formalization. Operator resolutions: /create is the sole namespace creator (established = PLAN+TODO); /gc is project-wide, slugless, response-only.",
   "blocks": [
     "Milestone 5 — verification fingerprint tooling",
     "Milestone 6 — smoke test",
     "Gate workflow (.pi/prompts/gate.md) — separate deferred milestone"
   ],
-  "affected_files": [
-    ".pi/prompts/plan.md",
-    ".pi/prompts/research.md",
-    ".pi/prompts/ship.md",
-    ".pi/prompts/verify.md",
-    ".pi/prompts/gc.md",
-    "AGENTS.md",
-    ".pi/artifacts/pi-template/PLAN.md",
-    ".pi/artifacts/pi-template/DECISIONS.md"
-  ],
+  "manifests": {
+    "write_paths": [
+      ".opencode/artifacts/milestone-4-canonical-artifacts/spec.md",
+      ".opencode/artifacts/milestone-4-canonical-artifacts/prd.json",
+      ".opencode/artifacts/milestone-4-canonical-artifacts/plan.md",
+      "AGENTS.md",
+      ".pi/artifacts/pi-template/PLAN.md",
+      ".pi/artifacts/pi-template/DECISIONS.md",
+      ".pi/prompts/create.md",
+      ".pi/prompts/plan.md",
+      ".pi/prompts/research.md",
+      ".pi/prompts/ship.md",
+      ".pi/prompts/verify.md",
+      ".pi/prompts/gc.md",
+      ".pi/artifacts/pi-template/TODO.md",
+      ".pi/artifacts/pi-template/PROGRESS.md",
+      ".opencode/state.md",
+      ".opencode/roadmap.md"
+    ],
+    "protected_source_paths": [
+      ".opencode/command/audit.md",
+      ".opencode/command/create.md",
+      ".opencode/command/fix.md",
+      ".opencode/command/gc.md",
+      ".opencode/command/init.md",
+      ".opencode/command/plan.md",
+      ".opencode/command/research.md",
+      ".opencode/command/ship.md",
+      ".opencode/command/verify.md"
+    ],
+    "verified_paths": [
+      ".opencode/artifacts/milestone-4-canonical-artifacts/spec.md",
+      ".opencode/artifacts/milestone-4-canonical-artifacts/prd.json",
+      ".opencode/artifacts/milestone-4-canonical-artifacts/plan.md",
+      "AGENTS.md",
+      ".pi/artifacts/pi-template/PLAN.md",
+      ".pi/artifacts/pi-template/DECISIONS.md",
+      ".pi/artifacts/pi-template/TODO.md",
+      ".pi/artifacts/pi-template/PROGRESS.md",
+      ".pi/prompts/create.md",
+      ".pi/prompts/plan.md",
+      ".pi/prompts/research.md",
+      ".pi/prompts/ship.md",
+      ".pi/prompts/verify.md",
+      ".pi/prompts/gc.md",
+      ".opencode/state.md",
+      ".opencode/roadmap.md",
+      ".opencode/artifacts/.active",
+      ".pi/.gitignore"
+    ],
+    "baseline_oid": "bebd0449eb501fe9e7dd5fa66781ad1f1613a459",
+    "shared_serial_ownership": [
+      {
+        "path": ".opencode/artifacts/milestone-4-canonical-artifacts/spec.md",
+        "owners": ["A1", "C2"]
+      }
+    ]
+  },
   "success_criteria": [
     {
-      "criterion": "Slug-validation regex present in all five lifecycle prompts",
-      "verify": "for f in create plan research ship verify; do rg -q '\\^\\(\\?=\\.\\{1,64\\}\\$\\)\\[a-z0-9\\]' .pi/prompts/$f.md || { echo MISSING $f; exit 1; }; done"
+      "criterion": "Slug-validation regex precedes first slug-derived access in all five lifecycle prompts (order-aware)",
+      "verify": "node -e 'const fs=require(\"fs\");const rx=\"^(?=.{1,64}$)[a-z0-9]+(?:-[a-z0-9]+)*$\";for(const f of [\"create\",\"plan\",\"research\",\"ship\",\"verify\"]){const s=fs.readFileSync(\".pi/prompts/\"+f+\".md\",\"utf8\");const v=s.indexOf(rx);const accs=[\".pi/artifacts/<slug>\",\".opencode/artifacts/MEMORY.md\"].map(x=>s.indexOf(x)).filter(x=>x>=0);if(v<0||accs.length&&v>Math.min(...accs))throw new Error(f+\": regex missing or after access\")}'"
     },
     {
-      "criterion": "Lazy-creation mkdir present in the five lifecycle prompts",
-      "verify": "for f in create plan research ship verify; do rg -q 'mkdir -p.*\\.pi/artifacts' .pi/prompts/$f.md || { echo MISSING $f; exit 1; }; done"
+      "criterion": "/create is the sole namespace creator; plan/research/ship/verify never mkdir",
+      "verify": "node -e 'const fs=require(\"fs\");let create=0;for(const f of [\"plan\",\"research\",\"ship\",\"verify\"]){const s=fs.readFileSync(\".pi/prompts/\"+f+\".md\",\"utf8\");if(/mkdir -p[^\\n]*\\.pi\\/artifacts/.test(s))throw new Error(f+\": must not create namespace\")}const c=fs.readFileSync(\".pi/prompts/create.md\",\"utf8\");if(!/mkdir -p[^\\n]*\\.pi\\/artifacts/.test(c))throw new Error(\"create: missing namespace creation\")'"
     },
     {
-      "criterion": "/gc has no active-slug inference",
-      "verify": "! rg -qi 'active slug' .pi/prompts/gc.md"
+      "criterion": "/plan, /ship, /verify require both PLAN.md and TODO.md (established-namespace guard)",
+      "verify": "node -e 'const fs=require(\"fs\");for(const f of [\"plan\",\"ship\",\"verify\"]){const s=fs.readFileSync(\".pi/prompts/\"+f+\".md\",\"utf8\");if(!/PLAN\\.md/.test(s)||!/TODO\\.md/.test(s))throw new Error(f+\": missing sentinel requirement\")}'"
     },
     {
-      "criterion": "Two-surface contract documented (AGENTS + ADR-007)",
-      "verify": "rg -q 'Two surfaces|two-surface|project memory.*separate|lifecycle state.*confined' AGENTS.md && rg -q 'ADR-007' .pi/artifacts/pi-template/DECISIONS.md"
+      "criterion": "/research returns response-only (no PROGRESS.md or memory write) when namespace missing/partial",
+      "verify": "node -e 'const fs=require(\"fs\");const s=fs.readFileSync(\".pi/prompts/research.md\",\"utf8\");if(!/If the slug namespace does not exist|response only|response-only|do not (write|create)/i.test(s))throw new Error(\"research: missing response-only branch\")'"
+    },
+    {
+      "criterion": "/gc is slugless, response-only, description-only frontmatter, no active/latest, no lifecycle-artifact write, no MEMORY write",
+      "verify": "node -e 'const fs=require(\"fs\");const s=fs.readFileSync(\".pi/prompts/gc.md\",\"utf8\");const m=/^---\\n([\\s\\S]*?)\\n---\\n/.exec(s);if(!m)throw new Error(\"gc: no frontmatter\");const k=[...m[1].matchAll(/^([\\w-]+):/gm)].map(x=>x[1]);if(k.length!==1||k[0]!==\"description\")throw new Error(\"gc: frontmatter [\"+k+\"]\");for(const re of [/active slug/i,/<slug>/,/\\.active/,/\\blatest\\b/i,/DECISIONS\\.md under/i,/PROGRESS\\.md/,/TODO\\.md/])if(re.test(s))throw new Error(\"gc: forbidden \"+re);if(!/project-wide/i.test(s)||!/response/i.test(s))throw new Error(\"gc: missing project-wide response-only contract\")'"
+    },
+    {
+      "criterion": "Two-surface contract documented (AGENTS + PLAN + ADR-007)",
+      "verify": "rg -q 'Two surfaces|two-surface|project memory.*separate|lifecycle state.*confined' AGENTS.md && rg -q '^## ADR-007:' .pi/artifacts/pi-template/DECISIONS.md && rg -qi 'two surface|project memory' .pi/artifacts/pi-template/PLAN.md"
     },
     {
       "criterion": "No regression in milestone-3 static suite (frontmatter 9/9, forbidden CLEAN, slug presence 5/5)",
-      "verify": "node -e 'const fs=require(\"fs\");const need={audit:[\"description\",\"argument-hint\"],create:[\"description\",\"argument-hint\"],fix:[\"description\",\"argument-hint\"],gc:[\"description\"],init:[\"description\",\"argument-hint\"],plan:[\"description\",\"argument-hint\"],research:[\"description\",\"argument-hint\"],ship:[\"description\",\"argument-hint\"],verify:[\"description\",\"argument-hint\"]};for(const[f,keys]of Object.entries(need)){const s=fs.readFileSync(\".pi/prompts/\"+f+\".md\",\"utf8\");const m=/^---\\n([\\s\\S]*?)\\n---\\n/.exec(s);if(!m)throw new Error(f+\": no frontmatter\");const got=[...m[1].matchAll(/^([\\w-]+):/gm)].map(x=>x[1]);if(got.length!==keys.length||!keys.every(k=>got.includes(k)))throw new Error(f+\": got [\"+got+\"] expected [\"+keys+\"]\");}' && ! rg -q 'agent:|task\\(|question\\(|skill\\(|write\\(|\\.active|spec\\.md|prd\\.json|tasks\\.json|audit-pattern|batch-implement|deep-research|review-state\\.json|/ui-slop-check|/compound|progress\\.md|audit\\.md' .pi/prompts/*.md && for f in create plan ship verify research; do rg -q '<slug>' .pi/prompts/$f.md || exit 1; done"
+      "verify": "node -e 'const fs=require(\"fs\");const need={audit:[\"description\",\"argument-hint\"],create:[\"description\",\"argument-hint\"],fix:[\"description\",\"argument-hint\"],gc:[\"description\"],init:[\"description\",\"argument-hint\"],plan:[\"description\",\"argument-hint\"],research:[\"description\",\"argument-hint\"],ship:[\"description\",\"argument-hint\"],verify:[\"description\",\"argument-hint\"]};for(const[f,keys]of Object.entries(need)){const s=fs.readFileSync(\".pi/prompts/\"+f+\".md\",\"utf8\");const m=/^---\\n([\\s\\S]*?)\\n---\\n/.exec(s);if(!m)throw new Error(f+\": no frontmatter\");const got=[...m[1].matchAll(/^([\\w-]+):/gm)].map(x=>x[1]);if(got.length!==keys.length||!keys.every(k=>got.includes(k)))throw new Error(f+\": got [\"+got+\"] expected [\"+keys+\"]\");}' && rg -q 'agent:|task\\(|question\\(|skill\\(|write\\(|\\.active|spec\\.md|prd\\.json|tasks\\.json|audit-pattern|batch-implement|deep-research|review-state\\.json|/ui-slop-check|/compound|progress\\.md|audit\\.md' .pi/prompts/*.md || [ $? -eq 1 ] && for f in create plan ship verify research; do rg -q '<slug>' .pi/prompts/$f.md || exit 1; done"
     },
     {
-      "criterion": "Source command bodies unchanged (immutability)",
-      "verify": "git diff --exit-code -- .opencode/command/"
+      "criterion": "Source command bodies unchanged (baseline-bound to bebd044)",
+      "verify": "git diff --exit-code bebd0449eb501fe9e7dd5fa66781ad1f1613a459 -- .opencode/command/audit.md .opencode/command/create.md .opencode/command/fix.md .opencode/command/gc.md .opencode/command/init.md .opencode/command/plan.md .opencode/command/research.md .opencode/command/ship.md .opencode/command/verify.md"
+    },
+    {
+      "criterion": "Target-heading preservation (every baseline ##/### heading in changed prompts remains)",
+      "verify": "node -e 'const {execSync}=require(\"child_process\");const fs=require(\"fs\");const changed={\"create\":\"d3c457bb\",\"plan\":\"f5681d44\",\"research\":\"61d1f23f\",\"ship\":\"5dcc1d12\",\"verify\":\"861f57b3\",\"gc\":\"8a3fb183\"};for(const[f]of Object.entries(changed)){const cur=fs.readFileSync(\".pi/prompts/\"+f+\".md\",\"utf8\");const base=execSync(`git show bebd0449eb501fe9e7dd5fa66781ad1f1613a459:.pi/prompts/${f}.md`).toString();const bh=[...base.matchAll(/^##(#+)?.*$/gm)].map(x=>x[0]);for(const h of bh){if(!cur.split(\"\\n\").includes(h))throw new Error(f+\": lost heading: \"+h)}}'"
     },
     {
       "criterion": "Completion-authority split intact",
-      "verify": "rg -q 'cannot declare completion|must not.*completion' .pi/prompts/ship.md && rg -qi 'sole.*verified|transcript only|no repository write' .pi/prompts/verify.md"
+      "verify": "rg -q 'cannot declare (terminal )?(verified status|completion)' .pi/prompts/ship.md && rg -qi 'sole.*verified|transcript only|no repository write' .pi/prompts/verify.md"
     },
     {
       "criterion": "No .active/latest in the nine prompts",
-      "verify": "! rg -q '\\.active|latest' .pi/prompts/*.md"
+      "verify": "rg -q '\\.active|latest' .pi/prompts/*.md || [ $? -eq 1 ]"
     },
     {
-      "criterion": "jq validates prd.json",
-      "verify": "jq -e . .opencode/artifacts/milestone-4-canonical-artifacts/prd.json"
-    },
-    {
-      "criterion": "Every task has <=3 files (bounded)",
-      "verify": "jq -e '([.tasks[].files | length] | max) <= 3' .opencode/artifacts/milestone-4-canonical-artifacts/prd.json"
+      "criterion": "prd graph bounded (2-3 tasks per child plan, <=3 files per task, ID-based deps)",
+      "verify": "node -e 'const p=require(\"./.opencode/artifacts/milestone-4-canonical-artifacts/prd.json\");const ids=new Map(p.tasks.map((t,i)=>[t.id,i]));if(ids.size!==p.tasks.length)throw new Error(\"dup/missing id\");const bc={};for(const[i,t]of p.tasks.entries()){if(t.files.length>3)throw new Error(t.id+\": >3 files\");if(!t.child_plan)throw new Error(t.id+\": missing child_plan\");bc[t.child_plan]=(bc[t.child_plan]||0)+1;for(const d of t.depends_on){if(!ids.has(d))throw new Error(t.id+\": unknown dep \"+d);if(ids.get(d)>=i)throw new Error(t.id+\": dep not earlier\")}}for(const[b,n]of Object.entries(bc)){if(n<2||n>3)throw new Error(b+\": \"+n+\" tasks\")}'"
     }
   ],
   "tasks": [
     {
-      "title": "Formalize the two-surface contract (AGENTS, PLAN, DECISIONS)",
+      "id": "A1",
+      "child_plan": "A",
+      "title": "Correct the active planning contract (spec, prd, plan)",
       "category": "contract",
-      "end_state": "AGENTS.md Lifecycle artifacts block has a Two surfaces subsection: lifecycle state (4 canonical files, confined to slug) vs project memory (MEMORY.md, separate writable surface). PLAN.md lifecycle flow mirrors it. DECISIONS.md has ADR-007 documenting the two-surface tradeoff. Done before prompt hardening so the contract is authoritative.",
+      "end_state": "spec.md corrected to: /create sole owner, established=PLAN+TODO, downstream fail-closed, research response-only, /gc project-wide slugless, two-surface ADR-007, fail-closed validators, baseline-bound immutability. prd.json restructured to A1-C3 task IDs + child_plan + manifests + ID-based deps. plan.md persisted with the 8-task serial plan.",
       "depends_on": [],
-      "parallel": false,
-      "conflicts_with": [],
+      "files": [
+        ".opencode/artifacts/milestone-4-canonical-artifacts/spec.md",
+        ".opencode/artifacts/milestone-4-canonical-artifacts/prd.json",
+        ".opencode/artifacts/milestone-4-canonical-artifacts/plan.md"
+      ],
+      "verify": "jq -e . .opencode/artifacts/milestone-4-canonical-artifacts/prd.json && node -e 'const p=require(\"./.opencode/artifacts/milestone-4-canonical-artifacts/prd.json\");const ids=new Map(p.tasks.map((t,i)=>[t.id,i]));if(ids.size!==p.tasks.length)throw new Error(\"dup/missing id\");const bc={};for(const[i,t]of p.tasks.entries()){if(t.files.length>3)throw new Error(t.id+\": >3 files\");if(!t.child_plan)throw new Error(t.id+\": missing child_plan\");bc[t.child_plan]=(bc[t.child_plan]||0)+1;for(const d of t.depends_on){if(!ids.has(d))throw new Error(t.id+\": unknown dep \"+d);if(ids.get(d)>=i)throw new Error(t.id+\": dep not earlier\")}}for(const[b,n]of Object.entries(bc)){if(n<2||n>3)throw new Error(b+\": \"+n+\" tasks\")}' && test -f .opencode/artifacts/milestone-4-canonical-artifacts/plan.md"
+    },
+    {
+      "id": "A2",
+      "child_plan": "A",
+      "title": "Formalize canonical contract + ADR-007 (AGENTS, PLAN, DECISIONS)",
+      "category": "contract",
+      "end_state": "AGENTS.md Lifecycle artifacts block has a Two surfaces subsection: lifecycle state (4 canonical files, confined to slug) vs project memory (MEMORY.md, optional separate surface; missing = non-blocking; /init may establish; /verify may append one distilled pre-fingerprint finding; never secrets/PII/raw output/per-slug status/final results). PLAN.md lifecycle flow mirrors it. DECISIONS.md has ADR-007 with Context/Decision/Consequences/Alternatives. Namespace ownership (/create sole creator; established=PLAN+TODO; downstream fail-closed) encoded.",
+      "depends_on": ["A1"],
       "files": [
         "AGENTS.md",
         ".pi/artifacts/pi-template/PLAN.md",
         ".pi/artifacts/pi-template/DECISIONS.md"
       ],
-      "verify": "rg -q 'Two surfaces|two-surface|project memory.*separate|lifecycle state.*confined' AGENTS.md && rg -q 'ADR-007' .pi/artifacts/pi-template/DECISIONS.md && rg -q 'two surface|project memory' .pi/artifacts/pi-template/PLAN.md"
+      "verify": "rg -q 'Two surfaces|two-surface|project memory.*separate|lifecycle state.*confined' AGENTS.md && rg -q '^## ADR-007:' .pi/artifacts/pi-template/DECISIONS.md && rg -qi 'two surface|project memory' .pi/artifacts/pi-template/PLAN.md && rg -qi 'sole.*namespace|established.*PLAN.*TODO|fail closed' AGENTS.md"
     },
     {
-      "title": "Harden /plan and /research (slug regex + lazy creation)",
-      "category": "harden-lifecycle",
-      "end_state": ".pi/prompts/plan.md and research.md validate <slug> with the canonical regex before filesystem access and do mkdir -p .pi/artifacts/<slug>/ before writes. All existing procedural content preserved. No OpenCode-only constructs introduced.",
-      "depends_on": ["Formalize the two-surface contract (AGENTS, PLAN, DECISIONS)"],
-      "parallel": false,
-      "conflicts_with": [],
-      "files": [".pi/prompts/plan.md", ".pi/prompts/research.md"],
-      "verify": "for f in plan research; do rg -q '\\^\\(\\?=\\.\\{1,64\\}\\$\\)\\[a-z0-9\\]' .pi/prompts/$f.md && rg -q 'mkdir -p.*\\.pi/artifacts' .pi/prompts/$f.md || { echo MISSING $f; exit 1; }; done && ! rg -q 'agent:|task\\(|question\\(|skill\\(|write\\(|\\.active|spec\\.md|prd\\.json' .pi/prompts/plan.md .pi/prompts/research.md"
+      "id": "B1",
+      "child_plan": "B",
+      "title": "Harden /create, /plan, /research (validation first, established-namespace guard, research response-only)",
+      "category": "harden",
+      "end_state": "/create validates slug before any slug-derived access; keeps sole mkdir; distinguishes established/partial/absent namespaces. /plan and /research validate slug with the canonical regex before filesystem access and require both PLAN.md and TODO.md before lifecycle writes. /research returns response-only (no PROGRESS.md or memory write) when the namespace is missing or partial. All existing procedural content preserved (every baseline ##/### heading remains). No OpenCode-only constructs introduced.",
+      "depends_on": ["A2"],
+      "files": [".pi/prompts/create.md", ".pi/prompts/plan.md", ".pi/prompts/research.md"],
+      "verify": "node -e 'const fs=require(\"fs\");const rx=\"^(?=.{1,64}$)[a-z0-9]+(?:-[a-z0-9]+)*$\";for(const f of [\"create\",\"plan\",\"research\"]){const s=fs.readFileSync(\".pi/prompts/\"+f+\".md\",\"utf8\");const v=s.indexOf(rx);const accs=[\".pi/artifacts/<slug>\",\".opencode/artifacts/MEMORY.md\"].map(x=>s.indexOf(x)).filter(x=>x>=0);if(v<0||accs.length&&v>Math.min(...accs))throw new Error(f+\": regex missing or after access\")}const c=fs.readFileSync(\".pi/prompts/create.md\",\"utf8\");if(!/mkdir -p[^\\n]*\\.pi\\/artifacts/.test(c))throw new Error(\"create: missing mkdir\");for(const f of [\"plan\",\"research\"]){const s=fs.readFileSync(\".pi/prompts/\"+f+\".md\",\"utf8\");if(/mkdir -p[^\\n]*\\.pi\\/artifacts/.test(s))throw new Error(f+\": must not create namespace\");if(!/PLAN\\.md/.test(s)||!/TODO\\.md/.test(s))throw new Error(f+\": missing sentinel\")}const r=fs.readFileSync(\".pi/prompts/research.md\",\"utf8\");if(!/If the slug namespace does not exist|response only|response-only|do not (write|create)/i.test(r))throw new Error(\"research: missing response-only branch\")' && git diff --exit-code bebd0449eb501fe9e7dd5fa66781ad1f1613a459 -- .opencode/command/create.md .opencode/command/plan.md .opencode/command/research.md"
     },
     {
-      "title": "Harden /ship and /verify (lazy creation; slug regex already present)",
-      "category": "harden-execution",
-      "end_state": ".pi/prompts/ship.md and verify.md do mkdir -p .pi/artifacts/<slug>/ before writes. Slug regex already present in both. Authority rules (ship no-completion, verify sole external) intact. All existing procedural content preserved.",
-      "depends_on": ["Harden /plan and /research (slug regex + lazy creation)"],
-      "parallel": false,
-      "conflicts_with": [],
+      "id": "B2",
+      "child_plan": "B",
+      "title": "Align /ship and /verify (require PLAN+TODO, two-surface wording, preserve authority)",
+      "category": "harden",
+      "end_state": "/ship and /verify require both PLAN.md and TODO.md before any lifecycle write; replace the blanket 'All artifact reads and writes are confined to .pi/artifacts/<slug>/' wording with the two-surface wording (lifecycle state confined; optional project memory separate). Authority rules intact (/ship cannot declare terminal verified status; /verify sole external completion authority, transcript-only, no post-fingerprint write). All existing procedural content preserved.",
+      "depends_on": ["B1"],
       "files": [".pi/prompts/ship.md", ".pi/prompts/verify.md"],
-      "verify": "for f in ship verify; do rg -q 'mkdir -p.*\\.pi/artifacts' .pi/prompts/$f.md || { echo MISSING $f; exit 1; }; done && rg -q 'cannot declare completion|must not.*completion' .pi/prompts/ship.md && rg -qi 'sole.*verified|transcript only|no repository write' .pi/prompts/verify.md"
+      "verify": "node -e 'const fs=require(\"fs\");const rx=\"^(?=.{1,64}$)[a-z0-9]+(?:-[a-z0-9]+)*$\";for(const f of [\"ship\",\"verify\"]){const s=fs.readFileSync(\".pi/prompts/\"+f+\".md\",\"utf8\");const v=s.indexOf(rx);const accs=[\".pi/artifacts/<slug>\",\".opencode/artifacts/MEMORY.md\"].map(x=>s.indexOf(x)).filter(x=>x>=0);if(v<0||accs.length&&v>Math.min(...accs))throw new Error(f+\": regex missing or after access\");if(/mkdir -p[^\\n]*\\.pi\\/artifacts/.test(s))throw new Error(f+\": must not create namespace\");if(!/PLAN\\.md/.test(s)||!/TODO\\.md/.test(s))throw new Error(f+\": missing sentinel\");if(/All artifact reads and writes are confined/.test(s))throw new Error(f+\": stale blanket confinement\");if(!/lifecycle-state|project memory/i.test(s))throw new Error(f+\": missing two-surface wording\")}const sh=fs.readFileSync(\".pi/prompts/ship.md\",\"utf8\");if(!/cannot declare (terminal )?(verified status|completion)/.test(sh))throw new Error(\"ship: authority regression\");const ve=fs.readFileSync(\".pi/prompts/verify.md\",\"utf8\");for(const re of [/sole.*verified/i,/transcript only/i,/no repository write/i])if(!re.test(ve))throw new Error(\"verify: missing \"+re)}' && git diff --exit-code bebd0449eb501fe9e7dd5fa66781ad1f1613a459 -- .opencode/command/ship.md .opencode/command/verify.md"
     },
     {
-      "title": "Fix /gc (remove active-slug inference)",
-      "category": "harden-ops",
-      "end_state": ".pi/prompts/gc.md has no 'active slug' inference. It grades project-wide template domains (plugins/commands/skills/docs) without a slug and optionally accepts a <slug> to grade that slug's lifecycle artifacts. No .active/latest.",
-      "depends_on": ["Harden /ship and /verify (lazy creation; slug regex already present)"],
-      "parallel": false,
-      "conflicts_with": [],
+      "id": "B3",
+      "child_plan": "B",
+      "title": "Make /gc project-wide slugless response-only",
+      "category": "harden",
+      "end_state": "/gc has description-only frontmatter; no <slug> token; no active/latest inference; no lifecycle-artifact (PROGRESS/TODO/DECISIONS) write; no MEMORY.md write; grades project-wide template domains and emits the report in the response only. Reads project memory only when it exists. All quality phases preserved (Fallow, grade domains, recommendations).",
+      "depends_on": ["B2"],
       "files": [".pi/prompts/gc.md"],
-      "verify": "! rg -qi 'active slug' .pi/prompts/gc.md && ! rg -q 'agent:|task\\(|question\\(|skill\\(|write\\(' .pi/prompts/gc.md"
+      "verify": "node -e 'const fs=require(\"fs\");const s=fs.readFileSync(\".pi/prompts/gc.md\",\"utf8\");const m=/^---\\n([\\s\\S]*?)\\n---\\n/.exec(s);if(!m)throw new Error(\"gc: no frontmatter\");const k=[...m[1].matchAll(/^([\\w-]+):/gm)].map(x=>x[1]);if(k.length!==1||k[0]!==\"description\")throw new Error(\"gc: frontmatter [\"+k+\"]\");for(const re of [/active slug/i,/<slug>/,/\\.active/,/\\blatest\\b/i,/DECISIONS\\.md under/i,/PROGRESS\\.md/,/TODO\\.md/])if(re.test(s))throw new Error(\"gc: forbidden \"+re);if(!/project-wide/i.test(s)||!/response/i.test(s))throw new Error(\"gc: missing project-wide response-only contract\")' && git diff --exit-code bebd0449eb501fe9e7dd5fa66781ad1f1613a459 -- .opencode/command/gc.md"
     },
     {
+      "id": "C1",
+      "child_plan": "C",
       "title": "Record candidate evidence (pending final no-write verification)",
       "category": "evidence",
-      "end_state": ".pi/artifacts/pi-template/TODO.md and PROGRESS.md and .opencode/state.md record the milestone-4 hardening complete but verification PENDING (not VERIFIED). Commands, exit codes, limitations logged.",
-      "depends_on": ["Fix /gc (remove active-slug inference)"],
-      "parallel": false,
-      "conflicts_with": [],
+      "end_state": ".pi/artifacts/pi-template/TODO.md, PROGRESS.md, and .opencode/state.md record the milestone-4 hardening complete but verification PENDING (not VERIFIED). Commands, exit codes, baseline OID, verified paths, and runtime-smoke deferral logged. Every A/B validator and the milestone-3 regression suite pass.",
+      "depends_on": ["B3"],
       "files": [
         ".pi/artifacts/pi-template/TODO.md",
         ".pi/artifacts/pi-template/PROGRESS.md",
         ".opencode/state.md"
       ],
-      "verify": "rg -q 'pending final|verification pending|pending.*no-write' .pi/artifacts/pi-template/PROGRESS.md"
+      "verify": "rg -q 'pending final|verification pending|pending.*no-write' .pi/artifacts/pi-template/PROGRESS.md && rg -q 'milestone 4|milestone-4' .opencode/state.md"
     },
     {
-      "title": "Close OpenCode feature implementation state",
+      "id": "C2",
+      "child_plan": "C",
+      "title": "Close implementation state (spec, roadmap; mark A1-C2 done, C3 pending)",
       "category": "close",
-      "end_state": "spec.md marks each bounded task complete (without VERIFIED); roadmap.md milestone 4 marked implementation-done/verification-pending. jq validates prd.json.",
-      "depends_on": ["Record candidate evidence (pending final no-write verification)"],
-      "parallel": false,
-      "conflicts_with": [],
+      "end_state": "spec.md marks only A1-C2 complete; C3 explicitly pending external no-write verification. roadmap.md milestone 4 marked implementation-done/verification-pending. jq validates prd.json. All remote synchronization complete before C3.",
+      "depends_on": ["C1"],
       "files": [
         ".opencode/artifacts/milestone-4-canonical-artifacts/spec.md",
         ".opencode/roadmap.md"
       ],
-      "verify": "jq -e . .opencode/artifacts/milestone-4-canonical-artifacts/prd.json && rg -q 'implementation done|verification pending|pending.*verify' .opencode/roadmap.md"
+      "verify": "jq -e . .opencode/artifacts/milestone-4-canonical-artifacts/prd.json && rg -q 'implementation done|implementation-done|verification pending|pending.*verify' .opencode/roadmap.md"
     },
     {
-      "title": "Final no-write verification (external declaration only)",
+      "id": "C3",
+      "child_plan": "C",
+      "title": "Final no-write static verification (external declaration only)",
       "category": "verify",
-      "end_state": "All success-criteria checks pass; source command bodies unchanged; git diff --check clean; local HEAD equals remote main and main:master; VERIFIED declared in response/transcript only; no repository write after the final fingerprint.",
-      "depends_on": ["Close OpenCode feature implementation state"],
-      "parallel": false,
-      "conflicts_with": [],
+      "end_state": "All success-criteria checks pass read-only; source command bodies unchanged against bebd044; target headings preserved; git diff --check clean; local HEAD == remote main == remote main:master; fingerprint tuple captured before and after, unchanged. VERIFIED declared in response/session transcript only. No repository write after the baseline fingerprint. Runtime verification deferred to milestone 6.",
+      "depends_on": ["C2"],
       "files": [],
-      "verify": "run all success-criteria commands; git diff --exit-code -- .opencode/command/; git diff --check; git rev-parse HEAD == origin/main == origin/master"
+      "verify": "fingerprint tuple captured and compared unchanged after every read-only validator; git diff --exit-code bebd0449eb501fe9e7dd5fa66781ad1f1613a459 -- .opencode/command/; git diff --check; git rev-parse HEAD == origin/main == origin/master"
     }
   ]
 }
