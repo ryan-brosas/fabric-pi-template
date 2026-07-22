@@ -148,6 +148,27 @@ Issue one blocking writable `agents.run()` (Main makes no edit or write while it
 
 **Post-settlement intake (host):** after the worker settles, recompute the same data. Derive candidates from path/hash changes against the pre-task baseline. Task-owned paths that were already dirty are included — the pre-task baseline hash lets Main attribute the worker's contribution even for pre-existing dirty bytes. Main runs verification after settlement, using host-derived candidates only. Preserve unrelated changes; exclude unowned bytes. Block only when a task-owned path has ambiguous concurrent authorship the baseline cannot resolve.
 
+### Selective Routing
+
+Main selects the writable lane by task complexity. Both lanes serialize on the one
+blocking-writable-run ceiling and never overlap; neither silently falls back to the
+other, and a handoff failure is terminal for that invocation.
+
+- **Prewalk handoff** — novel or multi-file M–L implementation. Main authors a
+  `fabric_exec` program (full code mode, GPT-5.6 Sol) that does frontier work and the
+  first real mutation, then hands the trajectory off to the Makora executor via explicit
+  `agents.handoff({model:"makora/zai-org/GLM-5.2-NVFP4", extensions:true,
+  tools:["read","grep","find","ls","edit","write"], thinking:"max"})`. Trajectory-
+  preserving (Fabric forks the finalized `fabric_exec` call/result); coarser than literal
+  one-edit Stencil/OMP; ADR-009 per-call preserved. See ADR-010 and the canonical handoff
+  block in `.pi/artifacts/pi-template/PLAN.md`.
+- **Direct Makora** — S or single-file mechanical work. The canonical `agents.run`
+  dispatch (see `.pi/artifacts/pi-template/PLAN.md`).
+
+The host-derived candidate intake above applies to whichever lane ran: Main derives
+candidates from the worktree after the worker settles, whether the worker was a direct
+`agents.run` or a handed-off executor.
+
 ### Checkpoint Protocol
 
 When task has `checkpoint:*` type:
