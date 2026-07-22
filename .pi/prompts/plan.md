@@ -103,7 +103,7 @@ Before research, determine discovery level based on PRD:
 
 **Decision:** Ask the operator to confirm or adjust the discovery level, with these options:
 
-- **Deep (Recommended for complex work)** — Level 3: delegate scout + explore children
+- **Deep (Recommended for complex work)** — Level 3: Main scouts external (ADR-013) + delegate explore/review children (codebase-local)
 - **Standard** — Level 2: quick doc lookup
 - **Skip research** — Level 0: I know the codebase
 
@@ -115,7 +115,7 @@ Determine level from PRD content: Level 2+ if new library, external API, or "cho
 
 Read the PRD and extract tasks, success criteria, affected files, scope.
 
-Delegate to read-only children to gather implementation context:
+Delegate to read-only children to gather implementation context (external scout is Main-direct per ADR-013 below; `explore`/`scout` children here are codebase-local):
 
 | Helper   | Purpose                                                              |
 | -------- | -------------------------------------------------------------------- |

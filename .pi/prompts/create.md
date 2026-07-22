@@ -95,7 +95,7 @@ The Discovery Level feeds the tier-gated review gates (`/create` Phase 10A, `/pl
 
 ## Phase 4: Gather Context
 
-Based on research depth choice, delegate read-only context gathering:
+Based on research depth choice, delegate read-only context gathering (external scout is Main-direct per ADR-013 below; the `explore`/`scout`/`review` children listed here are codebase-local — `extensions:false`, `tools:["read","grep","find","ls"]`):
 
 **If Deep:**
 

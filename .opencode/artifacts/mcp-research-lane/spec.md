@@ -94,7 +94,7 @@ Giving children `extensions:true` so `codex_search`/MCP load would also register
 
 ## Risks
 
-- **Direct MCP name drift (medium):** names are server-prefixed and must be registry-proven (`plan.md` Task B), not guessed.
-- **`pi-codex-search@0.1.5` peer compat (medium):** declares `^0.79.10` peers; live gate required.
+- **Direct MCP name drift (medium, MITIGATED):** names are server-prefixed and registry-proven via live `/mcp tools` (context7_resolve-library-id, context7_query-docs, exa_web_search_exa, exa_web_fetch_exa), not guessed.
+- **`pi-codex-search@0.1.5` peer compat (medium, RESOLVED):** declares `^0.79.10` peers but `codex_search` registers at runtime (live `/codex-search-settings status`: enabled=true); scope stays full.
 - **Generic `mcp` over-exposure (low, gated):** avoided by exposing only exact direct-tool names; operator gate for the proxy alternative.
 - **Concurrent work (low):** `.pi/fabric.json` has legitimate concurrent model/compaction/executor changes; edit surgically, never restore/stash others' work.

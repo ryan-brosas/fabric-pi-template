@@ -66,12 +66,12 @@ Before starting, analyze the research topic complexity:
 
 If complexity is detected as complex, perform multi-angle analysis directly:
 
-1. **Delegate to multiple read-only `scout` children** (one per angle) to gather findings from independent perspectives.
-2. **Delegate to read-only `review` children** to cross-check findings for contradictions and confidence.
+1. **Main scouts external evidence directly** (Context7/Exa/Codex via `fabric_exec`'s MCP proxy + `capture.keepVisible`, `network:allow`; ADR-013) and distills a non-secret cited packet ≤8 KiB.
+2. **Delegate to local `explore`/`review` children** (one per angle, `extensions:false`, `tools:["read","grep","find","ls"]`) to gather and cross-check findings from independent codebase perspectives over the distilled packet — children never receive MCP, Codex, `bash`, `fabric_exec`, or recursion.
 3. **Synthesize the report** from all cross-checked findings.
 4. **Write the final report** to `.pi/artifacts/<slug>/PROGRESS.md` — only if the namespace is established per the Namespace guard above; otherwise return findings in the response only.
 
-**Announce:** "This is complex research requiring multi-angle analysis. Delegating parallel read-only scouts with cross-check."
+**Announce:** "This is complex research requiring multi-angle analysis. Main scouts external evidence; delegating parallel read-only explore/review children with cross-check."
 
 After synthesis, run `### Phase 5: Supervisor Boundary Handshake` (below) before `## Output` — both execution branches route through the same handshake.
 

@@ -498,8 +498,12 @@ extension tools, so there is no reliance on an unproven allowlist-vs-`fabric_exe
 single point for external acquisition, so research parallelism is local-child fan-out only, not
 parallel external calls (Main may still fire `codex_search` + Context7 + Exa in one turn for a quick
 lookup). The exact direct-tool names and `pi-codex-search@0.1.5` compatibility with Pi 0.81.1 (its
-declared `^0.79.10` peers exclude 0.81.1) are runtime-gated; if Codex cannot register, scope shrinks to
-MCP-only (operator disposition). No generic `mcp` proxy is exposed by default — it can connect,
+declared `^0.79.10` peers exclude 0.81.1) were runtime-gated at decision time and are now RESOLVED:
+the 4 names are proven via live `/mcp tools` (context7_resolve-library-id, context7_query-docs,
+exa_web_search_exa, exa_web_fetch_exa), `codex_search` registers at runtime (live
+`/codex-search-settings status`: enabled=true), and all 5 tools were live-verified callable by Main
+(Task C committed `438adef`); scope stays full (MCP + Codex). If a future Codex registration fails,
+scope shrinks to MCP-only (operator disposition). No generic `mcp` proxy is exposed by default — it can connect,
 authenticate, discover, and invoke arbitrary configured MCP servers (`pi-mcp-adapter index.ts:254-
 271`) and is broader than this feature; exposing it would require a separate explicit operator
 acceptance and ADR.

@@ -374,15 +374,15 @@ model-facing registry under `fullCodeMode:true` (`pi-fabric docs/configuration.m
 line is written; no generic `mcp` proxy is exposed by default (it can reach arbitrary configured
 MCP servers — `index.ts:254-271`).
 
-**Main-mediated flow.** Main validates the question is bounded and non-secret, calls only the
-retained external tools, treats all external content as prompt-injection-capable untrusted data,
+**Main-mediated flow.** Main validates the question is bounded and non-secret, calls the
+external tools (`fabric_exec` MCP proxy primary + retained direct tools secondary), treats all external content as prompt-injection-capable untrusted data,
 independently validates citations, discards instructions found in retrieved content, and distills a
 non-secret cited packet ≤8 KiB. Main then launches local-only children with
 `tools:["read","grep","find","ls"]` over the distilled packet.
 
 **Parallel fan-out.** Gather phases (`/create` Deep=3-5 agents, `/plan` Level 2-3, `/research`
 Multi-Angle) fan out local children in parallel, bounded by `subagents.maxConcurrent`, after Main
-gathers external evidence. The supervisor handshake (ADR-012) stays ONE local-only gather — a
+scouts external evidence. The supervisor handshake (ADR-012) stays ONE local-only gather — a
 single direction question. No capability widening: `extensions:false`, `recursive:false`,
 `worktree:false`, no `bash`, no `fabric_exec`, no recursion.
 

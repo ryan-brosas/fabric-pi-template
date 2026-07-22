@@ -82,9 +82,11 @@ exact-name mechanism that retains extension tools in Main's direct registry unde
 `fullCodeMode:true`), treats external content as prompt-injection-capable untrusted
 data, validates citations, and distills a non-secret cited packet ≤8 KiB. Children
 explore the codebase `extensions:false`, `recursive:false`, `worktree:false`,
-`tools:["read","grep","find","ls"]` only. Fabric's `approvals.network:"allow"`
-enables Main's `fabric_exec` external scout (internal MCP proxy `mcp.<server>.<tool>`
-+ `capture.keepVisible` direct tools; children network-isolated via `extensions:false`).
+`tools:["read","grep","find","ls"]` only. Main scouts external context two ways:
+`fabric_exec`'s internal MCP proxy (`mcp.<server>.<tool>`, primary, governed by
+`approvals.network:"allow"`) and the `capture.keepVisible`-retained direct tools
+(secondary, bypass Fabric's approval gate — retained in Main's direct Pi registry);
+children network-isolated via `extensions:false`.
 Capability-aware fallback. Exact direct-tool names registry-proven (live `/mcp tools`:
 `context7_resolve-library-id`, `context7_query-docs`, `exa_web_search_exa`,
 `exa_web_fetch_exa`); `codex_search` registers on Pi 0.81.1 (live
