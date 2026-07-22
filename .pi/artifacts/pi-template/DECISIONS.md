@@ -88,13 +88,19 @@ actor scope shares a registry across sessions; Fabric warns concurrent roots may
 it. Project-scoped actors persist across `/new`, which can overwrite one session's
 supervisor remit with another's.
 **Decision:** Pin `mesh.actorScope:"session"`. Each Pi session owns a disjoint actor
-registry under `.pi/fabric/mesh/actors/<sessionId>/`. Actors are recreated from the
-canonical definitions on resume.
+registry under `.pi/fabric/mesh/actors/<sessionId>/`. Restarting the **same** session
+(same `--session-id`) restores actors with the same IDs/createdAt/config
+(`dist/actors/manager.js:1192-1247`); a **brand-new** session starts from an empty
+session-local registry and must create its own actors from the canonical definitions.
 **Consequences:** Easier: no cross-session registry races; each session's council is
-self-contained. Harder: session scope does not isolate name-addressed mesh messages
-(topics/state remain project-scoped) — resolve actor IDs locally and never address by
-canonical name over mesh. Old-session actor history is unavailable through the new
-session's actor API (decisions persist in Markdown, not in actor history).
+self-contained; exact-session restart preserves identities and history. Harder: session
+scope does not isolate name-addressed mesh messages (topics/state remain project-scoped) —
+resolve actor IDs locally and never address by canonical name over mesh
+(`dist/actors/manager.js:1007-1020`). A brand-new session does NOT inherit another session's
+actors; old-session actor history is unavailable through the new session's actor API
+(decisions persist in Markdown, not in actor history). `agents.remove()` and same-name
+create over a stopped actor both recursively delete actor state, so reconciliation must
+block on drift rather than remove+recreate.
 **Alternatives:** (a) Project scope with a single owning process — fragile under
 concurrent sessions. (b) Global templates (`scope:"global"`) — non-live, import per
 session, adds a step. Chosen session scope as the natural per-session boundary.
