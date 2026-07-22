@@ -56,8 +56,8 @@
 
 ```
 Task A (Contract reset): needs reviewed plan, creates plan.md + corrected spec.md/prd.json  [DONE 972d4d3]
-Task B (RED probe): needs Task A, has_checkpoint, creates fresh hashes + registry/capture evidence + no-extension child proof  [child-half safe; parent probe + live registry operator-gated]
-Task C (GREEN visibility): needs Task B, has_checkpoint, creates .pi/fabric.json keepVisible + live smoke  [operator-gated]
+Task B (RED probe): needs Task A, has_checkpoint, creates fresh hashes + registry/capture evidence + no-extension child proof  [DONE: 4 tool names proven via live /mcp tools; codex_search confirmed via /codex-search-settings status]
+Task C (GREEN visibility): needs Task B, has_checkpoint, creates .pi/fabric.json keepVisible + live smoke  [DONE 438adef: keepVisible committed, all 5 external tools live-verified by operator]
 Task D (supervise.md): needs Task A (protocol described generically; exact names not required), creates corrected supervisor research protocol  [DONE 8a1631b]
 Task E (create.md + plan.md): needs Task A, creates corrected gather + handshake  [DONE 8a1631b]
 Task F (research.md + ship.md): needs Task A, creates corrected research/ship text  [DONE 8a1631b]
@@ -186,7 +186,7 @@ Context7 is documentation; Exa is search/fetch; Codex is general cited search. T
      - Assert its active set is exactly `read`, `grep`, `find`, `ls`.
      - `await runtime.dispose()` in `finally` so `session_shutdown` cleans up MCP processes (`agent-session-runtime.js:102-110`; `pi-mcp-adapter/index.ts:141-151`).
   4. Assert tool provenance with `getAllTools()` / `sourceInfo.path` — not model self-report.
-- **Verify:** probe script exits non-zero on current bytes (RED); the limited resource-loader pre-check (noExtensions:true does NOT load the Fabric `-e` extension real children receive via worker.js:326-333) resolves exactly `["read","grep","find","ls"]` and nothing else — it proves the no-extension principle for MCP/Codex, while the exact child proof (fabric_exec filtered by `--tools`) is the operator's live `agents.run` smoke in Task C/G2.
+- **Verify:** probe script exits non-zero on current bytes (RED); the limited resource-loader pre-check (noExtensions:true) resolves exactly `["read","grep","find","ls"]` and nothing else. This probe IS faithful for research children: Fabric 0.23.0 gates `--fabric-extension` on `recursive:true` (`pi-fabric dist/subagents/manager.js:394`), and research children are `recursive:false`, so they never receive `fabric_exec` at all — the boundary is the absent extension (stronger than `--tools` filtering), not reliance on the allowlist. The probe proves the no-extension principle for MCP/Codex; the operator's live `agents.run` smoke in Task C/G2 confirms it against a real child.
 - **Checkpoint:** if exact direct MCP tools are absent, operator must enable only those tools and restart Pi. Do not expose `mcp` automatically. STOP for operator disposition.
 
 #### Task C: Make Main visibility GREEN

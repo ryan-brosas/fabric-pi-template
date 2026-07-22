@@ -161,7 +161,7 @@
     },
     {
       "criterion": "H/I: canonical authority + summaries — ADR-013 appended (context/decision/consequences/rejected/evidence/Main direct-network trust boundary); PLAN.md child-direct claims removed; AGENTS.md research paragraph states Main-mediated + children read/grep/find/ls only; tech-stack/roadmap/state synced; no claim of pi-codex-search@0.1.5 compatibility unless Task C proved it live",
-      "verify": "rg -n '^## ADR-013' .pi/artifacts/pi-template/DECISIONS.md && ! rg -n 'children gain MCP|child-direct MCP|MCP-equipped parallel read-only' .pi/artifacts/pi-template/PLAN.md AGENTS.md && rg -nF 'Main-mediated' .pi/artifacts/pi-template/PLAN.md AGENTS.md .opencode/tech-stack.md .opencode/roadmap.md .opencode/state.md && rg -n 'extensions: false|extensions:false' AGENTS.md && git diff --check"
+      "verify": "rg -n '^## ADR-013' .pi/artifacts/pi-template/DECISIONS.md && ! rg -n 'children gain MCP|MCP-equipped parallel read-only|child-direct MCP works|MCP survives --no-extensions' .pi/artifacts/pi-template/PLAN.md AGENTS.md && rg -nF 'Main-mediated' .pi/artifacts/pi-template/PLAN.md AGENTS.md .opencode/tech-stack.md .opencode/roadmap.md .opencode/state.md && rg -n 'extensions: false|extensions:false' AGENTS.md && git diff --check"
     },
     {
       "criterion": "J: final verification — L3 review dispositions complete; before/after fingerprint captured and equal; node>=24; pi-fabric 0.23.0; pi --approve --list-models resolves; slug in 5 prompts; forbidden-token clean across .pi/prompts/*.md; no external research tool names (Context7/Exa/codex/mcp) inside any child tools array; git diff --check clean; protected files (.pi/settings.json, verify.md, .opencode/command) unchanged across the feature; NO repository write after the final fingerprint",
@@ -271,7 +271,7 @@
         ".pi/artifacts/pi-template/PLAN.md",
         "AGENTS.md"
       ],
-      "verify": "rg -n '^## ADR-013' .pi/artifacts/pi-template/DECISIONS.md && ! rg -n 'children gain MCP|child-direct MCP|MCP-equipped parallel read-only' .pi/artifacts/pi-template/PLAN.md AGENTS.md && rg -nF 'Main-mediated' .pi/artifacts/pi-template/PLAN.md AGENTS.md && rg -n 'extensions: false|extensions:false' AGENTS.md && git diff --check"
+      "verify": "rg -n '^## ADR-013' .pi/artifacts/pi-template/DECISIONS.md && ! rg -n 'children gain MCP|MCP-equipped parallel read-only|child-direct MCP works|MCP survives --no-extensions' .pi/artifacts/pi-template/PLAN.md AGENTS.md && rg -nF 'Main-mediated' .pi/artifacts/pi-template/PLAN.md AGENTS.md && rg -n 'extensions: false|extensions:false' AGENTS.md && git diff --check"
     },
     {
       "id": "I",

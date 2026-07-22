@@ -447,7 +447,7 @@ MCP." Exact-version source inspection disproved this premise:
 - Pi's `DefaultResourceLoader` drops package-discovered extensions under `noExtensions:true`
   (`resource-loader.js:267-270,351-354`); only explicit CLI `-e` extension paths survive.
 - Fabric passes `--no-extensions` for every `extensions:false` child and passes `--tools`
-  (`pi-fabric dist/worker.js:321-333`); there is no explicit-extension-path field in `agents.run`
+  (`pi-fabric 0.23.0 dist/worker.js:321-333`); there is no explicit-extension-path field in `agents.run`
   (the API supports only a boolean `extensions`).
 - Pi ignores unknown active tool names — `setActiveTools` keeps only names already in the registry
   (`agent-session.js:626-645`). Adding MCP names to an `extensions:false` child's allowlist therefore
@@ -457,8 +457,10 @@ MCP." Exact-version source inspection disproved this premise:
   registered via `pi.registerTool` on `session_start` (`index.ts:687-705`), so it is also removed by
   `--no-extensions`.
 
-**Decision:** Make research **Main-mediated**. Trusted Main owns all external research; every
-delegated child stays strictly local. Main reaches Context7/Exa primarily through `fabric_exec`
+**Decision:** Make the research lane **Main-mediated** context gathering — scout (external,
+this ADR) + explore (codebase, the existing child capability). Trusted Main owns the
+external scout (Context7/Exa/Codex); every delegated child stays strictly local and
+explores the codebase. Main reaches Context7/Exa primarily through `fabric_exec`
 programs using Fabric's internal MCP proxy (`mcp.<server>.<tool>`, enabled by
 `approvals.network:"allow"`), and additionally via the `capture.keepVisible`-retained direct-tool
 names (`context7_resolve-library-id`, `context7_query-docs`, `exa_web_search_exa`,

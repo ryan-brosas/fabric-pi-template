@@ -25,9 +25,9 @@ Trusted Main owns all external research; delegated children stay strictly local.
 4. **Capability-aware fallback.** Context7 (docs), Exa (search/fetch), and Codex (cited search) are not interchangeable. If one is unavailable, use only a source that can produce the evidence the query requires; otherwise disclose `partial`/`local-only`, or `blocked` when L2/L3 `source-check-required` cannot be satisfied.
 5. **ADR-013** records the Main-mediated design, the exact-version evidence, and Main's direct-network trust boundary.
 
-### Exact tool names are runtime-gated (UNCERTAIN)
+### Exact tool names (registry-proven)
 
-The exact registered Context7/Exa direct-tool names are not assumed. `pi-mcp-adapter` defaults to server-prefixed direct names (`types.ts:431-437`). `plan.md` Task B inspects the Fabric capture catalog and runs a Pi 0.81.1 SDK registry probe to record the exact names before any config edit. `pi-codex-search@0.1.5` declares peers `^0.79.10` which exclude Pi 0.81.1 — its compatibility is UNCERTAIN until a live registry/call gate proves it. If Codex cannot register, scope shrinks to MCP-only (operator disposition).
+The exact registered Context7/Exa direct-tool names were registry-proven live: `context7_resolve-library-id`, `context7_query-docs`, `exa_web_search_exa`, `exa_web_fetch_exa` (server-prefixed per `pi-mcp-adapter` `types.ts:431-437`, confirmed via live `/mcp tools`). `pi-codex-search@0.1.5` declares peers `^0.79.10` which exclude Pi 0.81.1 on paper, but `codex_search` registers at runtime (confirmed via live `/codex-search-settings status` `enabled=true`). Task C is done (`capture.keepVisible` committed `438adef`, all 5 external tools live-verified by the operator). Remaining: G2 (live supervisor smoke) + J (final fingerprint).
 
 ## Rejected alternatives
 
@@ -62,7 +62,7 @@ Giving children `extensions:true` so `codex_search`/MCP load would also register
 
 ## Sequencing
 
-`proactive-supervisor` shipped at HEAD `a04a65c`; ADR-012 at `DECISIONS.md:370`. ADR-013 is next available. Shared files are free. Execution is wave-by-wave per `plan.md`; Task C and Task J are operator checkpoints.
+`proactive-supervisor` shipped at HEAD `a04a65c`; ADR-012 at `DECISIONS.md:370`. ADR-013 is next available. Shared files are free. Execution is wave-by-wave per `plan.md`; Task C is done (`capture.keepVisible` committed `438adef`); G2 (live supervisor smoke) + J (final fingerprint) are the remaining operator checkpoints.
 
 ## Milestone-5 / lifecycle regression invariants (must preserve)
 

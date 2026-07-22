@@ -77,8 +77,9 @@ trust is required or this file is ignored.
   still 1 Makora (enforced by per-call dispatch + single-writer policy, not by
   `maxConcurrent`).
 - `approvals` gates `fabric_exec` operations only (in orchestration-only mode, native
-  Pi tools bypass it); `write/execute/network:"deny"` blocks autonomous fabric_exec
-  mutation while `agent:"allow"` permits actor/subagent dispatch.
+  Pi tools bypass it); `write/execute:"deny"` blocks autonomous fabric_exec mutation,
+  `network:"allow"` enables Main's external research via `fabric_exec`'s internal MCP
+  proxy (ADR-013), while `agent:"allow"` permits actor/subagent dispatch.
 - `mesh.actorScope:"session"` isolates actor registries per Pi session under
   `.pi/fabric/mesh/actors/<sessionId>/`. `mesh.enabled:true` is inherited from global.
 - `memory.enabled:false` disables Fabric session indexing (Markdown artifacts are the
@@ -318,8 +319,10 @@ phases change.
 
 ### MCP Research Lane (ADR-013)
 
-ADR-013 makes the read-only research lane **Main-mediated**. Trusted Main owns all external
-research; every delegated child stays strictly local. No capability widening: children stay
+ADR-013 makes the read-only research lane **Main-mediated** context gathering — scout
+(external, ADR-013) + explore (codebase, the existing child capability). Trusted Main
+owns the external scout (Context7/Exa/Codex); every delegated child stays strictly
+local and explores the codebase. No capability widening: children stay
 `extensions:false`, `recursive:false`, `worktree:false`, with exactly
 `tools:["read","grep","find","ls"]` — never MCP, Codex, `bash`, `fabric_exec`, or recursion.
 
