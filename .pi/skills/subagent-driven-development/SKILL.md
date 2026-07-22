@@ -35,7 +35,7 @@ dependencies: [executing-plans]
 
 Read plan file, create TodoWrite with all tasks.
 
-**Context file pattern:** If the plan exceeds ~500 tokens, write it to `.opencode/artifacts/plan-context.md` and reference by path in subagent prompts instead of inlining. This saves tokens when dispatching multiple subagents from the same plan.
+**Context file pattern:** If the plan exceeds ~500 tokens, reference `.pi/artifacts/<slug>/PLAN.md` by path in subagent prompts instead of inlining. This saves tokens when dispatching multiple subagents from the same plan.
 
 ### 2. Execute Task with Subagent
 

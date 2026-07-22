@@ -1,6 +1,6 @@
 ---
 name: development-lifecycle
-description: Use when starting, planning, shipping, or verifying a work session — describes how `/create`, `/plan`, `/ship`, `/verify`, and `/research` interact with the 4 canonical artifact files at `.pi/artifacts/`.
+description: Use when starting, planning, shipping, or verifying a work session — describes how `/init`, `/create`, `/plan`, `/ship`, `/verify`, and `/research` interact with the 4 canonical artifact files at `.pi/artifacts/`.
 version: 2.0.0
 tags: [workflow, artifacts, planning, work-sessions]
 agent_types: [planner, worker, reviewer, scout]
@@ -24,19 +24,20 @@ At `.pi/artifacts/`, maintained in the working copy:
 
 ## Slash Commands (Lifecycle Hooks)
 
-- `/create <idea>` — turn a rough idea into a `PLAN.md` and `TODO.md`. Loaded from `brainstorming` + `spec-driven-development`.
-- `/plan` — open / resume the current plan. Loaded from `planning-and-task-breakdown`.
-- `/ship` — pre-merge hardening: tests, lint, types, format. Loaded from `shipping-and-launch`.
-- `/verify` — claim-completion evidence gate. Loaded from `verification-before-completion`.
-- `/research` — exploratory investigation; lives in `PROGRESS.md`. Loaded from `spec-driven-development`.
+- `/init` — mandatory first touch. Initializes the full Pi-native project packet (`AGENTS.md` + `.pi/{tech-stack,ROADMAP,state,user,memory}.md`). Run once per project; `--refresh` to reconcile.
+- `/create <slug> "<description>"` | `/create <slug> --from <source[#anchor]>` — turn a rough idea or a bounded source into a `PLAN.md` and `TODO.md` at `.pi/artifacts/<slug>/`. Requires a ready packet.
+- `/plan <slug>` — open / resume the current plan. Loaded from `planning-and-task-breakdown`.
+- `/ship <slug>` — pre-merge hardening: tests, lint, types, format. Loaded from `shipping-and-launch`.
+- `/verify <slug>` — claim-completion evidence gate. Loaded from `verification-before-completion`.
+- `/research <slug> <topic>` — exploratory investigation; lives in `PROGRESS.md`. Loaded from `spec-driven-development`.
 
 ## Workflow
 
 ```
-   /create  ──>  /plan  ──>  implement  ──>  /ship  ──>  /verify
-      │            │           │              │           │
-   PLAN.md      TODO.md      artifacts    tests/lint    evidence
-   TODO.md      updates      PROGRESS.md  green        claim holds
+   /init  ──>  /create  ──>  /plan  ──>  implement  ──>  /ship  ──>  /verify
+                 │            │           │              │           │
+              PLAN.md      TODO.md      artifacts    tests/lint    evidence
+              TODO.md      updates      PROGRESS.md  green        claim holds
 ```
 
 **`/research` is sideways** — it feeds `/plan` or `/create`, not the linear path.
@@ -45,6 +46,7 @@ At `.pi/artifacts/`, maintained in the working copy:
 
 | Phase | Trigger | Skip if |
 |---|---|---|
+| `/init` | New project, untracked packet, or refresh needed | Already initialized and ready |
 | `/create` | New feature / product / PRD | Trivial one-liner |
 | `/plan` | Multi-file change, ambiguous spec | Single known file, clear spec |
 | `/ship` | Before merge / commit | No code change this session |
@@ -53,11 +55,12 @@ At `.pi/artifacts/`, maintained in the working copy:
 
 ## Lifecycle Rules
 
-1. **No silent skipping** — if you skip a phase, name it in the response ("skipped /plan: single-file fix with clear spec"). This becomes the audit trail.
-2. **Update TODO.md first, then code** — append the entry before the first edit. Re-reading it on resume gives you the state.
-3. **PROGRESS.md = investigation log** — failed attempts and "what I tried" go here, not in chat.
-4. **DECISIONS.md is for trade-offs, not choices** — if there's only one viable option, it goes in PLAN.md as a fact, not an ADR.
-5. **/verify is non-negotiable** — every "done" claim cites evidence.
+1. **`/init` is mandatory first** — every downstream lifecycle command (`/create`, `/plan`, `/ship`, `/verify`, `/research`, `/gc`) gates on a ready packet. Uninitialized or partial state blocks.
+2. **No silent skipping** — if you skip a phase, name it in the response ("skipped /plan: single-file fix with clear spec"). This becomes the audit trail.
+3. **Update TODO.md first, then code** — append the entry before the first edit. Re-reading it on resume gives you the state.
+4. **PROGRESS.md = investigation log** — failed attempts and "what I tried" go here, not in chat.
+5. **DECISIONS.md is for trade-offs, not choices** — if there's only one viable option, it goes in PLAN.md as a fact, not an ADR.
+6. **/verify is non-negotiable** — every "done" claim cites evidence.
 
 ## Red Flags
 
