@@ -74,6 +74,12 @@ Each milestone is independently verifiable. Authority/topology decisions are rec
 5. **Worker topology + distrust** — 1 Makora GLM worker per session (ceiling; host runs
    4-5 sessions); `extensions:true` + exact writable tool allowlist; host-derived candidate
    bytes; single writer per worktree (blocking `agents.run()`, no writable spawn/parallel).
+   - **Implementation status:** implementation done — verification pending (commits
+     `bd1a746`, `bcbbda4`, this pass): `subagents.extensions:false` + ADR-009; canonical
+     Makora `agents.run` dispatch block + 1-Makora enforcement; host-derived candidate
+     intake in `/ship`; milestone-6 observational worker-policy smoke defined. Static suite
+     V1-V8 PASS; final no-write verification pending (Task C2). Runtime smoke deferred to
+     milestone 6.
    - Acceptance: two simultaneous implementation requests yield one running Makora;
      read-only GPT work overlaps; Main does not edit until the run settles.
 6. **Verification + quality gates** — focused checks per change; `/verify` freshness

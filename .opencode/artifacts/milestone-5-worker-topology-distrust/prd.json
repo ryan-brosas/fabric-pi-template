@@ -20,6 +20,7 @@
       ".pi/artifacts/pi-template/PROGRESS.md",
       ".opencode/state.md",
       ".opencode/artifacts/milestone-5-worker-topology-distrust/spec.md",
+      ".opencode/artifacts/milestone-5-worker-topology-distrust/prd.json",
       ".opencode/roadmap.md"
     ],
     "protected_source_paths": [
@@ -45,6 +46,7 @@
       ".opencode/roadmap.md",
       ".opencode/artifacts/milestone-5-worker-topology-distrust/spec.md",
       ".opencode/artifacts/milestone-5-worker-topology-distrust/prd.json",
+      ".opencode/artifacts/milestone-5-worker-topology-distrust/plan.md",
       ".opencode/artifacts/.active",
       ".pi/.gitignore"
     ],
@@ -144,12 +146,13 @@
     {
       "id": "C1",
       "child_plan": "C",
-      "title": "Close implementation state (spec, roadmap)",
+      "title": "Close implementation state (spec, prd, roadmap)",
       "category": "close",
-      "end_state": "spec.md marks only A1-B2 complete; C2 explicitly pending external no-write verification. roadmap.md milestone 5 marked implementation-done/verification-pending. jq validates prd.json. All remote synchronization complete before C2.",
+      "end_state": "spec.md marks A1-C1 implemented; C2 explicitly pending external no-write verification; both operator resolutions approved. prd.json updated (C1 owns prd.json, write_paths, verified_paths, graph validators). roadmap.md milestone 5 marked implementation-done/verification-pending. jq validates prd.json. All remote synchronization complete before C2.",
       "depends_on": ["B2"],
       "files": [
         ".opencode/artifacts/milestone-5-worker-topology-distrust/spec.md",
+        ".opencode/artifacts/milestone-5-worker-topology-distrust/prd.json",
         ".opencode/roadmap.md"
       ],
       "verify": "jq -e . .opencode/artifacts/milestone-5-worker-topology-distrust/prd.json && rg -q 'implementation done|implementation-done|verification pending|pending.*verify' .opencode/roadmap.md"
@@ -159,6 +162,7 @@
       "child_plan": "C",
       "title": "Final no-write static verification (external declaration only)",
       "category": "verify",
+      "execution_owner": "/verify",
       "end_state": "All success-criteria checks pass read-only; source command bodies unchanged against bebd044; git diff --check clean; local HEAD == remote main == remote main:master; fingerprint tuple captured before and after, unchanged. VERIFIED declared in response/session transcript only. No repository write after the baseline fingerprint. Runtime smoke remains milestone 6.",
       "depends_on": ["C1"],
       "files": [],

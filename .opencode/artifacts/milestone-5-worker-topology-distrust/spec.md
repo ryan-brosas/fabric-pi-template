@@ -1,15 +1,15 @@
 # Milestone 5 — Worker topology + distrust (audit + hardening)
 
-> **Status:** proposed · **ID:** ms5-001 · **Created:** 2026-07-22
+> **Status:** implementation done — final no-write verification pending · **ID:** ms5-001 · **Created:** 2026-07-22
 > **Roadmap item:** `5. Worker topology + distrust` (`.opencode/roadmap.md:74-78`)
 > **Approach (operator-approved):** audit + hardening pass. The worker-topology + distrust contract is mostly encoded (AGENTS.md:99/101/103, PLAN.md dispatch table, `.pi/fabric.json`). This spec audits that encoding for residual gaps, hardens it, pins the load-bearing pieces that are currently under-specified, and defines the runtime smoke (which runs in milestone 6, operator-gated on `/trust` + restart). Same shape as milestone 4.
 
-## Operator Resolutions (binding, pending)
+## Operator Resolutions (binding, approved)
 
-Two load-bearing design decisions surfaced by the audit. The spec recommends an answer in each case (matching what AGENTS already states); `/plan` or `/ship` confirms before implementation.
+Two load-bearing design decisions surfaced by the audit. Both were operator-approved during `/ship`; the recommended answer in each case matches what AGENTS already states.
 
-1. **`subagents.extensions` default.** `.pi/fabric.json:13` currently has `"extensions": true` (a concurrent change that has sat unstaged through milestones 3-4). AGENTS.md:99 says "GPT council and read-only children use `extensions:false`" — which implies the *default* should be `false`, with Makora overriding `true` per-call. A `true` default means every one-shot read-only child (explore/scout/review/plan/debug) inherits `fabric_exec`/`agents.*`/`mesh.*` unless its dispatch explicitly passes `extensions:false`; a dispatch that forgets it grants a review child recursive orchestration. **Recommended:** pin `subagents.extensions: false` (safe read-only default; Makora passes `true` per-call). This makes the AGENTS rule deterministic instead of per-call-dependent.
-2. **Makora `bash` in the writable allowlist.** PLAN.md:99 lists `read,grep,find,ls,edit,write,bash (exact allowlist)` but the allowlist is described, not concretely pinned, and whether the writable worker gets ambient `bash` is undecided. `bash` lets the worker self-verify (run typecheck/lint/test) but widens its capability (network, destructive commands). Without `bash`, the worker only edits and **Main runs all verification** — stronger distrust, narrower capability. **Recommended:** exclude `bash` from the Makora allowlist; Main runs all verification commands (host-derived evidence). This matches AGENTS.md:101 ("Main reads the diff and verifies") and the no-ambient-bash distrust posture. If a worker genuinely needs to run a command, Main dispatches a separate bounded `bash`-capable one-shot with an exact argv.
+1. **`subagents.extensions` default — APPROVED: pin `false`.** `.pi/fabric.json` `subagents.extensions` is pinned `false` (safe read-only default; Makora overrides `true` per-call). This makes the AGENTS rule deterministic instead of per-call-dependent. (Was `true` — unstaged through milestones 3-4; resolved in A1, commit `bd1a746`.) Recorded as ADR-009.
+2. **Makora `bash` in the writable allowlist — APPROVED: exclude `bash`.** The Makora writable allowlist is the exact set `read,grep,find,ls,edit,write` — no shell, no network. Without `bash`, the worker only edits and Main runs all verification commands (host-derived evidence). This matches AGENTS.md ("Main reads the diff and verifies") and the no-ambient-bash distrust posture. If a worker genuinely needs to run a command, Main dispatches a separate bounded `bash`-capable one-shot with an exact argv. (Resolved in A2, commit `bcbbda4`.)
 
 ## Problem Statement
 
@@ -45,7 +45,7 @@ The audit confirmed these are NOT gaps: the extension split itself (Makora `exte
 ## Proposed Solution
 
 1. **Extensions default (fail-safe).** Pin `subagents.extensions:false` in `.pi/fabric.json`. Read-only children inherit the safe default; Makora overrides `true` per-call. Record ADR-009 (safe default + per-call exception, mirroring ADR-003's extension-split logic).
-2. **Makora allowlist + dispatch block.** Pin the concrete writable allowlist in PLAN.md (recommended: `read,grep,find,ls,edit,write` — no `bash`). Add a canonical Makora `agents.run` args block to PLAN.md so every writable dispatch is identical: `runner:"pi", model:"makora/zai-org/GLM-5.2-NVFP4", thinking:"max", extensions:true, tools:[<pinned allowlist>], worktree:true|false`.
+2. **Makora allowlist + dispatch block.** Pin the concrete writable allowlist in PLAN.md (`read,grep,find,ls,edit,write` — no `bash`). Add a canonical Makora `agents.run` args block to PLAN.md so every writable dispatch is identical: `runner:"pi", model:"makora/zai-org/GLM-5.2-NVFP4", thinking:"max", extensions:true, recursive:false, tools:[<pinned allowlist>], worktree:false`.
 3. **1-Makora enforcement (honest mechanism).** Add to AGENTS.md + PLAN.md: the 1-Makora ceiling is enforced by Main issuing at most one blocking `agents.run()` for writable work at a time; `maxConcurrent` bounds total children across tiers, not the writable pool. Read-only `spawn`/parallel fan-out may overlap the writable run up to `maxConcurrent`.
 4. **Host-derived candidate intake.** Add a step to `ship.md` Phase 3 (task loop): after a worker settles, Main recomputes the candidate changed-path set and per-file hashes from the worktree (`git status`, `git diff`, `git hash-object`); the worker's reported paths are advisory only, never the basis for staging.
 5. **Worker-topology smoke (defined, runs in milestone 6).** Define in PLAN.md: (a) dispatch two concurrent writable `agents.run` and assert only one runs (second queues/blocks); (b) dispatch read-only `spawn` children overlapping a running Makora and assert they overlap; (c) attempt a Main edit while a writable run is active and assert it is refused by policy (smoke documents the policy; not host-enforced).
@@ -90,7 +90,7 @@ All checks executable and fail-closed. Source-immutability baseline-bound agains
 - Plan A2: `.pi/artifacts/pi-template/PLAN.md`, `AGENTS.md` (AGENTS shared serial with A1)
 - Plan B1: `.pi/prompts/ship.md`, `.pi/artifacts/pi-template/PLAN.md` (PLAN shared serial with A2)
 - Plan B2: `.pi/artifacts/pi-template/TODO.md`, `.pi/artifacts/pi-template/PROGRESS.md`, `.opencode/state.md`
-- Plan C1: `.opencode/artifacts/milestone-5-worker-topology-distrust/spec.md`, `.opencode/roadmap.md`
+- Plan C1: `.opencode/artifacts/milestone-5-worker-topology-distrust/spec.md`, `.opencode/artifacts/milestone-5-worker-topology-distrust/prd.json`, `.opencode/roadmap.md`
 - Plan C2: `[]` (no-write verification, external declaration only)
 
 **Protected source paths (9, never modified):** `.opencode/command/{audit,create,fix,gc,init,plan,research,ship,verify}.md`.
@@ -125,7 +125,6 @@ Bounded serial tasks across three child plans (A: 2, B: 2, C: 2). Every task ≤
 
 ## Open Questions
 
-1. **Extensions default** (operator decision #1): pin `false` (recommended, matches AGENTS) vs keep `true` with per-call `false` on every read-only dispatch. The spec recommends `false`; `/plan` or `/ship` confirms.
-2. **Makora `bash`** (operator decision #2): exclude (recommended, stronger distrust, Main verifies) vs include (worker self-verifies, wider capability). The spec recommends exclude; `/plan` or `/ship` confirms.
-
-These are genuine design forks surfaced by the audit, not placeholder gaps. Both have a recommended answer aligned with existing AGENTS/PLAN intent.
+None remaining. Both operator decisions were resolved during `/ship`:
+1. **Extensions default** — APPROVED: pin `false` (matches AGENTS; A1 commit `bd1a746`; ADR-009).
+2. **Makora `bash`** — APPROVED: exclude (stronger distrust, Main verifies; A2 commit `bcbbda4`).
