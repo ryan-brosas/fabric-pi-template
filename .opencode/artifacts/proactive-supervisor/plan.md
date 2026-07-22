@@ -208,7 +208,7 @@ git diff --check
 
 ### TDD steps
 
-1. **RED:** Confirm `### Boundary-Proactive Direction Steer` and `### Main-Mediated Research Protocol` headings do not exist.
+1. **RED:** Confirm `## Boundary-Proactive Direction Steer` and `## Main-Mediated Research Protocol` headings do not exist.
 2. Read the canonical actor block fresh; preserve every configured field (model/tools/events/responseMode/extensions/delivery/triggerTurn).
 3. Update the embedded instructions:
    - retain reactive drift/blocker/missing-verification behavior;
@@ -225,8 +225,8 @@ git diff --check
 ### Verify
 
 ```bash
-rg -n '^### Boundary-Proactive Direction Steer$' .pi/prompts/supervise.md
-rg -n '^### Main-Mediated Research Protocol$' .pi/prompts/supervise.md
+rg -n '^## Boundary-Proactive Direction Steer$' .pi/prompts/supervise.md
+rg -n '^## Main-Mediated Research Protocol$' .pi/prompts/supervise.md
 rg -n 'Main-mediated|proactive-supervisor/v1|action:"silent"' .pi/prompts/supervise.md
 ! rg -n 'steers Main ONLY on material drift' .pi/prompts/supervise.md
 rg -ni 'never dispatch' .pi/prompts/supervise.md
