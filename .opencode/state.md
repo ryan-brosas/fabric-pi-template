@@ -1,5 +1,24 @@
 # State
 
+> **Development-only reference.** This is the inherited OpenCode dev workspace
+> status snapshot, NOT a shipped runtime dependency. The canonical runtime state
+> is `.pi/state.md` (initialization schema v1, ADR-016). This file is kept for
+> development history and human reference only.
+
+## Pi-native Init Lifecycle (shipped, ADR-016)
+
+The shipped initialization state lives at `.pi/state.md`:
+
+- **Schema v1:** `schema_version: 1`, `initialization_status: partial|ready`,
+  `context_reload_required: true|false`, `generation_id`, `updated_at`,
+  `agents_boilerplate_sha256`.
+- **Lifecycle:** `/init` (mandatory first touch) → `/create <slug> --from` →
+  optional `/plan` → `/ship` → `/verify`. State stays `partial` until the full
+  packet is coherent and a post-`/reload` refresh confirms no drift; then `ready`.
+- **Packet (six files):** `AGENTS.md` + `.pi/{tech-stack,ROADMAP,state,user,memory}.md`.
+- **Memory home:** `.pi/memory.md` (ADR-016 supersedes ADR-007's `.opencode/artifacts/MEMORY.md`).
+- **Roadmap home:** `.pi/ROADMAP.md` (sole canonical default; v1 card grammar).
+
 ## Current Status
 
 Clean-slate. HEAD `bc4ae6a` (local + remote `main`/`master`). Milestone 1 done: `.pi/settings.json`
@@ -17,6 +36,8 @@ Verification fingerprint tools and runtime smoke remain (milestone 6).
 This pass:
 - `AGENTS.md` + `.opencode/{tech-stack,roadmap,state,user}.md` + `.pi/.gitignore` +
   `.pi/artifacts/pi-template/{PLAN,TODO,PROGRESS,DECISIONS}.md` (init deep pass).
+  Note: `.pi/{tech-stack,ROADMAP,state,user,memory}.md` are now the canonical
+  runtime homes (ADR-016); the `.opencode/` files remain development-only reference.
 - `.pi/settings.json` + `.pi/fabric.json` (milestone 1): Main defaults + pi-fabric pin;
   fullCodeMode:false, schema.mode:off, read-only default child tools, maxDepth:1,
   mesh.actorScope:session, memory disabled, fabric compaction.
@@ -52,7 +73,8 @@ in `.pi/artifacts/pi-template/DECISIONS.md`. Summary only — do not edit here f
   repository write after the final before/after fingerprint.
 - Canonical namespace (ADR-007): `/create` sole owner; established = PLAN+TODO; downstream
   fail-closed; `/gc` project-wide slugless response-only; two writable surfaces (lifecycle
-  state confined vs optional project memory; missing memory non-blocking).
+  state confined vs project memory at `.pi/memory.md` per ADR-016; missing memory
+  non-blocking). ADR-007's memory location is superseded in part by ADR-016.
 
 ## Next Priorities
 

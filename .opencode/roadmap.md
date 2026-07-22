@@ -1,5 +1,26 @@
 # Roadmap
 
+> **Development-only reference.** This is the inherited OpenCode dev workspace
+> product roadmap summary, NOT a shipped runtime dependency. The canonical runtime
+> roadmap is `.pi/ROADMAP.md` (versioned cards, ADR-016 v1 grammar). This file is
+> kept for development history and human reference only.
+
+## Pi-native Init Lifecycle (shipped, ADR-016)
+
+The shipped roadmap lives at `.pi/ROADMAP.md` (sole canonical default per ADR-016).
+It uses versioned card grammar:
+
+- **Frontmatter:** `roadmap_schema_version: 1` + monotonic `last_issued_id: RM-NNN`
+  (immutable; never reused or decremented; a materially changed or new outcome
+  allocates a new ID above the high-water mark).
+- **Horizons:** Ready (eligible work), Next (gated/bounded), Later (compact themes).
+- **Card fields:** Outcome, Why now, Acceptance evidence, Dependencies, Candidate
+  slug, Autonomy (`away-ok|manual-only`), Open decisions, Source (provenance).
+- **Autonomous eligibility:** Ready + `Autonomy: away-ok` + `Open decisions: none`.
+- **Read-only during feature creation:** `/create --from .pi/ROADMAP.md#RM-NNN`
+  preserves provenance but never mutates the roadmap; reservations/completion live
+  in the autonomous-loop external ledger.
+
 ## Vision
 
 A Pi-native coding template powered by `pi-fabric`: a thin, readable agent-driven
@@ -8,7 +29,7 @@ scheduler, integrator, and commit authority; a persistent advisory supervisor st
 on drift; a bounded GLM worker pool implements. Lifecycle ergonomics are inspired by
 `.opencode` (`/create` → optional `/plan` → `/ship` → `/verify`) but realized with Pi
 prompts (full command bodies ported from `.opencode/command/`) and Markdown artifacts. Authority, routing, topology, and the council contract
-live in `AGENTS.md`; model wiring in `.opencode/tech-stack.md`; the canonical contract in
+live in `AGENTS.md`; model wiring in `.pi/tech-stack.md` (runtime; ADR-016); the canonical contract in
 `.pi/artifacts/pi-template/PLAN.md`.
 
 ## Target Users
@@ -72,8 +93,7 @@ Each milestone is independently verifiable. Authority/topology decisions are rec
    commands fail closed on a missing/partial namespace (no adoption/overwrite/deletion);
    pre-`/create` `/research` is response-only. `/gc` is project-wide, slugless, and
    response-only. Two writable surfaces (ADR-007): lifecycle state (confined to the slug)
-   vs optional project memory (`.opencode/artifacts/MEMORY.md`; missing = non-blocking; `/init`
-   sole scaffold establisher; `/verify` sole pre-fingerprint appender). No `.active` pointer,
+   vs project memory (`.pi/memory.md`; ADR-016 supersedes ADR-007's location; missing = non-blocking; `/init` sole scaffold establisher; `/verify` sole pre-fingerprint appender). No `.active` pointer,
    no "latest".
    - **Implementation status:** done (implementation) — tasks A1-C2 complete (commits
      `5193d85`, `8a6912d`, `3896cf5`, `25620dc`, `bc4ae6a`, `8b79382`, this commit); static
