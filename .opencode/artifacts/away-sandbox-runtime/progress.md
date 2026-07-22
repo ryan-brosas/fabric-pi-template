@@ -71,3 +71,42 @@
 - Stray probe `.pi/_tsprobe/p.ts` was created during an ESM-stripping feasibility check; it is untracked and excluded from the A1 commit. **Operator permission requested** to remove it (per the no-delete-without-permission rule). `/tmp/tsprobe/p.ts` is an out-of-repo probe.
 - The synthetic fabric.json's `--tools fabric_exec` allowlist + captured `away_*` refs reachability through fullCodeMode is a version-coupled Fabric behavior to be confirmed live at **A2/A3**; if `--tools fabric_exec` strips the captured `away_*` tools, A2 surfaces it and the argv/manifest adjusts. A1 only generates the deterministic argv.
 - Next: **A2** (executor-wrapper.mjs + inner-guest.mjs + executor-sandbox.test.ts). Needs real bwrap in-env; probe `bwrap --unshare-user` strict feasibility first (bwrap 0.9.0 confirmed present). Then **A3** BLOCKING operator checkpoint.
+
+---
+
+## A2 — Real NodeProcessRuntime sandbox tracer (DONE, committed <TBD>)
+
+### End state reached
+
+- The writable `process.execPath` seam (the make-or-break A2 question) is PROVEN live: Fabric 0.23.0's `NodeProcessRuntime` unconditionally spawns `spawn(process.execPath, ['--max-old-space-size=<mb>','--input-type=module','--eval', NODE_PROCESS_CHILD_SOURCE], {stdio:['ignore','ignore','ignore','ipc']})` (node-process-runtime.js:29); there is NO config field to pin a wrapper, but `process.execPath` is writable+configurable on Node 24, so the C1 launcher reassigns it to the wrapper before Fabric boots. Pinned wrapper = the SCRIPT node runs (shebang `#!/usr/bin/env node`); Fabric's argv becomes `process.argv.slice(2)`, node never evals the child-source, and the shebang wrapper holds the Fabric ipc fd (probed). This matches `plan.md`'s anticipation of the writable-execPath seam exactly (not a deviation).
+- `executor-wrapper.mjs` validates the exact Fabric argv shape (4 elements: `--max-old-space-size=<posInt>`, `--input-type=module`, `--eval`, child-source) and the child-source SHA-256, then launches the verbatim child-source inside strict bubblewrap (`--unshare-user` STRICT — never `--unshare-user-try`; + pid/ipc/uts/net namespaces; `--die-with-parent`) with MINIMAL binding (node binary + ldd-resolved libs + ld-linux + inner-guest.mjs only — NO full rootfs, NO /etc, NO /home, NO repo, NO creds). Bridges Fabric node-ipc ↔ sandbox stdin/stdout JSON-line; filters every host-call by effective ref (Fabric's `__resolvedCallRef`: `fabric.$call` → `args.ref`) against the lane's allowlisted `host_call_refs`; enforces frame discipline (malformed/oversized/duplicate-id/forged-result/post-result/unknown-frame terminate; unknown refs reject in-guest without forwarding); fsyncs a terminal attestation file BEFORE forwarding the result to Fabric.
+- `inner-guest.mjs` is a trusted transport shim loaded via `--import` inside bwrap BEFORE the verbatim child-source (`--eval`). It re-binds Fabric's node-ipc transport (`process.send`→stdout, `process.on("message")`→stdin readline, `process.connected` getter, `process.disconnect`) onto stdin/stdout JSON-line, with a pending-buffer so the `execute` frame arriving during `--import` (before the child-source registers its handler) is not dropped. The verbatim child-source runs UNMODIFIED (zero drift from the pinned value digest).
+- Credentials stay OUT of the sandbox: bwrap `--clearenv` + minimal `--setenv PATH /usr/bin --setenv LANG C.UTF-8`; the inner guest sees NO credential env, NO `PI_AWAY_*` control vars, NO `PI_FABRIC_*`. Host tools (`away_read` etc.) run in the trusted host (the wrapper parent), which CAN read — that is intended (the guest reads via filtered host calls, never directly).
+
+### Adversarial properties proven by tests (25/25)
+
+- vm escape in Fabric's `vm.createContext` (Node 24, `codeGeneration:{strings:true}`) does NOT reach the host: `({}).constructor.constructor("return process")()` → `ReferenceError: process is not defined`; `return this`/`return globalThis` return the vm sandbox, not the host. So the model's ONLY host communication is the fabric API → well-formed `call` frames. bwrap is defense-in-depth: the confinement harness runs a malicious vm-escape guest (reaches a real process) inside the wrapper's exact `buildBwrapArgs` and proves `/etc/passwd` → ENOENT, repo manifest → ENOENT, `fetch` → failed (no net ns for writer), env has no creds/PI_AWAY_*/PI_FABRIC_*, `/bin/sh` → ENOENT (no /bin bound), `/proc` shows only guest-namespace PIDs.
+- Ref filtering: `tools.call({ref:"away_read"})` is forwarded to the host (host sees `fabric.$call` with `args.ref=away_read`); `tools.call({ref:"agents.run"})` is rejected in-guest (host NEVER sees `agents.run`; the guest's call rejects with `denied ref`).
+- argv/digest rejection: malformed argv → error result `...argv...` + non-zero exit; tampered child-source → error result `...digest...` + non-zero exit; correct digest → proceeds to spawn the sandbox.
+- Cancellation: `AbortSignal` → result `terminationReason:"aborted"`; the wrapper's `process.on("disconnect")` kills the bwrap child (`--die-with-parent`).
+- fsync attestation: an attestation file is written+fsynced in `PI_AWAY_ATTEST_DIR` before the result is forwarded (content: lane, terminationReason, forwardedRefs, deniedRefs, fsynced:true).
+
+### Verification (A2 gate)
+
+- `node --experimental-strip-types --test .pi/away-runtime/executor-sandbox.test.ts` → 25 tests, 25 pass, 0 fail (PASS), deterministic across 2 consecutive runs (~3.5s each). A1 regression check: 16/16 still PASS.
+- 3 A2 implementation files only (executor-wrapper.mjs, inner-guest.mjs, executor-sandbox.test.ts) — within the three-file cap.
+
+### Files
+
+- `.pi/away-runtime/executor-wrapper.mjs` (new) — pinned execPath target; validate argv+digest, spawn strict bwrap, bridge+filter+discipline+fsync; exports pure helpers + PINNED_CHILD_SOURCE_DIGEST.
+- `.pi/away-runtime/inner-guest.mjs` (new) — transport shim (node-ipc ↔ stdin/stdout JSON-line).
+- `.pi/away-runtime/executor-sandbox.test.ts` (new) — 25 tests: drift guard, pure helpers, real-runtime seam (happy/ref-filter/attestation/abort), direct-wrapper rejection, direct-bwrap confinement.
+- `.opencode/artifacts/away-sandbox-runtime/progress.md` (A2 record appended)
+
+### Notes / decisions
+
+- **Child-source digest pin = the VALUE, not the file.** Fabric passes `NODE_PROCESS_CHILD_SOURCE` (the imported value, 2838 chars, sha256 `ee0bb190...`) via `--eval`, NOT the .js source file (2948 bytes, sha256 `d7755589...`). The wrapper validates `sha256(argv[3])` against `PINNED_CHILD_SOURCE_DIGEST = ee0bb190...`. The drift-guard test imports the value (not reads the file) and compares. A concurrent pi-fabric reinstall changes the value → drift-guard fails → re-pin (B1/ADR-014 freezes the version). (An earlier m0067 "drift" alarm was a false comparison of file-digest vs value-digest; they were never equal — file ≠ value.)
+- `--tools fabric_exec` captured-`away_*` reachability (A1 flag) is NOT exercised by A2 (A2 tests call `tools.call` directly through the real child-source's `fabric.$call` routing, which the wrapper filters on `args.ref`). Full `--tools fabric_exec` + `capture.risks` end-to-end is confirmed at **A3** (real Fabric through the wrapper + authenticated Makora smoke).
+- Frame-discipline (malformed/oversized/dup-id/forged-result/unknown-ref) is tested via pure-function logic + the confinement harness's vm-escape path (defense-in-depth); the verbatim child-source cannot produce adversarial frames (no `process.send` access from the vm). Live adversarial framing is re-validated at A3.
+- Stray debug files `err1.txt`, `err2.txt`, `err3.txt` were created in the repo root during A2 bwrap probes; they are untracked and excluded from the A2 commit. Together with the A1 stray `.pi/_tsprobe/`, **operator permission requested** to remove all four (no-delete-without-permission rule).
+- Next: **A3** BLOCKING operator checkpoint (bwrap userns + cgroup v2 + real Fabric NodeProcessRuntime through the wrapper + authenticated Makora smoke WITHOUT credential/network egress + before/after fingerprint; STOP permanently if any fails). Surface A3 + the D3 feature-scoped-vs-absolute-baseline decision to the operator at that gate.
