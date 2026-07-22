@@ -1,0 +1,16 @@
+# Build artifacts
+node_modules/
+**/node_modules/
+
+# Pi/Fabric runtime state (actor registry, mesh, package/session caches)
+.pi/fabric/
+.pi/npm/
+.pi/git/
+.pi/sessions/
+
+# Tool caches
+.fallow/
+
+# Logs and OS junk
+*.log
+.DS_Store

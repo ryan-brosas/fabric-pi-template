@@ -1,0 +1,152 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "lsp": true,
+  "agent": {
+    "build": {
+      "description": "Primary development agent with full codebase access",
+      "model": "makora/zai-org/GLM-5.2-NVFP4",
+      "reasoningEffort": "max"
+    },
+    "compaction": {
+      "description": "Session summarizer for context continuity across compactions",
+      "model": "openai/gpt-5.4-mini"
+    },
+    "explore": {
+      "description": "Fast codebase search specialist",
+      "model": "openai/gpt-5.4-mini"
+    },
+    "general": {
+      "description": "General-purpose subagent for fast, well-defined tasks; delegates complexity quickly",
+      "model": "makora/zai-org/GLM-5.2-NVFP4"
+    },
+    "plan": {
+      "description": "Primary planning agent for architecture and multi-phase execution",
+      "model": "openai/gpt-5.6-sol-fast",
+      "reasoningEffort": "max"
+    },
+    "review": {
+      "description": "Code review, debugging, and security audit specialist",
+      "model": "openai/gpt-5.6-sol-fast",
+      "reasoningEffort": "max"
+    },
+    "scout": {
+      "description": "External research specialist for library docs and patterns",
+      "model": "openai/gpt-5.4-mini"
+    },
+    "vision": {
+      "description": "Visual content specialist for multimodal analysis and UI/UX guidance",
+      "model": "openai/gpt-5.6-luna",
+      "reasoningEffort": "medium"
+    }
+  },
+  "autoupdate": false,
+  "compaction": {
+    "auto": true,
+    "reserved": 16384
+  },
+  "formatter": {
+    "oxfmt": {
+      "command": ["npx", "oxfmt", "$FILE"],
+      "extensions": [".js", ".jsx", ".ts", ".tsx", ".json", ".jsonc", ".cjs", ".mjs", ".mts"]
+    }
+  },
+  "instructions": [],
+  "keybinds": {
+    "leader": "ctrl+x",
+    "session_child_first": "<leader>down",
+    "session_child_cycle": "right",
+    "session_child_cycle_reverse": "left",
+    "session_parent": "up"
+  },
+  "mcp": {
+    "figma-mcp-go": {
+      "command": ["npx", "-y", "@vkhanhqui/figma-mcp-go@latest"],
+      "enabled": false,
+      "timeout": 120000,
+      "type": "local"
+    },
+    "webclaw": {
+      "command": ["webclaw-mcp"],
+      "enabled": true,
+      "timeout": 120000,
+      "type": "local"
+    }
+  },
+  "model": "openai/gpt-5.6-sol-fast",
+  "permission": {
+    "bash": {
+      "*": "allow",
+      "cat *": "allow",
+      "git branch *": "allow",
+      "git checkout *": "ask",
+      "git clean *": "ask",
+      "git commit *": "ask",
+      "git diff *": "allow",
+      "git log *": "allow",
+      "git merge *": "ask",
+      "git push *": "ask",
+      "git rebase *": "ask",
+      "git reset *": "ask",
+      "git status *": "allow",
+      "ls *": "allow",
+      "npm *": "allow",
+      "npm publish *": "ask",
+      "npm run db:push*": "ask",
+      "npm run db:reset*": "deny",
+      "npx *": "allow",
+      "rm *": "deny",
+      "rm -rf *": "deny",
+      "sudo *": "deny"
+    },
+    "doom_loop": "ask",
+    "edit": "allow",
+    "external_directory": "ask",
+    "question": "allow",
+    "read": {
+      "*": "allow",
+      "*.env": "deny",
+      "*.env.*": "deny",
+      "*.env.example": "allow",
+      "*.key": "deny",
+      "*.pem": "deny",
+      "*credentials*": "deny",
+      "*password*": "deny",
+      "*secret*": "deny",
+      "*token*": "deny"
+    }
+  },
+  "plugin": ["@tarquinen/opencode-dcp@latest", "openslimedit@latest"],
+  "provider": {
+    "makora": {
+      "name": "Makora",
+      "npm": "@ai-sdk/openai-compatible",
+      "options": {
+        "apiKey": "{env:MAKORA_API_KEY}",
+        "baseURL": "https://inference.makora.com/v1"
+      },
+      "models": {
+        "zai-org/GLM-5.2-NVFP4": {
+          "name": "GLM 5.2 NVFP4",
+          "limit": {
+            "context": 1048576,
+            "output": 16384
+          },
+          "reasoning": true
+        }
+      }
+    }
+  },
+  "share": "manual",
+  "small_model": "openai/gpt-5.4-mini",
+  "watcher": {
+    "ignore": [
+      "node_modules/**",
+      ".git/**",
+      "dist/**",
+      "build/**",
+      ".fallow/**",
+      "*.log",
+      ".DS_Store"
+    ]
+  }
+}

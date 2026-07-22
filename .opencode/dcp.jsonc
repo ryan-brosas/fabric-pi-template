@@ -1,0 +1,98 @@
+{
+  "$schema": "https://raw.githubusercontent.com/Opencode-DCP/opencode-dynamic-context-pruning/master/dcp.schema.json",
+  "enabled": true,
+  // Disable auto-update for config stability — update explicitly when pinning new versions.
+  // v3.1.10+ auto-update is mature; set true if you want rolling bug fixes.
+  "autoUpdate": false,
+  "debug": false,
+  // "off" | "minimal" | "detailed" — keep minimal for low-noise dev flow
+  "pruneNotification": "minimal",
+  // "chat" (in-conversation) or "toast" (system notification)
+  "pruneNotificationType": "toast",
+  // Slash commands: /dcp context, /dcp stats, /dcp sweep, /dcp compress,
+  //                 /dcp decompress, /dcp recompress, /dcp manual
+  "commands": {
+    "enabled": true,
+    // Additional tools to protect from /dcp sweep (supports glob wildcards)
+    "protectedTools": [],
+  },
+  // Manual mode: when enabled, tools only run via /dcp commands — no autonomous pruning
+  "manualMode": {
+    "enabled": false,
+    "automaticStrategies": true,
+  },
+  // Protect recent tool outputs from pruning
+  // Reasoning models (mimo, deepseek) need chain-of-thought context preserved
+  "turnProtection": {
+    "enabled": true,
+    "turns": 4,
+  },
+  // Glob patterns matched against tool parameters.filePath — keep tight
+  // Broad patterns reduce DCP effectiveness
+  "protectedFilePatterns": [
+    "**/.env*",
+    "**/AGENTS.md",
+    "**/opencode.json*",
+    "**/package.json",
+    "**/tsconfig.json",
+  ],
+  "compress": {
+    // "range" (stable) compresses spans into block summaries
+    // "message" (experimental) compresses individual raw messages
+    "mode": "range",
+    // "allow" (no prompt) | "ask" (prompt) | "deny" (tool not registered)
+    "permission": "allow",
+    "showCompression": false,
+    // v3.1.0+: active summary tokens extend effective maxContextLimit
+    "summaryBuffer": true,
+    // Free tier effective limits: deepseek-v4-flash ~262K, mimo-v2.5 ~200K
+    // Using absolute token numbers (not percentages) since reported ctx (1M) ≠ effective ctx
+    // Soft upper threshold: above this, strong compression nudges fire
+    "maxContextLimit": 140000,
+    // Soft lower threshold: below this, turn/iteration reminders are off
+    "minContextLimit": 50000,
+    // Tighter nudge cadence — limited effective context fills fast on long sessions
+    "nudgeFrequency": 3,
+    // Messages since last user message before adding compression reminders
+    "iterationNudgeThreshold": 15,
+    // "strong" = more likely to compress, "soft" = less likely
+    // Soft keeps reasoning continuity for mimo — avoid abortive compression
+    "nudgeForce": "soft",
+    // Keep user messages compressible to avoid permanent context growth
+    "protectUserMessages": false,
+    // v3.1.11+: preserve text wrapped in <protect>...</protect> during compression
+    "protectTags": false,
+    // Per-model max context limits — absolute numbers tuned to free tier effective limits
+    "modelMaxLimits": {
+      "opencode/deepseek-v4-flash-free": 170000,
+    },
+    "modelMinLimits": {
+      "opencode/deepseek-v4-flash-free": 50000,
+    },
+    // Auto-protected by DCP: task, skill, todowrite, todoread, compress, batch,
+    //                        plan_enter, plan_exit, write, edit
+    // Only list ADDITIONAL tools whose outputs should be appended to compression summaries
+    "protectedTools": [],
+  },
+  "experimental": {
+    // Allow DCP processing in subagent sessions (default: false)
+    "allowSubAgents": false,
+    // Enable user-editable prompt overrides under dcp-prompts directories
+    "customPrompts": true,
+  },
+  // Automatic pruning strategies (zero LLM cost)
+  "strategies": {
+    // Removes duplicate tool calls (same tool + same arguments), keeps most recent
+    "deduplication": {
+      "enabled": true,
+      "protectedTools": [],
+    },
+    // Prunes inputs from errored tool calls after N turns (error messages preserved)
+    // Aggressive: 2 turns — errors waste precious effective context
+    "purgeErrors": {
+      "enabled": true,
+      "turns": 2,
+      "protectedTools": [],
+    },
+  },
+}
