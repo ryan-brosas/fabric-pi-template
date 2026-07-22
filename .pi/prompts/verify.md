@@ -11,15 +11,9 @@ Check implementation against the plan before declaring completion. `/verify` is 
 
 `<slug>` is required and must match `^(?=.{1,64}$)[a-z0-9]+(?:-[a-z0-9]+)*$`. Reject empty, absolute, slash-containing, dot-segment, uppercase, leading/trailing-hyphen, or double-hyphen values before any filesystem access. Lifecycle state is confined to `.pi/artifacts/<slug>/{PLAN,TODO,PROGRESS,DECISIONS}.md`. Project memory (`.pi/memory.md`) is an optional separate surface: reads for context are allowed, and `/verify` may append one distilled non-sensitive finding before the final fingerprint only — never lifecycle state, and never secrets, credentials, PII, raw tool output, per-slug status, or final verification results (see ADR-007).
 
-Verify the namespace is **established** (both `PLAN.md` AND `TODO.md` exist in `.pi/artifacts/<slug>/`):
-
-- **Established** (both exist): proceed.
-- **Partial** (only one of `PLAN.md`/`TODO.md` exists): stop — the namespace is partially initialized from an interrupted `/create`. Block for operator recovery; do not adopt, overwrite, delete, or `mkdir`. Report which sentinel file is missing.
-- **Absent** (neither exists): stop — tell the operator to run `/create <slug>` first. `/verify` never creates a namespace.
-
 ## Validate Ready Packet
 
-After the slug passes validation and the namespace is established, and before any memory or lifecycle access, verify the project is fully initialized. The Pi-native init packet is six files:
+After the slug passes validation, and before any namespace, memory, or lifecycle access, verify the project is fully initialized. The Pi-native init packet is six files:
 
 - `AGENTS.md`
 - `.pi/tech-stack.md`
@@ -37,6 +31,14 @@ Read `.pi/state.md` frontmatter and verify all of the following:
 5. `agents_boilerplate_sha256` matches the SHA-256 of the managed AGENTS boilerplate region (between the `<!-- pi:init:boilerplate:start -->` and `<!-- pi:init:boilerplate:end -->` markers).
 
 If any check fails, **stop**. Do not access memory or lifecycle state. Report which packet gate failed and instruct the operator to run `/init` (fresh) or `/init --refresh` (established). A `partial` or reload-required state means the packet is not ready and `/verify` must fail closed.
+
+## Validate Namespace
+
+Verify the namespace is **established** (both `PLAN.md` AND `TODO.md` exist in `.pi/artifacts/<slug>/`):
+
+- **Established** (both exist): proceed.
+- **Partial** (only one of `PLAN.md`/`TODO.md` exists): stop — the namespace is partially initialized from an interrupted `/create`. Block for operator recovery; do not adopt, overwrite, delete, or `mkdir`. Report which sentinel file is missing.
+- **Absent** (neither exists): stop — tell the operator to run `/create <slug>` first. `/verify` never creates a namespace.
 
 ## Load Skills
 

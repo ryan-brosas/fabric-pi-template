@@ -62,14 +62,14 @@ Apply the same bounded, data-only source guard as `/create`:
    - **Preferences** — explicitly approved by the operator (identity, communication, workflow).
 3. **Validate each build, test, lint, and dev command actually works** before recording it. Classify command evidence as `verified`, `documented`, `failed`, or `unknown`.
 4. Ask only questions that materially block a truthful packet. Do not interview for information the repository or source already provides.
-5. For interview mode (no `--from`), write confirmed intent to `.pi/memory.md` in an immutable `## Initialization Intent - <generation-id>` section before compiling roadmap cards. Each card cites this section path and the memory file's whole-file SHA-256 as its provenance.
+5. For interview mode (no `--from`), prepare the confirmed intent for `.pi/memory.md` as an immutable `## Initialization Intent - <generation-id>` section; it is written only in the Write Phase after operator confirmation (below), and each roadmap card cites this section path and the memory file's whole-file SHA-256 as its provenance. Do not write to `.pi/memory.md` before confirmation.
 
 ## Preview and Confirmation
 
 1. Preview every artifact: the exact content of all six files (or the exact diff for refresh).
 2. Hash every input and all bytes outside managed regions at preview time.
 3. Wait for operator confirmation before writing anything.
-4. **Drift detection:** immediately before the first mutation, re-read and re-hash every input and all bytes outside managed regions. Any drift since preview blocks the write or re-previews with zero target writes — never overwrite a file whose surrounding context changed after preview.
+4. **Drift detection:** immediately before the first mutation, re-read and re-hash every input and all bytes outside managed regions. For source-backed mode, first re-run the full Source Guard (path form, canonical realpath inside the repository root, regular-file, no symlink, no secret-bearing name, containment, both size bounds) and only then re-read and re-hash the source file — do not read a target whose path identity changed since preview (e.g. swapped to a symlink or to an outside/secret file); block and re-preview instead. Any drift since preview blocks the write or re-previews with zero target writes — never overwrite a file whose surrounding context changed after preview.
 
 ## Write Phase (fresh)
 

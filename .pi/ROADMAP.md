@@ -29,7 +29,7 @@ Provenance source: `.pi/memory.md` section
   checks pass; managed AGENTS boilerplate is byte-identical to the locked fixture.
 - Dependencies: away-sandbox-runtime settlement (shared authority files) — Option B
   reserves pi-native-init with a feature-scoped baseline.
-- Candidate slug: `pi-native-init` (in progress).
+- Candidate slug: `pi-native-init`
 - Autonomy: manual-only
 - Open decisions: none
 - Source: `.pi/memory.md` `## Initialization Intent - gen-2026-07-23-01` @ sha256: 74f3cf4e1bb528dc8668d612470434ebf6c4a996523d1aa3e75ce644d16727b4
@@ -43,7 +43,7 @@ Provenance source: `.pi/memory.md` section
 - Acceptance evidence: confinement test passes (strict userns, no fail-open); launcher
   attestation + closure hash validated; D3 no-write acceptance passes.
 - Dependencies: none (predecessor).
-- Candidate slug: `away-sandbox-runtime` (in progress, paused at B3).
+- Candidate slug: `away-sandbox-runtime`
 - Autonomy: manual-only
 - Open decisions: none
 - Source: `.pi/memory.md` `## Initialization Intent - gen-2026-07-23-01` @ sha256: 74f3cf4e1bb528dc8668d612470434ebf6c4a996523d1aa3e75ce644d16727b4

@@ -182,7 +182,7 @@ Extract title and description:
 
 ### Source revalidation (source-backed mode only)
 
-Before the first namespace write, re-read and re-hash the source file. If the whole-file SHA-256 differs from the hash recorded in Phase 1A, the source drifted between extraction and write. **Return to preview with zero namespace writes** — do not `mkdir`, do not write `PLAN.md` or `TODO.md`. Re-extract, re-preview, and re-confirm before retrying.
+Before the first namespace write, **re-run the full Source Guard from Phase 1A** (path form, canonical realpath inside the repository root, regular-file, no symlink, no secret-bearing name, containment, both size bounds). If the path identity changed since Phase 1A (e.g. swapped to a symlink or to an outside/secret file), stop — do not read the target; return to preview with zero namespace writes. Only after the guard passes, re-read and re-hash the source file. If the whole-file SHA-256 differs from the hash recorded in Phase 1A, the source drifted between extraction and write. **Return to preview with zero namespace writes** — do not `mkdir`, do not write `PLAN.md` or `TODO.md`. Re-extract, re-preview, and re-confirm before retrying.
 
 The `<slug>` validated in Phase 2 becomes the feature's namespace:
 

@@ -6,12 +6,6 @@ description: Run garbage collection — Fallow analysis, quality grading, and cl
 
 Run structural analysis, update quality grades, and recommend cleanup.
 
-## Load Skills
-
-Load the `fallow` skill before running the scan.
-
-Load `verification-before-completion` before recording grades.
-
 ## Validate Ready Packet
 
 `/gc` is project-wide and slugless, but still requires a fully initialized project before any memory or action. The Pi-native init packet is six files:
@@ -32,6 +26,12 @@ Read `.pi/state.md` frontmatter and verify all of the following:
 5. `agents_boilerplate_sha256` matches the SHA-256 of the managed AGENTS boilerplate region (between the `<!-- pi:init:boilerplate:start -->` and `<!-- pi:init:boilerplate:end -->` markers).
 
 If any check fails, **stop**. Do not read memory or run any scan. Report which packet gate failed and instruct the operator to run `/init` (fresh) or `/init --refresh` (established). A `partial` or reload-required state means the packet is not ready and `/gc` must fail closed. `/gc` remains response-only — it never writes lifecycle artifacts or project memory.
+
+## Load Skills
+
+Load the `fallow` skill before running the scan.
+
+Load `verification-before-completion` before recording grades.
 
 ## Phase 1: Run Fallow Scan
 

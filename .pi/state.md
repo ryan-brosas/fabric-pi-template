@@ -31,7 +31,7 @@ the live `AGENTS.md` managed interior matches `agents_boilerplate_sha256`.
 | `.pi/ROADMAP.md` | seeded (v1 grammar, 2 Ready + 1 Next + Later) |
 | `.pi/user.md` | seeded (operator-approved preferences) |
 | `.pi/memory.md` | seeded (durable knowledge + Initialization Intent) |
-| `.pi/state.md` | this file (partial) |
+| `.pi/state.md` | this file (ready) |
 
 ## Boilerplate
 
