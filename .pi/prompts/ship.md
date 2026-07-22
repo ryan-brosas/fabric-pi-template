@@ -104,6 +104,19 @@ All writable work is serial. There is no parallel writable fan-out path. If a pl
 | `PLAN.md`       | Parse plan header + dependency graph, execute wave-by-wave |
 | `TODO.md` only  | Convert TODO to executable task list, then proceed         |
 
+### Ship-Level Review Baseline
+
+Before any execution, capture the ship-level baseline once so the final-diff review (Phase 5) compares against the true pre-implementation state, not a mid-run snapshot. This is distinct from the per-task Host-Derived Candidate Intake below and feeds the final review packet.
+
+```bash
+git rev-parse HEAD
+git status --porcelain=v1 -z --untracked-files=all
+git diff --cached --binary
+git diff --binary
+```
+
+Record, for every path that is already dirty or untracked at baseline: `git hash-object --no-filters` of the current bytes. Record the candidate path set (the task-owned paths across all waves) and their baseline hashes. The final review packet is built from this baseline and the settled candidate bytes after all writable workers settle and Phase 4 verification runs.
+
 ## Phase 3: Wave-Based Execution
 
 If `PLAN.md` exists with dependency graph:
@@ -285,18 +298,9 @@ BASE_SHA=$(git rev-parse origin/main 2>/dev/null || git rev-parse HEAD~1)
 HEAD_SHA=$(git rev-parse HEAD)
 ```
 
-### Mode Selection
+### UI Quality Gate (overlay — always before the diff review)
 
-| Condition | Mode |
-|---|---|
-| Routine change, low risk | Standard Review (below) |
-| High-risk feature, explicit user request for quality gating, or the build agent flagged the feature as requiring iterative quality gating | Iterative Quality Loop |
-
-When using Standard Review mode, apply the UI Quality Gate then the review. When using Iterative Loop mode, apply the UI Quality Gate first (before entering the loop), then run the scored loop flow.
-
----
-
-### UI Quality Gate (always — both modes)
+UI accessibility and recovery are an applicable overlay fed into the single Tier-Gated Diff Review below, not a separate scoring system. Run this gate first; its Critical findings are fixed inline and rerun before the diff review.
 
 Detect changed UI files:
 
@@ -315,89 +319,6 @@ If any UI files changed:
    - Semantic HTML, keyboard path, visible focus, reduced motion
    - Component family consistency for related controls
 2. Treat Critical findings like review Critical findings: fix inline, rerun verification, then continue.
-
----
-
-### Standard Review Mode
-
-Run a review pass. Spawn review subagents for the perspectives relevant to the change (security/correctness, performance/architecture, type-safety/tests, conventions/patterns, simplicity/completeness). Choose the perspectives that match the risk; do not run a fixed matrix every cycle.
-
-Fill placeholders:
-
-- `{WHAT_WAS_IMPLEMENTED}`: brief summary of what changed
-- `{PLAN_OR_REQUIREMENTS}`: `.pi/artifacts/<slug>/PLAN.md`
-- `{BASE_SHA}` / `{HEAD_SHA}`: from above
-
-Synthesize findings.
-
-**Auto-fix rule:**
-
-- Critical issues → fix inline, re-run Phase 4 verification, continue
-- Important issues → fix inline, continue
-- Minor issues → note in `.pi/artifacts/<slug>/PROGRESS.md`
-
-If review finds critical issues that require architectural decisions → stop → present options to user.
-
-### Iterative Quality Loop Mode
-
-Score-gated feedback loop for high-risk features. Replaces the standard review with a structured iteration cycle.
-
-#### Setup
-
-Initialize loop state in `.pi/artifacts/<slug>/PROGRESS.md` (no separate review-state file; record review rounds in the existing PROGRESS log):
-
-Record: slug, rounds (0), maxRounds (5), lastScore (0), sameScoreCount (0), findingsResolved (0), findingsRemaining (0), status (active).
-
-#### Loop
-
-Repeat steps 2-8 until exit or escalation:
-
-| Step | Action |
-|---|---|
-| **1. EXECUTE** | Implement per spec/plan (already done in Phase 3) |
-| **2. REVIEW** | Spawn **one review subagent** with spec + current diff + current review-round state. Returns: score (X/5), findings array (severity + file:line + suggestion), suggested next action |
-| **3. GATE** | Score ≥ 5 → mark done (`status: passed`), exit loop, proceed to Goal-Backward Verification. Score 4 → ask user if they want to proceed or loop. Score <4 → continue |
-| **4. STALL?** | If `sameScoreCount ≥ 2` → escalate: surface accumulated findings, present to user with a recommendation |
-| **5. MAX?** | If `rounds ≥ maxRounds` → escalate with full finding log |
-| **6. FILTER** | Split findings into categories and handle each: |
-| | • **Actionable** (code-level, clear fix) → proceed to fix |
-| | • **Informational** (note, no code change) → log to PROGRESS.md with `[info]` |
-| | • **Architecture/Design** → stop loop, present to user for decision |
-| **7. FIX** | For each actionable finding, fix at the exact file:line with the suggested fix. Run sequentially for same-file findings |
-| **8. RE-REVIEW** | Update review-round state in PROGRESS.md: increment rounds, update score, reset/resolve findings. Go to step 2 |
-
-#### Loop State Updates
-
-After each round, update the review-round state in PROGRESS.md:
-
-**`sameScoreCount` rule:**
-- If new score === `lastScore` → increment `sameScoreCount`
-- If new score !== `lastScore` → reset `sameScoreCount` to 0
-
-**Status transitions:**
-
-- Stall detected (`sameScoreCount ≥ 2`) → `status: stalled`, append accumulated findings to PROGRESS.md
-- Max rounds reached → `status: maxed`, append full finding log to PROGRESS.md
-- Pass (score ≥ 5) → `status: passed`, proceed to Goal-Backward Verification
-
-#### Review Subagent Prompt
-
-When spawning, include:
-
-- The original spec/slug
-- The current diff (all changed files since the start of Phase 3)
-- The current review-round state from PROGRESS.md
-- Return format: `{ score: number, findings: Array<{severity:"critical"|"important"|"minor", file:string, line:number, suggestion:string, type:"actionable"|"informational"|"architecture"}>, nextAction: string }`
-
-#### Exit Conditions
-
-| Condition | Action |
-|---|---|
-| Score ≥ 5 | Proceed to Goal-Backward Verification |
-| User approves score 4 | Proceed to Goal-Backward Verification |
-| Architecture finding | Stop, present options to user |
-| Stalled (same score 2x) | Escalate with accumulated findings |
-| Max rounds | Escalate with full finding log |
 
 ### Goal-Backward Verification (if PLAN.md exists)
 
@@ -431,6 +352,63 @@ return Response.json({ok: true})  // Static, not query result
 ```
 
 If any artifact fails Level 2 or 3 → fix → re-verify.
+
+### Tier-Gated Diff Review
+
+One canonical final-diff review of the settled candidate bytes, after the UI Quality Gate and Goal-Backward Verification. This replaces the former Standard and Iterative scored modes — there is no score-based approval and no separate scoring system.
+
+Compute the **Effective Review Level** = `max(stored Discovery Level, stored Effective Review Level, current risk floor)` from the PLAN header. L0-1 review is advisory; L2-3 review is blocking.
+
+#### Build the final packet (host-derived)
+
+The read-only reviewer has only `read,grep,find,ls`; it cannot run `git diff` or verification. Main builds an inline sanitized packet from the Ship-Level Review Baseline (Phase 2) and the settled candidate bytes after all writable workers settle and Phase 4 verification runs. The packet explicitly lists candidate paths and excluded paths and contains:
+
+- The unified diff of every candidate path against the ship-level baseline.
+- Baseline and candidate `git hash-object` per path.
+- Applicable requirements and decisions (PLAN.md, AGENTS.md, DECISIONS excerpts).
+- Commands run in Phase 4 with exit codes, modes, and concise non-sensitive output.
+- Detected language/framework and exact manifest/lockfile versions.
+- Any researched source excerpts for the Language and Framework Overlay.
+- The effective level and rationale; an explicit file allowlist excluding secrets.
+
+Do not silently truncate. Split an oversized packet by disjoint subsystem or language into bounded read-only review runs; all L2-3 chunks must complete.
+
+#### Dispatch (exact)
+
+```typescript
+const result = await agents.run({
+  task: "Diff review for <slug>. Audit the settled candidate diff for correctness, security, regressions, scope creep, surgical-diff discipline, generated-code quality, and language/framework best practice. Return evidence-backed findings only. <inline sanitized packet>",
+  name: "lifecycle-review-ship",
+  runner: "pi",
+  model: "openai-codex/gpt-5.6-sol",
+  thinking: "max",
+  extensions: false,
+  recursive: false,
+  tools: ["read", "grep", "find", "ls"],
+  worktree: false,
+});
+```
+
+Only `status === "completed"` is a completed review. Partial text from a failed/stopped/timed-out child is context only.
+
+#### Finding semantics
+
+Each finding: `[Critical|High|Medium|Low][category] path:line` + violated authority + concrete failure scenario and cost + smallest correction + confidence + evidence status (`local | host-supplied | source-check-required`). No overall score, no quota; zero findings is valid. A clean review never certifies readiness.
+
+**Objective Generated-Code Quality:** report only concrete costs — untraceable scope, duplicate implementations with divergence risk, dead/unwired code, speculative abstractions without a caller, behaviorless wrappers, placeholder/no-op/hard-coded behavior, invented or version-incompatible APIs/dependencies, error swallowing that masks failure, tests that only verify mocks, unnecessary compatibility shims, large unrelated generated edits. "Looks AI-generated" alone is not a finding.
+
+**Language and Framework Overlay:** establish the exact framework and version from the packet, then apply an authoritative rule (official material > maintained source > maintainer guidance > local skills > model memory — never). At L2-3, `source-check-required` stops acceptance until Main or a network-capable scout obtains authoritative evidence and the review is rerun. Do not invent a best practice from memory. Do not demand branded primitives merely because a file is TypeScript.
+
+Main reopens every cited `path:line` and reproduces the reasoning before accepting (Worker Distrust). Only Main's validated disposition blocks or proceeds. Critical/High independently validated defects block at every level. Medium may be deferred with rationale.
+
+#### Tier behavior
+
+- **L0-1 (advisory):** reviewer completion is not an acceptance precondition. A child failure warns and proceeds. Existing hard safety/correctness rules still apply to validated Critical/High findings.
+- **L2-3 (blocking):** Main cannot accept candidates until the review is tied to current candidate bytes and every Critical/High finding is adjudicated (resolved, disproved with evidence, or explicitly accepted with rationale). A timeout or unavailable reviewer blocks unless the operator overrides. A candidate-hash change invalidates the review.
+
+#### Convergence
+
+Any accepted fix or concurrent byte change invalidates both the Phase 4 verification and this review. After any candidate mutation: rerun full Phase 4 verification, regenerate the packet from the updated baseline, and re-review at L2-3. Bound convergence to **two review-integration rounds**; if unresolved findings remain after two rounds, escalate to the operator with the accumulated findings.
 
 ## Phase 6: Close
 
