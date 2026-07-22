@@ -64,7 +64,7 @@ in `.pi/artifacts/pi-template/DECISIONS.md`. Summary only — do not edit here f
 
 - `pi --approve --list-models` resolves `openai-codex/gpt-5.6-sol`,
   `openai-codex/gpt-5.4-mini`, `makora/zai-org/GLM-5.2-NVFP4` (all thinking=yes).
-- `normalizeFabricConfig` 12/12 PASS against installed pi-fabric 0.22.4.
+- `normalizeFabricConfig` 12/12 PASS against installed pi-fabric 0.23.0.
 - JSON valid (`jq -e`) on `.pi/settings.json` + `.pi/fabric.json` + milestone-3 `prd.json`
   + milestone-4 `prd.json`.
 - Node v24.16.0 (>=24).
@@ -77,4 +77,5 @@ in `.pi/artifacts/pi-template/DECISIONS.md`. Summary only — do not edit here f
   preservation 6/6; completion-authority split; no .active/latest; prd graph A:2/B:3/C:3);
   `git diff --check` exit=0; local HEAD = remote main = remote master = `bc4ae6a`.
 - Runtime child-spawn + prompt-discovery smoke pending `/trust` + restart.
+- Lifecycle review gates (ADR-011): milestone-5 + prewalk-extension shipped; lifecycle-review-gates A1-C2 implementation done, C3 static verify pending.
 - Per-artifact commit+push standing policy active.

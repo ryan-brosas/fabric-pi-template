@@ -102,7 +102,7 @@ Each milestone is independently verifiable. Authority/topology decisions are rec
 - No `/team` orchestrator or mandatory two-skill lifecycle.
 - No lifecycle kernel, schemas, typed handoffs, candidate manifests, receipts, or CAS
   board.
-- No mandatory research/review agents every cycle.
+- No fixed review matrix — evidence-based boundary review is tier-gated (ADR-011).
 - No automatic branch creation, commits, push, or publication.
 - No supervisor writes, delegation, lifecycle-state mutation, or final readiness
   authority.

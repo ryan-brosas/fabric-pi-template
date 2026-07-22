@@ -47,6 +47,17 @@ S/single-file mechanical lane; both share the one-writable-run ceiling, no silen
 `prewalk.model` is left unset (`prewalk:{}`) — the executor model is explicit per call, not
 inferred from `prewalk.model`.
 
+**Lifecycle review gates (ADR-011):** tier-gated read-only `review` children at the `/create`/
+`/plan`/`/ship`/`/verify` boundaries, reusing the GPT read-only lane (`openai-codex/gpt-5.6-sol`,
+max, `extensions:false`, `read,grep,find,ls`, non-recursive, no `bash`). L0-1 advisory; L2-3
+blocking; `/verify` always advisory. Exact dispatch:
+`agents.run({task, name:"lifecycle-review-<phase>", runner:"pi", model:"openai-codex/gpt-5.6-sol",
+thinking:"max", extensions:false, recursive:false, tools:["read","grep","find","ls"],
+worktree:false})`. Main supplies an in-memory sanitized packet (diff, hashes, commands/exits,
+versions, source excerpts); children return evidence-backed findings only and never block by their
+own authority (Worker Distrust). Supersedes ADR-008's no-consultation clause only; the single
+supervisor, no mailbox panel, and no standalone `/gate` remain.
+
 **Extension split (load-bearing):** `extensions:false` makes Fabric pass Pi `--no-extensions`,
 which fails to resolve the Makora provider. GPT council and read-only children use
 `extensions:false`; Makora implementation workers MUST use `extensions:true` + `thinking:"max"`
