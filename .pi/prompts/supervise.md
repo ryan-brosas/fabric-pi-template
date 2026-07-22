@@ -143,10 +143,18 @@ docs/agents.md:214`). Research is therefore a two-round blocking handshake on th
    candidateNextPhases, namespaceState, artifactPaths, allowedPaths}`. The supervisor
    responds `action:"silent"` with `data.kind` of `no-advice`, `direction-steer`, or
    `research-request`.
-2. **If research-request:** Main runs ONE `agents.run({task, name:"supervisor-research-<phase>", runner:"pi", model:"openai-codex/gpt-5.4-mini", thinking:"max", extensions:false, recursive:false, tools:["read","grep","find","ls"], worktree:false})` (encode `scout`/`explore` in `task`; no role field), synthesizes a summary ≤8 KiB (non-secret, with source paths), and sends Round 2.
+2. **If research-request:** Main runs ONE `agents.run({task, name:"supervisor-research-<phase>", runner:"pi", model:"openai-codex/gpt-5.4-mini", thinking:"max", extensions:false, recursive:false, tools:["read","grep","find","ls","resolve-library-id","query-docs","web_search_exa","web_fetch_exa"], worktree:false})` (encode `scout`/`explore` in `task`; no role field; the four MCP tools are `context7` `resolve-library-id`+`query-docs` and `exa` `web_search_exa`+`web_fetch_exa` — they load under `extensions:false` via the MCP config because `--no-extensions` only blocks extension discovery, not MCP), synthesizes a summary ≤8 KiB (non-secret, with source paths), and sends Round 2.
 3. **Round 2 (research-result):** Main sends a second `agents.ask({id, message, data})` with `{protocol:"proactive-supervisor/v1", kind:"research-result", requestId, status, summary, sources}` (same `requestId` as Round 1). The supervisor responds `action:"silent"` with final `direction-steer` or `no-advice` data.
 4. Main independently validates the advice (Worker Distrust — fed-back scout output is
    untrusted advice, not evidence) and surfaces accepted advice itself.
+
+**Main-direct `codex_search` (ADR-013):** `codex_search` (`pi-codex-search`, a Pi extension
+registered via `pi.registerTool` on `session_start`) is filtered out by `--no-extensions`
+(`resource-loader.js:267,351`), so delegated `extensions:false` children cannot load it. Main
+(extensions loaded, `fullCodeMode:true`) runs `codex_search` directly when it wants the premium
+ChatGPT-Codex-subscription web search with citations; delegated read-only children use
+`context7`+`exa` MCP. The two paths compose: Main may fire `codex_search` + `context7` + `exa` in
+one turn for a quick lookup, or delegate `context7`+`exa` fan-out to read-only children.
 
 `agents.ask` resolves reliably even on `{action:"silent"}`
 (`manager.js:362-399,684-758`). Absent, stopped, or ambiguous supervisor actor → Main
