@@ -231,20 +231,22 @@ after(() => {
 // =============================================================================
 
 describe("closure: resolve real manifest (requireAll:false tolerates forward refs)", () => {
-  test("resolves existing inputs and marks lane-extension as not-yet-present", () => {
+  test("resolves existing inputs and hashes lane-extension (C2 resolved the forward ref)", () => {
     const c = resolveClosure(REAL_MANIFEST, "writer", { requireAll: false });
     assert.ok(isAbsolute(c.manifestPath), "manifestPath absolute");
-    const byCanonical = new Map(c.inputs.map((i) => [i.canonical, i]));
     // wrapper + inner-guest must exist (A2 deliverables)
     const wrapper = c.inputs.find((i) => i.canonical.endsWith("executor-wrapper.mjs"));
     assert.ok(wrapper && wrapper.exists && wrapper.hash, "wrapper hashed");
     const inner = c.inputs.find((i) => i.canonical.endsWith("inner-guest.mjs"));
     assert.ok(inner && inner.exists && inner.hash, "inner-guest hashed");
-    // lane-extension is a forward ref to C2; not present at B2
+    // lane-extension forward ref resolved by C2; now present + hashed
     const laneExt = c.inputs.find((i) => i.canonical.endsWith("lane-extension.ts"));
     assert.ok(laneExt, "lane-extension declared");
-    assert.equal(laneExt!.exists, false, "lane-extension absent at B2");
-    assert.equal(laneExt!.hash, null, "no hash for absent forward ref");
+    assert.equal(laneExt!.exists, true, "lane-extension present (C2 resolved)");
+    assert.ok(
+      typeof laneExt!.hash === "string" && laneExt!.hash.length === 64,
+      "lane-extension hashed",
+    );
     // pinned binaries present
     const bwrap = c.inputs.find((i) => i.canonical === realpath("/usr/bin/bwrap"));
     assert.ok(bwrap && bwrap.exists, "bwrap hashed");
