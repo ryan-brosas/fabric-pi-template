@@ -9,7 +9,13 @@ Check implementation against the plan before declaring completion. `/verify` is 
 
 ## Validate Slug
 
-`<slug>` is required and must match `^(?=.{1,64}$)[a-z0-9]+(?:-[a-z0-9]+)*$`. Reject empty, absolute, slash-containing, dot-segment, uppercase, leading/trailing-hyphen, or double-hyphen values before any filesystem access. All artifact reads and writes are confined to `.pi/artifacts/<slug>/`.
+`<slug>` is required and must match `^(?=.{1,64}$)[a-z0-9]+(?:-[a-z0-9]+)*$`. Reject empty, absolute, slash-containing, dot-segment, uppercase, leading/trailing-hyphen, or double-hyphen values before any filesystem access. Lifecycle state is confined to `.pi/artifacts/<slug>/{PLAN,TODO,PROGRESS,DECISIONS}.md`. Project memory (`.opencode/artifacts/MEMORY.md`) is an optional separate surface: reads for context are allowed, and `/verify` may append one distilled non-sensitive finding before the final fingerprint only — never lifecycle state, and never secrets, credentials, PII, raw tool output, per-slug status, or final verification results (see ADR-007).
+
+Verify the namespace is **established** (both `PLAN.md` AND `TODO.md` exist in `.pi/artifacts/<slug>/`):
+
+- **Established** (both exist): proceed.
+- **Partial** (only one of `PLAN.md`/`TODO.md` exists): stop — the namespace is partially initialized from an interrupted `/create`. Block for operator recovery; do not adopt, overwrite, delete, or `mkdir`. Report which sentinel file is missing.
+- **Absent** (neither exists): stop — tell the operator to run `/create <slug>` first. `/verify` never creates a namespace.
 
 ## Load Skills
 
