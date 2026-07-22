@@ -265,8 +265,21 @@ else
 		fail "init.md: boilerplate interior drifts from fixture (or markers missing)"
 	fi
 
-	# Old .opencode output paths absent (RED until P4.2)
-	rg_neg '\.opencode/(tech-stack|roadmap|state|user)\.md' "$INIT" "init.md: old .opencode output paths absent"
+	# Old .opencode output paths absent in instructions (excludes embedded boilerplate) (RED until P4.2)
+	OLD_PATHS_RESULT=$(node -e '
+const fs=require("node:fs");
+const s=fs.readFileSync(process.argv[1],"utf8");
+const a="<!-- pi:init:boilerplate:start -->",b="<!-- pi:init:boilerplate:end -->";
+const i=s.indexOf(a),j=s.indexOf(b,i+a.length);
+if(i<0||j<0){console.log("ERROR")}else{const nonBp=s.slice(0,i)+s.slice(j+b.length);console.log(/\.opencode\/(tech-stack|roadmap|state|user)\.md/.test(nonBp)?"FOUND":"CLEAN")}
+' "$INIT" 2>/dev/null || echo "ERROR")
+	if [ "$OLD_PATHS_RESULT" = "CLEAN" ]; then
+		pass "init.md: old .opencode output paths absent in instructions"
+	elif [ "$OLD_PATHS_RESULT" = "FOUND" ]; then
+		fail "init.md: old .opencode output paths present in instructions"
+	else
+		fail "init.md: old .opencode path check errored (markers missing?)"
+	fi
 
 	# Readiness outcomes: READY/PARTIAL/BLOCKED (RED until P4.2)
 	if rg -q 'READY' "$INIT" && rg -q 'PARTIAL' "$INIT" && rg -q 'BLOCKED' "$INIT"; then
