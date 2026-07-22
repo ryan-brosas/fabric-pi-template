@@ -1,128 +1,100 @@
-# MCP Research Lane — context7+exa MCP for read-only children; Main-direct codex_search
+# Main-Mediated MCP Research Lane — Context7/Exa/Codex for trusted Main; local-only children
 
-> **Status:** proposed · **ID:** mrl-001 · **Created:** 2026-07-22
-> **Baseline OID:** `a04a65c5db5b3946c1649fc8bec15fe5140f7ccf` (HEAD after proactive-supervisor shipped+pushed)
+> **Status:** re-planned (child-direct design invalidated by exact-version evidence) · **ID:** mrl-001 · **Created:** 2026-07-22 · **Revised:** 2026-07-23
+> **Baseline OID (stale — do not diff against):** `a04a65c5db5b3946c1649fc8bec15fe5140f7ccf` — superseded by fresh feature-start hash capture (see `plan.md` Task B)
 
 ## Problem Statement
 
-The read-only research lane (supervisor handshake research in `/create` Phase 10B, `/plan` Phase 8B,
-`/research` Phase 5, `/ship` Phase 6A; plus the `/create` Phase 4, `/plan` Phase 3, `/research` gather
-phases) dispatches read-only children with `tools:["read","grep","find","ls"]`. These children cannot
-reach web or library docs — the allowlist excludes MCP tools, and the children run `extensions:false`
-so the `codex_search` Pi extension does not load for them.
+The read-only research lane dispatches children with `tools:["read","grep","find","ls"]` and `extensions:false`. The original spec proposed extending that allowlist with four Context7/Exa MCP tool names so children gain web/doc lookup, with `codex_search` staying Main-direct. Exact-version source inspection disproved the core premise:
 
-Meanwhile the Pi environment has three search tools installed:
-- **`codex_search`** (`pi-codex-search` 0.1.5, a Pi extension in the global `settings.json` packages)
-  reuses the ChatGPT Plus/Pro Codex subscription, returns citations, and is the best web search.
-  It is a **package-discovered extension tool** registered via `pi.registerTool` on `session_start`,
-  so `--no-extensions` (from `extensions:false`) filters it out (`resource-loader.js:267,351`).
-  **Only Main (extensions loaded, `fullCodeMode:true`) can use `codex_search`.**
-- **`context7`** (`resolve-library-id`, `query-docs`) and **`exa`** (`web_search_exa`, `web_fetch_exa`)
-  are **MCP servers** in `~/.pi/agent/mcp.json`. MCP loads from a separate config, independent of
-  `--no-extensions`. But `--tools` is an allowlist that "applies to built-in, extension, and custom
-  tools" (`args.js:245-246`) — MCP tools are custom tools, so the current allowlist **excludes** them.
+- Pi removes package-discovered extensions under `--no-extensions` (`resource-loader.js:267-270,351-354`).
+- Fabric passes `--no-extensions` for every `extensions:false` child (`.pi/npm/node_modules/pi-fabric/dist/worker.js:321-333`).
+- `pi-mcp-adapter` (Context7/Exa reach Pi as MCP direct tools) and `pi-codex-search` are BOTH package-discovered Pi extensions (`pi.extensions` in their `package.json`). They are filtered out of `extensions:false` children entirely.
+- Adding the four MCP names to a child's `--tools` allowlist only adds unknown names; Pi ignores unknown active tools (`agent-session.js:626-645`). Children gain no capability.
+- Full-code mode (`fullCodeMode:true`) captures and hides extension tools by default; `capture.keepVisible` is the exact-name mechanism that retains specific extension tools in Main's direct registry (`pi-fabric/docs/configuration.md:173-207`, `dist/capture/interceptor.js:97-110`).
 
-The fix is mechanical for MCP: add the four MCP tool names to the read-only `tools` allowlist; keep
-`extensions:false`, `recursive:false`, `worktree:false`. Children stay read-only (no `bash`, no
-recursion, no `fabric_exec`) and gain web/doc lookup. `codex_search` cannot go into `extensions:false`
-children, so it stays **Main-direct**: Main runs `codex_search` itself when it wants the premium
-ChatGPT-subscription search with citations; delegated read-only children use `context7`+`exa`.
+The committed A1/A2/B1 prompt edits (commits `2c0dad9`, `1a6b9c0`, `7201882`) are therefore functionally no-ops and must be reworked.
 
-## Chosen design (Option A — safe, no capability widening)
+## Chosen design — Main-mediated research
 
-1. **Extend the read-only research allowlist** from `["read","grep","find","ls"]` to
-   `["read","grep","find","ls","resolve-library-id","query-docs","web_search_exa","web_fetch_exa"]`
-   in: the four supervisor handshake research dispatches (`create` 10B, `plan` 8B, `research` 5,
-   `ship` 6A), the `supervise.md` mini-research dispatch, and the gather-phase guidance
-   (`/create` Phase 4, `/plan` Phase 3, `/research`).
-2. **Parallel fan-out for gather phases** (already partly present: `/create` Deep = 3-5 agents,
-   `/research` Multi-Angle = parallel scouts). Keep/enhance parallel dispatch; MCP tools make each
-   parallel child richer. The supervisor handshake stays **one** gather (a single direction
-   question) but MCP-equipped.
-3. **Main-direct `codex_search`**: document the convention that Main uses `codex_search` directly
-   (it has extensions loaded) for premium web search with citations; this is NOT delegated to
-   `extensions:false` children because `codex_search` is a Pi extension blocked by `--no-extensions`.
-4. **ADR-013** records: MCP-equipped parallel read-only research lane (context7+exa) preserving
-   `extensions:false`; `codex_search` Main-direct; no capability widening.
+Trusted Main owns all external research; delegated children stay strictly local.
 
-## Why not `extensions:true` children (rejected Option B)
+1. **Main-direct external acquisition.** Main calls only the exact retained Context7/Exa direct-tool names and `codex_search`, exposed via `.pi/fabric.json` `capture.keepVisible`. These bypass Fabric's captured-tool approval gate (direct retained tools); Fabric's `approvals.network:"deny"` is unchanged and does not block Main's direct path.
+2. **Sanitize and bound.** Main treats all external content as prompt-injection-capable untrusted data, independently validates citations, discards injected instructions, and distills a non-secret cited packet <=8192 bytes.
+3. **Local-only handoff.** Main launches children with exactly `tools:["read","grep","find","ls"]`, `extensions:false`, `recursive:false`, `worktree:false`, supplying only the distilled packet. Gather phases may fan out local children in parallel after Main gathers external evidence; the supervisor handshake stays ONE local-only gather.
+4. **Capability-aware fallback.** Context7 (docs), Exa (search/fetch), and Codex (cited search) are not interchangeable. If one is unavailable, use only a source that can produce the evidence the query requires; otherwise disclose `partial`/`local-only`, or `blocked` when L2/L3 `source-check-required` cannot be satisfied.
+5. **ADR-013** records the Main-mediated design, the exact-version evidence, and Main's direct-network trust boundary.
 
-Giving children `extensions:true` so `codex_search` loads would also register `fabric_exec`
-(`index.js:655`). Safety would hinge on the `--tools` allowlist filtering out `fabric_exec`
-(supported by `args.js:246` + `index.js:905` early-return when `fabric_exec` not in
-`getActiveTools()`), but that filter is not runtime-proven on the `agents.run` child path, and a
-wrong assumption grants the child `pi.bash`/`pi.write`/`agents.*` — a real ADR-008/009 boundary
-breach. The blast radius is too high for an unproven claim. Option A achieves the same research
-richness without touching the boundary.
+### Exact tool names are runtime-gated (UNCERTAIN)
+
+The exact registered Context7/Exa direct-tool names are not assumed. `pi-mcp-adapter` defaults to server-prefixed direct names (`types.ts:431-437`). `plan.md` Task B inspects the Fabric capture catalog and runs a Pi 0.81.1 SDK registry probe to record the exact names before any config edit. `pi-codex-search@0.1.5` declares peers `^0.79.10` which exclude Pi 0.81.1 — its compatibility is UNCERTAIN until a live registry/call gate proves it. If Codex cannot register, scope shrinks to MCP-only (operator disposition).
+
+## Rejected alternatives
+
+### Child-direct MCP (original Option A — INVALIDATED)
+
+Giving `extensions:false` children the four MCP names assumes MCP survives `--no-extensions`. It does not: `pi-mcp-adapter` is a package-discovered extension removed by `--no-extensions`. The committed allowlist edits are no-ops. Rejected by exact-version evidence, not preference.
+
+### `extensions:true` children (Option B)
+
+Giving children `extensions:true` so `codex_search`/MCP load would also register `fabric_exec` and grant `pi.bash`/`pi.write`/`agents.*`. Safety would hinge on the `--tools` allowlist filtering `fabric_exec` on the `agents.run` child path — unproven, and a wrong assumption is a real ADR-008/009 boundary breach. Blast radius too high. Rejected.
+
+### Generic `mcp` proxy exposure
+
+`pi-mcp-adapter` registers a generic `mcp` proxy that can connect, authenticate, discover, and invoke arbitrary configured MCP servers (`index.ts:254-271`). Exposing it via `capture.keepVisible` is broader than this feature. Not in the primary plan; only via explicit operator acceptance + ADR.
 
 ## Scope (In/Out)
 
 ### In scope
-- Extend the read-only `tools` allowlist with `resolve-library-id`, `query-docs`,
-  `web_search_exa`, `web_fetch_exa` in: `.pi/prompts/supervise.md` (handshake mini-research),
-  `.pi/prompts/create.md` (Phase 4 gather + Phase 10B handshake), `.pi/prompts/plan.md`
-  (Phase 3 gather + Phase 8B handshake), `.pi/prompts/research.md` (gather + Phase 5 handshake),
-  `.pi/prompts/ship.md` (Phase 6A handshake).
-- Document Main-direct `codex_search` in `.pi/prompts/supervise.md` + the four lifecycle prompts.
-- ADR-013 in `.pi/artifacts/pi-template/DECISIONS.md`; canonical research-lane contract in
-  `.pi/artifacts/pi-template/PLAN.md`; research paragraph in `AGENTS.md`.
-- `.opencode/tech-stack.md`, `.opencode/roadmap.md`, `.opencode/state.md` synchronized.
+- `.pi/fabric.json`: add `capture.keepVisible` with the proven exact external tool names (`plan.md` Task C).
+- Correct the already-committed invalid research dispatches in `.pi/prompts/{supervise,create,plan,research,ship}.md` to the Main-mediated protocol (rework A1/A2/B1).
+- ADR-013 in `.pi/artifacts/pi-template/DECISIONS.md`; canonical contract in `.pi/artifacts/pi-template/PLAN.md`; research paragraph in `AGENTS.md`.
+- `.opencode/{tech-stack,roadmap,state}.md` synchronized.
+- `.opencode/artifacts/mcp-research-lane/{spec,prd}.md` reconciled to Main-mediated (this reset).
 
 ### Out of scope (non-goals)
-- `extensions:true` for read-only children (rejected — capability-widening risk, Option B).
-- Adding `websearch_codex` as an MCP server (codex_search is a Pi extension, not MCP; it stays
-  Main-direct).
-- Wiring `tilth` (cached MCP, not in `mcp.json`) — would need a `mcp.json` entry first; deferred.
-- Changing the supervisor's actor configuration (`extensions:false` read-only posture preserved).
-- Parallel fan-out for the supervisor handshake (stays one gather; it's a single direction question).
-- The stale `supervise.md` 0.22.4 field matrix (still NOTICED BUT NOT TOUCHING).
+- Network or extension access for children.
+- General Fabric network enablement.
+- Dynamically connecting arbitrary MCP servers.
+- Treating read-only children as offline or secret-isolation sandbox.
+- Reworking the stale `supervise.md` 0.22.4 field matrix (NOTICED BUT NOT TOUCHING).
+- Project-pinning duplicate MCP/Codex packages in `.pi/settings.json` (Pi combines project + global package lists; `pi-mcp-adapter`/`pi-codex-search` are globally installed).
 
-## Sequencing (no blockers)
+## Sequencing
 
-`proactive-supervisor` shipped+pushed (HEAD `a04a65c`); ADR-012 present at DECISIONS.md:370. This
-feature takes **ADR-013** (next available). Shared files (`supervise.md`, `create.md`, `plan.md`,
-`research.md`, `ship.md`, `AGENTS.md`, `DECISIONS.md`, `PLAN.md`, `tech-stack.md`, `roadmap.md`,
-`state.md`) are all free.
+`proactive-supervisor` shipped at HEAD `a04a65c`; ADR-012 at `DECISIONS.md:370`. ADR-013 is next available. Shared files are free. Execution is wave-by-wave per `plan.md`; Task C and Task J are operator checkpoints.
 
 ## Milestone-5 / lifecycle regression invariants (must preserve)
 
 - `supervise.md` + 4 lifecycle prompt frontmatter `description` (+ `argument-hint` where present).
 - `<slug>` token in create/plan/ship/verify/research.
-- No forbidden OpenCode-pseudocode tokens (`task(`, `question(`, `skill(`, `write(`, `.active`,
-  `spec.md`, `prd.json`, `review-state.json`). `agents.run`/`agents.ask` are NOT forbidden.
+- No forbidden OpenCode-pseudocode tokens (`task(`, `question(`, `skill(`, `write(`, `.active`, `spec.md`, `prd.json`, `review-state.json`). `agents.run`/`agents.ask` are NOT forbidden.
 - `ship.md` keeps "cannot declare...verified status/completion".
 - `verify.md` keeps "sole...verified | transcript only | no repository write".
 - ADR-011 review-gate markers (Phase 10A, Phase 8A, Tier-Gated Diff Review, Phase 5A) remain.
-- ADR-012 supervisor handshake phases (10B, 8B, research 5, 6A) remain, with `action:"silent"`
-  direct-response discipline and `proactive-supervisor/v1` protocol.
-- Supervisor's four hard limits (never dispatch / never integrate-or-edit / never certify / never
-  emit stop) and `extensions:false` actor config unchanged.
+- ADR-012 supervisor handshake phases (10B, 8B, research 5, 6A) remain, with `action:"silent"` direct-response discipline and `proactive-supervisor/v1` protocol.
+- Supervisor's four hard limits (never dispatch / never integrate-or-edit / never certify / never stop) and `extensions:false` actor config unchanged.
 
 ## Privacy and Security
 
-- MCP tools are capability policy, not secret isolation; the path allowlist + secret-exclusion
-  discipline (ADR-011) still applies to research packets.
-- `exa`/`context7` carry API keys in `mcp.json` env, never echoed in task text or findings.
-- Research summaries stay ≤8 KiB, non-secret, with source paths (ADR-012 discipline preserved).
-- `codex_search` reuses the OpenAI Codex subscription credential; Main never asks the user for a
-  token (the extension handles auth).
+- Research queries contain public technology questions only. No `.env`, keys, credentials, token files, global MCP configuration, or raw repository payloads are read or transmitted.
+- Main gains narrow direct network tools; children gain none. Child tools limit side effects, not what repository data the configured model provider can receive.
+- `exa`/`context7` carry API keys in MCP config env, never echoed in task text or findings.
+- Research summaries stay <=8 KiB, non-secret, with source paths/citations.
+- External content is prompt-injection-capable untrusted data; instructions from retrieved content are discarded.
 
 ## Failure Behavior
 
-- MCP server unavailable / tool not registered: the child proceeds with `read/grep/find/ls` only;
-  research is best-effort (same as ADR-012 "research is best-effort, never blocking").
-- `codex_search` auth not configured: Main falls back to `exa`/`context7` for web search.
-- MCP tool name drift (server renamed): the allowlist entry silently no-ops; verify catches it
-  via the `pi --approve --list-models` and tool-resolution smoke.
+- Direct MCP tool absent/not registered: operator enables exactly those direct tools interactively and restarts Pi; otherwise block (`plan.md` Task B checkpoint).
+- `codex_search` auth/peer incompatibility: fall back to Context7/Exa for cited search; if incompatible with Pi 0.81.1, accept MCP-only scope (operator disposition).
+- One MCP capability unavailable: use a capability-appropriate surviving source; otherwise `partial`.
+- All external unavailable: `local-only` if research was optional; `blocked` if L2/L3 `source-check-required` cannot be satisfied.
+- Sensitive/unbounded query: `rejected`.
+- Oversized result: distill below 8192 bytes; never pass raw output through a file or child prompt.
 
 ## Risks
 
-- **MCP tool name drift (medium):** `resolve-library-id`/`query-docs`/`web_search_exa`/`web_fetch_exa`
-  are the names in `mcp-cache.json` today; a server rename would silently break the allowlist.
-  Mitigation: the names are stable upstream (context7 3.2.3, exa 3.2.1) and the verify smoke
-  checks the cache.
-- **Parallel fan-out cost (low):** more concurrent children, but bounded by `maxConcurrent:8` and
-  `maxPerExecution:16`; research children are cheap (`gpt-5.4-mini`).
-- **codex_search Main-only limits parallelism (low):** Main running `codex_search` directly is
-  serial for that one tool, but Main can fire `codex_search` + `context7` + `exa` in one turn
-  (parallel tool calls) for a quick lookup.
+- **Direct MCP name drift (medium):** names are server-prefixed and must be registry-proven (`plan.md` Task B), not guessed.
+- **`pi-codex-search@0.1.5` peer compat (medium):** declares `^0.79.10` peers; live gate required.
+- **Generic `mcp` over-exposure (low, gated):** avoided by exposing only exact direct-tool names; operator gate for the proxy alternative.
+- **Concurrent work (low):** `.pi/fabric.json` has legitimate concurrent model/compaction/executor changes; edit surgically, never restore/stash others' work.
