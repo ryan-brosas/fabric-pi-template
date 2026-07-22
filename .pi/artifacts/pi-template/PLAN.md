@@ -234,7 +234,8 @@ AI-generated" alone is not a finding.
 `AGENTS.md`; (3) accepted `DECISIONS.md`/PLAN requirements; (4) project tests/configuration and
 established local patterns. For external language/framework facts: official material > maintained
 source > maintainer guidance > local skills > model memory — never. At L2-3, `source-check-required`
-stops acceptance until Main or a network-capable scout obtains authoritative evidence and the
+stops acceptance until Main obtains authoritative evidence directly (Main-mediated research,
+ADR-013) and the
 review is rerun. Do not invent a best practice from memory.
 
 **Freshness:** any candidate-byte change invalidates an L2-3 review and requires a new

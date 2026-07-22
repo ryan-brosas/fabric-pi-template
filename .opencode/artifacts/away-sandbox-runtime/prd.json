@@ -1,0 +1,382 @@
+{
+  "title": "Away sandbox runtime — strict OS confinement for unattended Fabric node-process guests and candidate verification",
+  "slug": "away-sandbox-runtime",
+  "created": "2026-07-22",
+  "rewritten": "2026-07-23",
+  "id": "asr-001",
+  "approach": "A host-pinned, hash-validated away runtime under .pi/away-runtime/ keeps Fabric 0.23.0's node-process executor and the trusted Pi RPC host OUTSIDE the sandbox, but pins the per-lane process.execPath to a trusted outer wrapper (executor-wrapper.mjs) that validates the exact Fabric argv/source contract + every IPC frame/ref/argument, then launches the untrusted model-generated guest (inner-guest.mjs) inside a strict bubblewrap profile (--unshare-user, strict; PID/mount/IPC/UTS/net namespaces; clear allowlisted env; minimal Node; cgroup PID/mem/CPU/storage limits). node-process is explicitly not a security sandbox (docs/configuration.md:10-12), agent:allow + caller-selectable child tools let generated code spawn a shell-capable child (dist/subagents/manager.js:824-828), and PI_FABRIC_GRANTED_RISKS grants broad risk classes (dist/core/approval-controller.js:1-22) with no per-run override (dist/config.js:374-395) — so the boundary is bind-mount absence + clear env + a pinned-wrapper reference firewall, NOT extension authority. The controller (not the model) derives the lane profile from trusted phase/state; the model never chooses model IDs, tools, cwd, env, binaries, args, or risk grants, and never dispatches raw agents.*. Provider credentials exist ONLY in the trusted Pi host process; the inner guest receives a clear env with no credential env and no network (non-scout), so there is no exfiltration channel; the external-scout lane has network but no filesystem and no credential env; output redaction is defense-in-depth. The immutable startup closure (wrapper, inner guest, lane extension, config, pinned Pi/Fabric/provider/Node/bwrap sources, command catalog) is hash-pinned and rechecked before launch, after restart, and before result acceptance. The verifier reuses the launcher with a distinct profile (exact remote OID checkout, source+deps read-only, cache/scratch outside tree, no network, no credentials, broker-controlled exact argv from command IDs, never model-supplied argv). D1 hermetic integration uses the real launcher + RPC parser + Fabric node-process runtime + wrapper + host-call firewall + staging + verifier, faking ONLY provider output and clock; the ledger/Git/GitHub crash-replay full loop is deferred to autonomous-away-loop (ADR-015). Normal .pi/fabric.json and .pi/settings.json stay byte-identical to the baseline (OID 5dd5e34); normal /ship, /verify, interactive Main use existing Fabric dispatch unchanged. ADR-014 codifies the confinement contract. BLOCKING open questions: (1) strict bwrap userns availability on this host (kernel 6.8.0) live-probed at A3, BLOCK permanently if unavailable (no weaker wrapper); (2) cgroup v2 delegation availability, live-probed at A3, BLOCK if unavailable.",
+  "blocks": [
+    "ADR-013 (mcp-research-lane) settled at baseline 5dd5e34 (== origin/main == origin/master) before implementation began (P0.1); ADR-014 is next available (011=lifecycle-review-gates, 012=proactive-supervisor, 013=mcp-research-lane); autonomous-away-loop becomes ADR-015 after this lands",
+    "node-process is retained as Fabric's executor; confinement is the pinned process.execPath wrapper + strict bubblewrap, NOT node-process-as-sandbox and NOT extension read-only authority (pi-fabric docs/configuration.md:10-12)",
+    "No normal-session .pi/fabric.json / .pi/settings.json widening: the sandbox is invoked only by the away controller; normal /ship, /verify, interactive Main use existing Fabric dispatch unchanged",
+    "Host-controlled fixed lanes only: the controller derives the profile from trusted phase/state; the model never chooses model IDs, tools, cwd, env, binaries, args, or risk grants; never dispatches raw agents.* (agent:allow + caller-selectable child tools would bypass wrappers, dist/subagents/manager.js:824-828)",
+    "Credentials never enter the sandbox: they exist only in the trusted Pi host process; the inner guest gets a clear allowlisted env with no credential env and no network (non-scout); no secret-bearing path is bind-mounted; external-scout has network but no filesystem and no credential env; output redaction is defense-in-depth",
+    "Immutable startup closure (NOT mutable .pi/fabric/** state) hash-pinned and rechecked before launch, after restart, and before result acceptance; default-deny over all pinned startup inputs",
+    "Strict --unshare-user only (NOT the fail-open try variant); BLOCK permanently if strict userns or cgroup v2 delegation unavailable — no weaker fallback wrapper",
+    "Human-only merge enforced via GitHub branch rules, not prompt text; no merge/force-push/reset/clean/branch-worktree-deletion/arbitrary-shell/package-publication in any lane or broker",
+    "The ledger/Git/GitHub crash-replay full loop is OUT of scope (autonomous-away-loop, ADR-015); D1 hermetic integration fakes only provider output and clock and uses every real seam",
+    "Every writable task owns at most three files; all 14 waves are serial; no new package dependency (Node 24 + bwrap 0.9.0 already exist)"
+  ],
+  "manifests": {
+    "write_paths": [
+      ".pi/away-runtime/bootstrap.ts",
+      ".pi/away-runtime/bootstrap.test.ts",
+      ".pi/away-runtime/executor-wrapper.mjs",
+      ".pi/away-runtime/inner-guest.mjs",
+      ".pi/away-runtime/executor-sandbox.test.ts",
+      ".pi/away-runtime/closure.ts",
+      ".pi/away-runtime/resources.ts",
+      ".pi/away-runtime/confinement.test.ts",
+      ".pi/away-runtime/dispatch.ts",
+      ".pi/away-runtime/staging.ts",
+      ".pi/away-runtime/dispatch.test.ts",
+      ".pi/away-runtime/launcher.ts",
+      ".pi/away-runtime/rpc.ts",
+      ".pi/away-runtime/launcher.test.ts",
+      ".pi/away-runtime/lane-extension.ts",
+      ".pi/away-runtime/attestation.ts",
+      ".pi/away-runtime/lane-extension.test.ts",
+      ".pi/away-runtime/verifier.ts",
+      ".pi/away-runtime/command-catalog.ts",
+      ".pi/away-runtime/verifier.test.ts",
+      ".pi/away-runtime/integration.test.ts",
+      ".pi/away-runtime/fake-provider.ts",
+      ".pi/away-runtime/fixtures.ts",
+      ".pi/away-sandbox.json",
+      ".pi/artifacts/pi-template/DECISIONS.md",
+      ".pi/artifacts/pi-template/PLAN.md",
+      "AGENTS.md",
+      ".opencode/tech-stack.md",
+      ".opencode/roadmap.md",
+      ".opencode/state.md",
+      ".opencode/artifacts/away-sandbox-runtime/spec.md",
+      ".opencode/artifacts/away-sandbox-runtime/prd.json",
+      ".opencode/artifacts/away-sandbox-runtime/baseline.md",
+      ".opencode/artifacts/.active"
+    ],
+    "protected_source_paths": [
+      ".pi/fabric.json",
+      ".pi/settings.json",
+      ".opencode/command/audit.md",
+      ".opencode/command/create.md",
+      ".opencode/command/fix.md",
+      ".opencode/command/gc.md",
+      ".opencode/command/init.md",
+      ".opencode/command/plan.md",
+      ".opencode/command/research.md",
+      ".opencode/command/ship.md",
+      ".opencode/command/verify.md",
+      ".pi/prompts/audit.md",
+      ".pi/prompts/create.md",
+      ".pi/prompts/fix.md",
+      ".pi/prompts/gc.md",
+      ".pi/prompts/init.md",
+      ".pi/prompts/plan.md",
+      ".pi/prompts/research.md",
+      ".pi/prompts/ship.md",
+      ".pi/prompts/supervise.md",
+      ".pi/prompts/verify.md"
+    ],
+    "verified_paths": [
+      ".pi/away-runtime/bootstrap.ts",
+      ".pi/away-runtime/executor-wrapper.mjs",
+      ".pi/away-runtime/inner-guest.mjs",
+      ".pi/away-runtime/closure.ts",
+      ".pi/away-runtime/resources.ts",
+      ".pi/away-runtime/dispatch.ts",
+      ".pi/away-runtime/staging.ts",
+      ".pi/away-runtime/launcher.ts",
+      ".pi/away-runtime/rpc.ts",
+      ".pi/away-runtime/lane-extension.ts",
+      ".pi/away-runtime/attestation.ts",
+      ".pi/away-runtime/verifier.ts",
+      ".pi/away-runtime/command-catalog.ts",
+      ".pi/away-sandbox.json",
+      ".pi/artifacts/pi-template/DECISIONS.md",
+      ".pi/artifacts/pi-template/PLAN.md",
+      "AGENTS.md",
+      ".opencode/tech-stack.md",
+      ".opencode/roadmap.md",
+      ".opencode/state.md",
+      ".opencode/artifacts/away-sandbox-runtime/spec.md",
+      ".opencode/artifacts/away-sandbox-runtime/prd.json",
+      ".opencode/artifacts/away-sandbox-runtime/baseline.md"
+    ],
+    "baseline_oid": "5dd5e347dea9a01385f6cac5433f2e533746a9de",
+    "baseline_manifest": ".opencode/artifacts/away-sandbox-runtime/baseline.md",
+    "runtime_protected_paths": [
+      ".pi/away-runtime/bootstrap.ts",
+      ".pi/away-runtime/executor-wrapper.mjs",
+      ".pi/away-runtime/inner-guest.mjs",
+      ".pi/away-runtime/closure.ts",
+      ".pi/away-runtime/resources.ts",
+      ".pi/away-runtime/dispatch.ts",
+      ".pi/away-runtime/staging.ts",
+      ".pi/away-runtime/launcher.ts",
+      ".pi/away-runtime/rpc.ts",
+      ".pi/away-runtime/lane-extension.ts",
+      ".pi/away-runtime/attestation.ts",
+      ".pi/away-runtime/verifier.ts",
+      ".pi/away-runtime/command-catalog.ts",
+      ".pi/away-sandbox.json",
+      ".pi/extensions/",
+      ".pi/npm/",
+      ".pi/fabric/",
+      ".pi/git/",
+      ".pi/sessions/",
+      ".pi/fabric.json",
+      ".pi/settings.json",
+      ".pi/prompts/",
+      ".pi/artifacts/pi-template/DECISIONS.md",
+      ".pi/artifacts/pi-template/PLAN.md",
+      "AGENTS.md",
+      ".opencode/command/"
+    ],
+    "shared_serial_ownership": [
+      {
+        "path": ".pi/artifacts/pi-template/DECISIONS.md",
+        "owners": ["mcp-research-lane-settled", "B1"]
+      },
+      {
+        "path": ".pi/artifacts/pi-template/PLAN.md",
+        "owners": ["mcp-research-lane-settled", "B1"]
+      },
+      { "path": "AGENTS.md", "owners": ["mcp-research-lane-settled", "B1"] },
+      { "path": ".opencode/tech-stack.md", "owners": ["mcp-research-lane-settled", "D2"] },
+      { "path": ".opencode/roadmap.md", "owners": ["mcp-research-lane-settled", "D2"] },
+      { "path": ".opencode/state.md", "owners": ["mcp-research-lane-settled", "D2"] }
+    ]
+  },
+  "success_criteria": [
+    {
+      "criterion": "Fabric executes generated programs with node-process; the inner guest runs inside a strict OS sandbox and cannot reach credentials, host /proc, the ignored runtime, or paths outside its assignment",
+      "verify": "node --experimental-strip-types --test .pi/away-runtime/executor-sandbox.test.ts && node --experimental-strip-types --test .pi/away-runtime/confinement.test.ts"
+    },
+    {
+      "criterion": "Only host-selected schema-validated tool references cross the IPC bridge; generated code cannot dispatch raw agents.* or choose model/tools/cwd/env/args; unknown lanes and out-of-allowlist paths are rejected",
+      "verify": "node --experimental-strip-types --test .pi/away-runtime/dispatch.test.ts && node --experimental-strip-types --test .pi/away-runtime/lane-extension.test.ts && ! rg -n 'agents\\.run|agents\\.spawn|agents\\.handoff' .pi/away-runtime/dispatch.ts"
+    },
+    {
+      "criterion": "Cancellation cannot leave writes or descendant sandbox processes running; the writer token is held until staged mutations and cancellation barriers settle",
+      "verify": "node --experimental-strip-types --test .pi/away-runtime/dispatch.test.ts && node --experimental-strip-types --test .pi/away-runtime/executor-sandbox.test.ts"
+    },
+    {
+      "criterion": "Candidate verification cannot mutate its evidence tree or reach network or credentials; immutable exact-OID evidence, quota-bounded clone, read-only deps/catalog, broker-controlled exact argv",
+      "verify": "node --experimental-strip-types --test .pi/away-runtime/verifier.test.ts && ! rg -n 'reset --hard|clean -fd|rm -rf|force.push|branch -D' .pi/away-runtime/verifier.ts"
+    },
+    {
+      "criterion": "The immutable startup-closure hash detects drift and pauses before launch and before result acceptance",
+      "verify": "node --experimental-strip-types --test .pi/away-runtime/confinement.test.ts"
+    },
+    {
+      "criterion": "A worker with no network grant cannot open a socket (bubblewrap --unshare-net enforced)",
+      "verify": "node --experimental-strip-types --test .pi/away-runtime/executor-sandbox.test.ts"
+    },
+    {
+      "criterion": "D1 hermetic integration (real launcher + RPC parser + Fabric node-process runtime + wrapper + host-call firewall + staging + verifier; fake only provider output and clock) completes without duplicate application, surviving descendants, or protected-path change",
+      "verify": "node --experimental-strip-types --test .pi/away-runtime/integration.test.ts"
+    },
+    {
+      "criterion": "Normal .pi/fabric.json and .pi/settings.json stay byte-identical to the baseline; normal /ship, /verify, interactive Main unaffected",
+      "verify": "git diff --check && ! rg -n 'away-sandbox|away-runtime' .pi/fabric.json && protected-file SHA-256s in baseline.md unchanged for non-shared-ownership files"
+    },
+    {
+      "criterion": "B1: ADR-014 codifies the confinement contract and preserves each invariant separately (real OS sandbox via bubblewrap not node-process-as-boundary, host-controlled lanes, no model dispatch, default-deny closure, human-only merge, Main sole integrator, /verify authority+freshness, no destructive cleanup, no normal-session widening)",
+      "verify": "rg -n '^## ADR-014: Away sandbox runtime$' .pi/artifacts/pi-template/DECISIONS.md && rg -n 'Away Sandbox Runtime|ADR-014' .pi/artifacts/pi-template/PLAN.md AGENTS.md"
+    },
+    {
+      "criterion": "D2: tech-stack/roadmap/state each synchronized to ADR-014 + away sandbox runtime (dev-doc only; runtime operates if .opencode absent)",
+      "verify": "rg -n 'ADR-014|away sandbox runtime|away-runtime' .opencode/tech-stack.md .opencode/roadmap.md .opencode/state.md"
+    },
+    {
+      "criterion": "Existing ADR-011/012/013 markers, <slug> in lifecycle prompts, and forbidden-token cleanliness remain intact",
+      "verify": "rg -n '^## ADR-011|^## ADR-012|^## ADR-013' .pi/artifacts/pi-template/DECISIONS.md && ! rg -n 'agent:|task\\(|question\\(|skill\\(|write\\(|\\.active|spec\\.md|prd\\.json|review-state\\.json' .pi/prompts/*.md"
+    },
+    {
+      "criterion": "D3 no-write closure: all away-runtime tests pass; git diff --check; normal .pi/fabric.json/.pi/settings.json unchanged from baseline; ADR-011/012/013 markers + forbidden-token cleanliness preserved; all protected paths equal baseline.md; before/after fingerprints identical; no surviving sandbox processes; no missing attestation",
+      "verify": "node --experimental-strip-types --test .pi/away-runtime/*.test.ts && git diff --check && pi --approve --list-models"
+    }
+  ],
+  "tasks": [
+    {
+      "id": "P0.1",
+      "child_plan": "P0",
+      "title": "Settle ADR-013 and prior work",
+      "category": "checkpoint",
+      "end_state": "ADR-013 present in DECISIONS.md; local main == origin/main == origin/master (same commit); concurrent shared edits resolved without reverting another agent's work; only the two future-feature artifact dirs remain untracked. Externally visible sync authorized by operator.",
+      "depends_on": [],
+      "files": [],
+      "verify": "rg -n '^## ADR-013: Main-mediated MCP research lane$' .pi/artifacts/pi-template/DECISIONS.md && test \"$(git rev-parse main)\" = \"$(git rev-parse origin/main)\""
+    },
+    {
+      "id": "P0.2",
+      "child_plan": "P0",
+      "title": "Replace the stale sandbox contract",
+      "category": "contract",
+      "end_state": "spec.md and prd.json rewritten to the corrected node-process child-wrapper design (credentials out of sandbox, strict --unshare-user, the ledger/Git full loop deferred to ADR-015, node-process retained behind a pinned wrapper, .pi/away-sandbox.json assigned to A1, immutable startup-closure hashing, controller-derived profile selection, one assertion per invariant, protected paths compared against the captured baseline hash). plan.md retained. baseline.md captured with OID 5dd5e34 + SHA-256 manifest. Valid JSON; acyclic deps; three-file task cap.",
+      "depends_on": ["P0.1"],
+      "files": [
+        ".opencode/artifacts/away-sandbox-runtime/spec.md",
+        ".opencode/artifacts/away-sandbox-runtime/prd.json",
+        ".opencode/artifacts/away-sandbox-runtime/baseline.md"
+      ],
+      "verify": "! rg -n 'unshare-user-try|real ledger|real Git broker|Credentials.*writer' .opencode/artifacts/away-sandbox-runtime/spec.md && node -e \"const p=JSON.parse(require('fs').readFileSync('.opencode/artifacts/away-sandbox-runtime/prd.json','utf8')); if(p.tasks.length!==14)throw new Error('tasks!=14'); const ids=new Set(p.tasks.map(t=>t.id)); for(const t of p.tasks){(t.depends_on||[]).forEach(d=>{if(!ids.has(d))throw new Error('bad dep '+d)});} if(!p.manifests.baseline_oid)throw new Error('no baseline'); console.log('prd.json valid, 14 tasks, acyclic, baseline set')\""
+    },
+    {
+      "id": "A1",
+      "child_plan": "A",
+      "title": "Deterministic lane bootstrap",
+      "category": "implement",
+      "end_state": "A versioned profile manifest (.pi/away-sandbox.json) with exact Node, Pi, Fabric, bwrap, model, tools, host-call refs, limits, and protected paths. bootstrap.ts generates a synthetic fabric.json that pins executor.runtime:node-process, disables MCP/subagents/mesh/memory unless required by that profile, denies agent/execute/Fabric network, captures exact tool risks; uses an allowlisted env that removes inherited PI_FABRIC_* authority vars; uses an inert retained control cwd (not the repository); generates exact RPC argv (--no-approve --no-context-files --no-extensions --tools fabric_exec + explicit -e paths). A malicious synthetic project cannot alter the effective profile or mutate bytes.",
+      "depends_on": ["P0.2"],
+      "files": [
+        ".pi/away-runtime/bootstrap.ts",
+        ".pi/away-runtime/bootstrap.test.ts",
+        ".pi/away-sandbox.json"
+      ],
+      "verify": "node --experimental-strip-types --test .pi/away-runtime/bootstrap.test.ts"
+    },
+    {
+      "id": "A2",
+      "child_plan": "A",
+      "title": "Real NodeProcessRuntime sandbox tracer",
+      "category": "implement",
+      "end_state": "executor-wrapper.mjs is the pinned process.execPath for the dedicated lane process; it rejects unexpected argv or a mismatched Fabric child-source hash, preserves Fabric's outer native IPC contract, and launches inner-guest.mjs inside strict bubblewrap (user/PID/mount/IPC/UTS/net namespaces unshared via --unshare-user, clear env, minimal Node, no project runtime/credentials/host /proc/host devices, parent-death handling, process limits). Bounded framing, backpressure, unique IDs, one terminal result, rejection of post-result calls. Every host-call reference and argument is filtered before forwarding. Terminal sandbox evidence is fsynced before the result is forwarded. Adversarial tests cover malformed/oversized frames, duplicate IDs, forged results, unknown refs, VM escape, environment read, filesystem/network access, descendant spawning, cancellation, and wrapper termination.",
+      "depends_on": ["A1"],
+      "files": [
+        ".pi/away-runtime/executor-wrapper.mjs",
+        ".pi/away-runtime/inner-guest.mjs",
+        ".pi/away-runtime/executor-sandbox.test.ts"
+      ],
+      "verify": "node --experimental-strip-types --test .pi/away-runtime/executor-sandbox.test.ts"
+    },
+    {
+      "id": "A3",
+      "child_plan": "A",
+      "title": "Live feasibility checkpoint",
+      "category": "checkpoint",
+      "end_state": "Strict bubblewrap user namespaces work on the current bytes. Delegated cgroup PID/memory/CPU limits are available. Real Fabric 0.23.0 NodeProcessRuntime runs through the wrapper. One minimal authenticated Makora parent-provider request runs without logging or forwarding the credential. The inner guest has no credential environment and no outbound network. Repository fingerprint before/after is identical. STOP PERMANENTLY if any item fails — no weaker wrapper, no ADR-014.",
+      "depends_on": ["A2"],
+      "files": [],
+      "verify": "# live smoke (operator-supervised): bwrap --unshare-user strict probe + cgroup probe + real Fabric through wrapper + Makora auth smoke without credential/network egress; before/after fingerprint identical"
+    },
+    {
+      "id": "B1",
+      "child_plan": "B",
+      "title": "Freeze ADR-014 authority",
+      "category": "contract",
+      "end_state": "ADR-014: Away sandbox runtime records the tested process.execPath wrapper seam + version coupling; states Pi/provider auth stays in the trusted parent and only generated node-process code is sandboxed; preserves Main authority, human-only merge, /verify freshness, and normal-session configuration; states that missing wrapper attestation, strict userns, cgroup support, or closure hash blocks execution; adds a forward dependency to ADR-015 autonomous-away-loop. PLAN.md adds the ### Away Sandbox Runtime (ADR-014) contract; AGENTS.md adds the away-runtime authority paragraph.",
+      "depends_on": ["A3"],
+      "files": [
+        ".pi/artifacts/pi-template/DECISIONS.md",
+        ".pi/artifacts/pi-template/PLAN.md",
+        "AGENTS.md"
+      ],
+      "verify": "rg -n '^## ADR-014: Away sandbox runtime$' .pi/artifacts/pi-template/DECISIONS.md && rg -n 'Away Sandbox Runtime|ADR-014' .pi/artifacts/pi-template/PLAN.md AGENTS.md"
+    },
+    {
+      "id": "B2",
+      "child_plan": "B",
+      "title": "Immutable closure and resource limits",
+      "category": "implement",
+      "end_state": "closure.ts resolves and hashes the immutable startup inputs (wrapper, inner guest, lane extension, config, pinned Pi/Fabric/provider source, Node, bwrap, command catalog); mutable session/Fabric state stays outside the immutable closure. The closure is rechecked before launch, after restart, and before accepting a result. resources.ts enforces cgroup PID/memory/CPU limits and quota-backed storage/file-count limits. Strict canonical-path and symlink handling verified. No sandbox descendants remain after timeout/cancellation.",
+      "depends_on": ["B1"],
+      "files": [
+        ".pi/away-runtime/closure.ts",
+        ".pi/away-runtime/resources.ts",
+        ".pi/away-runtime/confinement.test.ts"
+      ],
+      "verify": "node --experimental-strip-types --test .pi/away-runtime/confinement.test.ts"
+    },
+    {
+      "id": "B3",
+      "child_plan": "B",
+      "title": "Host-derived dispatch and staging",
+      "category": "implement",
+      "end_state": "dispatch.ts derives the profile from trusted controller phase/state; lane is removed from all untrusted envelopes; unknown profile, model-supplied capability, path escape, and symlink attempts are rejected. Source view is mounted read-only. Writes route to exact reserved staging files (not broad writable dirs); undeclared new files and path-prefix expansion are rejected. Post-run candidate paths and hashes are validated before results are exposed. The writer token is held until staged mutations and cancellation barriers settle.",
+      "depends_on": ["B2"],
+      "files": [
+        ".pi/away-runtime/dispatch.ts",
+        ".pi/away-runtime/staging.ts",
+        ".pi/away-runtime/dispatch.test.ts"
+      ],
+      "verify": "node --experimental-strip-types --test .pi/away-runtime/dispatch.test.ts && ! rg -n 'agents\\.run|agents\\.spawn|agents\\.handoff' .pi/away-runtime/dispatch.ts"
+    },
+    {
+      "id": "C1",
+      "child_plan": "C",
+      "title": "Dedicated Pi RPC lane launcher",
+      "category": "implement",
+      "end_state": "rpc.ts is a raw-buffer LF-only RPC parser (handles chunked LF records, trailing CR, U+2028/U+2029, oversized records, wrong IDs, early process exit). launcher.ts starts Pi from the inert control cwd with exact argv/env from A1, loads only explicit hash-pinned extensions/provider sources, binds one immutable profile to one single-use lane process, and rejects reload/project-resource loading/model switching/profile reuse. Real prompt/event settlement verified with a deterministic fake provider.",
+      "depends_on": ["B3"],
+      "files": [
+        ".pi/away-runtime/launcher.ts",
+        ".pi/away-runtime/rpc.ts",
+        ".pi/away-runtime/launcher.test.ts"
+      ],
+      "verify": "node --experimental-strip-types --test .pi/away-runtime/launcher.test.ts"
+    },
+    {
+      "id": "C2",
+      "child_plan": "C",
+      "title": "Lane extension, host tools, and attestation",
+      "category": "implement",
+      "end_state": "lane-extension.ts registers uniquely-named away_* tools; ordinary write/shell/agent/compaction/schema refs are not exposed. Every argument is validated against the profile and reservation. Writes are staged and atomic with an in-flight mutation barrier. attestation.ts fsyncs terminal evidence (wrapper/resource/profile/closure hashes, profile ID, limits, outcome — never prompts/source/credentials/logs) before Fabric receives success; the wrapper is required to fsync before success. Settlement is rejected while bridge work or sandbox processes remain active.",
+      "depends_on": ["C1"],
+      "files": [
+        ".pi/away-runtime/lane-extension.ts",
+        ".pi/away-runtime/attestation.ts",
+        ".pi/away-runtime/lane-extension.test.ts"
+      ],
+      "verify": "node --experimental-strip-types --test .pi/away-runtime/lane-extension.test.ts"
+    },
+    {
+      "id": "C3",
+      "child_plan": "C",
+      "title": "Candidate verifier sandbox",
+      "category": "implement",
+      "end_state": "verifier.ts accepts command IDs (never model-supplied argv) from command-catalog.ts; uses an immutable exact-OID evidence tree without .git or hardlinks; runs commands in a quota-bounded writable execution clone with deps and command definitions read-only; no network, no credentials. Pre/post manifests for all source/test/dependency/catalog inputs are compared. The verifier receipt binds OID, command ID, manifests, resource limits, and exit result.",
+      "depends_on": ["C2"],
+      "files": [
+        ".pi/away-runtime/verifier.ts",
+        ".pi/away-runtime/command-catalog.ts",
+        ".pi/away-runtime/verifier.test.ts"
+      ],
+      "verify": "node --experimental-strip-types --test .pi/away-runtime/verifier.test.ts && ! rg -n 'reset --hard|clean -fd|rm -rf|force.push|branch -D' .pi/away-runtime/verifier.ts"
+    },
+    {
+      "id": "D1",
+      "child_plan": "D",
+      "title": "Hermetic sandbox integration",
+      "category": "implement",
+      "end_state": "integration.test.ts uses the real launcher, RPC parser, Fabric node-process runtime, wrapper, host-call firewall, staging, and verifier; fakes only provider output and clock (fake-provider.ts). Uses content-addressed retained fixtures (fixtures.ts); reuses valid fixtures, never auto-deletes. Tests writer and reviewer profiles plus external-scout no-filesystem behavior. Injects crashes around wrapper startup, calls, writes, result fsync, and verifier completion. Asserts no duplicate application, no descendant process, no protected-path change. Reports retained fixture paths and stops when the storage cap is reached. The ledger/Git/GitHub full loop remains ADR-015.",
+      "depends_on": ["C3"],
+      "files": [
+        ".pi/away-runtime/integration.test.ts",
+        ".pi/away-runtime/fake-provider.ts",
+        ".pi/away-runtime/fixtures.ts"
+      ],
+      "verify": "node --experimental-strip-types --test .pi/away-runtime/integration.test.ts"
+    },
+    {
+      "id": "D2",
+      "child_plan": "D",
+      "title": "Synchronize development documentation",
+      "category": "contract",
+      "end_state": "Dev-doc sync only (the runtime operates if .opencode is absent): document ADR-014, the tested node-process wrapper boundary, the strict failure conditions, and the ADR-015 dependency in tech-stack.md, roadmap.md, state.md.",
+      "depends_on": ["D1"],
+      "files": [".opencode/tech-stack.md", ".opencode/roadmap.md", ".opencode/state.md"],
+      "verify": "rg -n 'ADR-014|away sandbox runtime|away-runtime' .opencode/tech-stack.md .opencode/roadmap.md .opencode/state.md"
+    },
+    {
+      "id": "D3",
+      "child_plan": "D",
+      "title": "Final no-write acceptance",
+      "category": "checkpoint",
+      "end_state": "All away-runtime tests pass; git diff --check; pi --approve --list-models resolves. Live Makora sandbox smoke with no inner credential/network access. Exact wrapper/Node/bwrap/Fabric version hashes. All protected paths equal the baseline.md manifest. Normal .pi/fabric.json and .pi/settings.json unchanged. ADR-011/012/013 markers preserved. Before/after repository and ref fingerprints identical. No surviving sandbox processes. No missing or malformed attestation. No repository write occurs after the final fingerprint.",
+      "depends_on": ["D2"],
+      "files": [],
+      "verify": "node --experimental-strip-types --test .pi/away-runtime/*.test.ts && git diff --check && pi --approve --list-models"
+    }
+  ]
+}

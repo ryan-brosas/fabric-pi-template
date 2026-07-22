@@ -55,25 +55,26 @@
 ## Dependency Graph
 
 ```
-Task A (Contract reset): needs reviewed plan, creates plan.md + corrected spec.md/prd.json
-Task B (RED probe): needs Task A, creates fresh hashes + registry/capture evidence
-Task C (GREEN visibility): needs Task B, has_checkpoint, creates .pi/fabric.json keepVisible + live smoke
-Task D (supervise.md): needs Task C, creates corrected supervisor research protocol
-Task E (create.md + plan.md): needs Task C, creates corrected gather + handshake
-Task F (research.md + ship.md): needs Task C, creates corrected research/ship text
-Task G (cross-prompt regression): needs D + E + F, creates static + live behavior proof
-Task H (canonical authority): needs Task G, creates ADR-013 + corrected PLAN/AGENTS
-Task I (summaries): needs Task H, creates synced tech-stack/roadmap/state
-Task J (final review + verification): needs Task I, has_checkpoint, creates terminal fingerprint
+Task A (Contract reset): needs reviewed plan, creates plan.md + corrected spec.md/prd.json  [DONE 972d4d3]
+Task B (RED probe): needs Task A, has_checkpoint, creates fresh hashes + registry/capture evidence + no-extension child proof  [child-half safe; parent probe + live registry operator-gated]
+Task C (GREEN visibility): needs Task B, has_checkpoint, creates .pi/fabric.json keepVisible + live smoke  [operator-gated]
+Task D (supervise.md): needs Task A (protocol described generically; exact names not required), creates corrected supervisor research protocol  [DONE 8a1631b]
+Task E (create.md + plan.md): needs Task A, creates corrected gather + handshake  [DONE 8a1631b]
+Task F (research.md + ship.md): needs Task A, creates corrected research/ship text  [DONE 8a1631b]
+Task G-static (cross-prompt static regression): needs D + E + F, creates static behavior proof  [DONE]
+Task G-live (live supervisor handshake smoke): needs C, creates live behavior proof  [operator-gated; folds into C/J]
+Task H (canonical authority): needs G-static, creates ADR-013 + corrected PLAN/AGENTS  [DONE 5dd5e34]
+Task I (summaries): needs H, creates synced tech-stack/roadmap/state  [DONE 5dd5e34]
+Task J (final review + verification): needs I + C + G-live, has_checkpoint, creates terminal fingerprint  [operator-gated]
 
-Wave 1: A
-Wave 2: B
-Wave 3: C
-Wave 4: D, E, F (logically independent; serial in this worktree per single-writer rule)
-Wave 5: G
-Wave 6: H
-Wave 7: I
-Wave 8: J
+Wave 1: A  [done]
+Wave 2: B  [operator-gated]
+Wave 3: C  [operator-gated]
+Wave 4: D, E, F  [done — executed on Task A, not Task C, since they describe the protocol generically without the runtime-gated exact keepVisible names]
+Wave 5: G-static  [done]
+Wave 6: H  [done]
+Wave 7: I  [done]
+Wave 8: G-live + J  [operator-gated]
 ```
 
 D, E, F are logically independent but must execute serially in this worktree (single-writer rule: Main does not edit while a writable run is active; one blocking writable `agents.run` at a time).

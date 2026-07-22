@@ -472,6 +472,10 @@ supplying only the distilled packet. Gather phases may fan out local children in
 `subagents.maxConcurrent`) after Main gathers external evidence; the supervisor handshake stays ONE
 local-only gather. The exact direct-tool names are server-prefixed per `pi-mcp-adapter`
 (`types.ts:431-437`) and must be registry-proven before the `capture.keepVisible` line is written.
+The Context7/Exa (`pi-mcp-adapter`) and `codex_search` (`pi-codex-search`) extensions are
+discovered from the global package list; Pi's package manager combines project and global package
+lists separately then dedupes (`package-manager.js:925-934`), so no project-level package pin in
+`.pi/settings.json` is required to make Main's direct tools resolve.
 Capability-aware fallback (Context7=docs, Exa=search/fetch, Codex=cited search; not interchangeable):
 required source unavailable → capable alternative else `partial`; optional and unavailable →
 `local-only`; L2/L3 `source-check-required` unsatisfiable → `blocked`; sensitive/unbounded →
