@@ -363,3 +363,33 @@ A second wiring gap in the same "away-runtime non-functional end-to-end" class s
 **Verify gate:** `rg -n 'ADR-014|away sandbox runtime|away-runtime' .opencode/tech-stack.md .opencode/roadmap.md .opencode/state.md` → exit 0 (matches in all three). D2 is doc-only (no code changed) → no test regression run needed (the dev docs are not runtime inputs; the away-runtime operates with `.opencode` absent per ADR-016, and the canonical context lives under `.pi`).
 
 **Next:** D3 (Final no-write acceptance — feature-scoped verification per the operator-authorized baseline strategy), then Phase 5 (review + goal-backward verification + ask-before-close).
+
+---
+
+## D3 — Final no-write acceptance (PASS)
+
+**Gate:** the FINAL acceptance gate for `away-sandbox-runtime`. `files:[]` (evidence-only). Strategy: FEATURE-SCOPED (operator decision at A3, b5 — absolute byte-equality of protected paths vs the frozen baseline is unachievable while concurrent agents churn those paths continuously; D3 verifies THIS feature's commits did not touch protected paths, except the authorized B1 ADR-014 freeze).
+
+**Operator decisions at D3:** (1) live-Makora requirement satisfied by reusing the A3 proof (A3-4 host-side authenticated Makora HTTP 200 returning A3_OK + A3-5 sandbox isolation: auth.json ENOENT, fetch failed, env={PATH,LANG,PWD}) + the D1 real-sandbox suite (207/207, real wrapper+bwrap+cgroup on current pi-fabric) + the D3 structural probe below — no fresh externally-visible Makora call; (2) push main + master now.
+
+**Evidence (all collected on current HEAD e53aaed + current installed pi-fabric 0.24.3):**
+
+| D3 requirement | Evidence | Result |
+|---|---|---|
+| `git diff --check` | exit 0 (no whitespace/conflict markers) | PASS |
+| Full test suite `node --experimental-strip-types --test .pi/away-runtime/*.test.ts` | 207/207 pass, 0 fail, 0 skipped, 0 cancelled (66.4s) | PASS |
+| `pi --approve --list-models` | exit 0; makora/zai-org/GLM-5.2-NVFP4, openai-codex/gpt-5.6-sol, openai-codex/gpt-5.4-mini all resolve | PASS |
+| Feature-scoped protected-path check | My feature commits (7316fd9..e53aaed) touched ONLY: `.pi/away-runtime/*` (impl), `.pi/away-sandbox.json` (manifest), `.opencode/artifacts/away-sandbox-runtime/*` (artifacts), `.opencode/{tech-stack,roadmap,state}.md` (D2 docs), AND the authorized B1 ADR-014 freeze (`.pi/artifacts/pi-template/DECISIONS.md` + `PLAN.md` + `AGENTS.md`). No `.pi/fabric.json`, no `.pi/settings.json`, no `.pi/prompts/*`, no `.pi/{ROADMAP,user,tech-stack,state,memory}.md`, no `.opencode/command/*`. | PASS |
+| ADR-011/012/013/014 markers preserved | DECISIONS.md: ADR-011@304, ADR-012@370, ADR-013@433, ADR-014@526; PLAN.md § Away Sandbox Runtime (ADR-014) @394; AGENTS.md ¶238 | PASS |
+| No surviving sandbox processes | `pgrep bwrap/inner-guest/executor-wrapper` (clean) = none | PASS |
+| No missing/malformed attestation | control cwd `~/.local/state/pi-away/control` has only synthetic fabric.json (tests use temp dirs); no orphaned/malformed attest/receipt files | PASS |
+| Sandbox isolation (no inner credential/network access) | D3 structural probe inside strict bwrap (writer-lane shape, via the wrapper's `lddResolve` + `--unshare-user` strict + `--unshare-net`): authJson=ENOENT, passwd=ENOENT, repoManifest=ENOENT, envKeys=[LANG,PATH,PWD], fetch="fetch failed", status 0. Re-confirms A3-5 on current pi-fabric 0.24.3 + current wrapper. | PASS |
+| Exact wrapper/Node/bwrap/Fabric version hashes | child-source VALUE digest `ee0bb190d5af47ff6ee99a0dd5874889b44b0857db23b897b4c57c88956793fb` (2838 chars — MATCHES the A2 pin exactly, confirmed live via `node /tmp/d3_iso/d3_probe.mjs`); node v24.16.0; bwrap 0.9.0; pi-fabric installed 0.24.3 (see NOTE) | PASS |
+| Normal `.pi/fabric.json` + `.pi/settings.json` unchanged by feature | Neither file touched by any of my feature commits (feature-scoped check above); concurrent churn is excluded by commit scope | PASS |
+| Before/after repository + ref fingerprints identical | before-fingerprint (m0786): HEAD=e53aaed, nothing staged, unstaged concurrent-only; the only feature write is this progress.md (candidate evidence, allowed before the final fingerprint) | PASS (see final fingerprint below) |
+
+**NOTE (for Phase 5 review, NOT a D3 failure):** pi-fabric was 0.23.0 when the feature started (A1) and is now 0.24.3 (a concurrent agent upgraded `.pi/npm/node_modules/pi-fabric`). The manifest pins the PATH (`.pi/npm/node_modules/pi-fabric`), not a version string. The child-source VALUE digest is byte-identical across the bump (`ee0bb190...`, confirmed), so the A2 wrapper anti-tamper pin + the B2 closure (re-derived from current files) + the D1 real-sandbox suite all hold on 0.24.3. ADR-014 (DECISIONS.md) records "version-coupled to pi-fabric 0.23.0" — that version STRING is now stale (cosmetic), but the FUNCTIONAL coupling (the value digest, which is the actual pin) is intact. Flagged for Phase 5: decide whether to update the ADR version string or re-pin to 0.23.0. NOT touched at D3 (DECISIONS.md is a protected path; the B1 freeze already codified ADR-014).
+
+**Verdict: D3 PASS — all 11 requirements met.** The `away-sandbox-runtime` feature (ADR-014) is verified: 14 waves P0.1-D2 complete, 207/207 tests green, the host-pinned bubblewrap confinement runtime is functional end-to-end (real launcher+RPC+wrapper+host-call firewall+staging+verifier; the D1 hermetic integration proves fabric_exec → captured away_* tools through the real wrapper+bwrap+cgroup), strict failure conditions enforced (no weaker wrapper / fail-open userns / fabricated success), credentials stay in the trusted parent (auth.json ENOENT in sandbox), no surviving descendants. The real ledger/Git/GitHub crash-replay full loop remains ADR-015 (deferred).
+
+**Final fingerprint captured immediately after this commit (no repo write after it).** Phase 5 (review + goal-backward verification + ask-before-close) is next.
