@@ -458,13 +458,21 @@ MCP." Exact-version source inspection disproved this premise:
   `--no-extensions`.
 
 **Decision:** Make research **Main-mediated**. Trusted Main owns all external research; every
-delegated child stays strictly local. Main calls only the exact retained Context7/Exa direct-tool
-names plus `codex_search`, exposed via `.pi/fabric.json` `capture.keepVisible` — the exact-name
-mechanism that retains specified extension tools in Main's direct model-facing registry under
+delegated child stays strictly local. Main reaches Context7/Exa primarily through `fabric_exec`
+programs using Fabric's internal MCP proxy (`mcp.<server>.<tool>`, enabled by
+`approvals.network:"allow"`), and additionally via the `capture.keepVisible`-retained direct-tool
+names (`context7_resolve-library-id`, `context7_query-docs`, `exa_web_search_exa`,
+`exa_web_fetch_exa`) plus `codex_search` — exposed in Main's direct model-facing registry under
 `fullCodeMode:true` (`pi-fabric docs/configuration.md:173-207`, `dist/capture/interceptor.js:97-110`).
-Direct retained tools bypass Fabric's captured-tool approval gate, so they are reachable from Main
-even though Fabric's `approvals.network:"deny"` is unchanged (network stays denied for
-`fabric_exec`). Main treats all external content as prompt-injection-capable untrusted data,
+Main reaches external tools through two paths: (1) `fabric_exec` programs using Fabric's
+internal MCP proxy (`mcp.<server>.<tool>`), enabled by `approvals.network:"allow"` — the
+configured posture for Main's external research, live-verified in the operator's Main session;
+(2) the `capture.keepVisible`-retained direct-tool names — a narrower path that bypasses
+`fabric_exec` entirely (Main may call `context7_resolve-library-id`, `context7_query-docs`,
+`exa_web_search_exa`, `exa_web_fetch_exa`, or `codex_search` as direct Pi tools). The security
+boundary is the child dispatch (`extensions:false`), not Main's network posture: delegated
+children get neither `fabric_exec`, the MCP proxy, `codex_search`, nor any network path. Main
+treats all external content as prompt-injection-capable untrusted data,
 independently validates citations, discards instructions found in retrieved content, and distills a
 non-secret cited packet ≤8 KiB. Main then launches children with exactly
 `tools:["read","grep","find","ls"]`, `extensions:false`, `recursive:false`, `worktree:false`,
@@ -494,8 +502,10 @@ authenticate, discover, and invoke arbitrary configured MCP servers (`pi-mcp-ada
 271`) and is broader than this feature; exposing it would require a separate explicit operator
 acceptance and ADR.
 
-**Authority:** Main's direct-network trust boundary is narrowly scoped to the exact tools named in
-`capture.keepVisible`. Children retain no network/extension authority. "Local-only child" is
+**Authority:** Main's external-research authority spans `fabric_exec`'s internal MCP proxy
+(with `approvals.network:"allow"`) plus the `keepVisible`-retained direct tools; Main is trusted.
+Children retain no network/extension authority — the `extensions:false` dispatch is the enforced
+boundary. "Local-only child" is
 capability policy, not secret isolation — the configured model provider can still receive repository
 data sent in a prompt; Main's ≤8 KiB non-secret cited-packet discipline bounds what enters a child.
 

@@ -19,7 +19,7 @@ The committed A1/A2/B1 prompt edits (commits `2c0dad9`, `1a6b9c0`, `7201882`) ar
 
 Trusted Main owns all external research; delegated children stay strictly local.
 
-1. **Main-direct external acquisition.** Main calls only the exact retained Context7/Exa direct-tool names and `codex_search`, exposed via `.pi/fabric.json` `capture.keepVisible`. These bypass Fabric's captured-tool approval gate (direct retained tools); Fabric's `approvals.network:"deny"` is unchanged and does not block Main's direct path.
+1. **Main-mediated external acquisition.** Main reaches Context7/Exa primarily via `fabric_exec`'s internal MCP proxy (`mcp.<server>.<tool>`, enabled by `approvals.network:"allow"`), and additionally via the `capture.keepVisible`-retained direct-tool names (`context7_resolve-library-id`, `context7_query-docs`, `exa_web_search_exa`, `exa_web_fetch_exa`) plus `codex_search`. The security boundary is the child dispatch (`extensions:false`), not Main's network posture: children get neither `fabric_exec`, the MCP proxy, `codex_search`, nor any network path.
 2. **Sanitize and bound.** Main treats all external content as prompt-injection-capable untrusted data, independently validates citations, discards injected instructions, and distills a non-secret cited packet <=8192 bytes.
 3. **Local-only handoff.** Main launches children with exactly `tools:["read","grep","find","ls"]`, `extensions:false`, `recursive:false`, `worktree:false`, supplying only the distilled packet. Gather phases may fan out local children in parallel after Main gathers external evidence; the supervisor handshake stays ONE local-only gather.
 4. **Capability-aware fallback.** Context7 (docs), Exa (search/fetch), and Codex (cited search) are not interchangeable. If one is unavailable, use only a source that can produce the evidence the query requires; otherwise disclose `partial`/`local-only`, or `blocked` when L2/L3 `source-check-required` cannot be satisfied.
@@ -54,7 +54,7 @@ Giving children `extensions:true` so `codex_search`/MCP load would also register
 
 ### Out of scope (non-goals)
 - Network or extension access for children.
-- General Fabric network enablement.
+- Network access for children (Main uses `approvals.network:"allow"` for its `fabric_exec` research; children stay network-isolated via `extensions:false`).
 - Dynamically connecting arbitrary MCP servers.
 - Treating read-only children as offline or secret-isolation sandbox.
 - Reworking the stale `supervise.md` 0.22.4 field matrix (NOTICED BUT NOT TOUCHING).

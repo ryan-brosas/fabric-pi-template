@@ -21,7 +21,7 @@
 3. External evidence is sanitized and bounded (<=8192 bytes, citations only) before entering a child prompt.
 4. Unavailable research capabilities are disclosed (`partial`/`local-only`/`blocked`) without silently widening child permissions.
 5. All lifecycle prompts and canonical authorities (PLAN/DECISIONS/AGENTS) describe the same Main-mediated architecture.
-6. Existing Fabric posture (`fullCodeMode:true`, `approvals.write/execute/network:"deny"`, `subagents.extensions:false`) is unchanged.
+6. Existing Fabric posture (`fullCodeMode:true`, `approvals.write/execute:"deny", network:"allow"`, `subagents.extensions:false`) is unchanged.
 7. Unrelated concurrent changes (model, compaction, executor fields; other slugs' work) are preserved.
 
 ### Required Artifacts
@@ -105,7 +105,7 @@ Expose the generic `mcp` proxy only after explicit operator acceptance and an AD
 
 ### Hard
 
-- Preserve `.pi/fabric.json`: `fullCodeMode:true`, `schema.mode:"off"`, `approvals.write/execute/network:"deny"`, `subagents.extensions:false`.
+- Preserve `.pi/fabric.json`: `fullCodeMode:true`, `schema.mode:"off"`, `approvals.write/execute:"deny", network:"allow"`, `subagents.extensions:false`.
 - Every research child uses exactly `tools:["read","grep","find","ls"]`, `extensions:false`, `recursive:false`, `worktree:false`.
 - External calls are Main-direct, never invoked through `fabric_exec`.
 - Never send repository contents, absolute local paths, credentials, tokens, private keys, PII, or raw tool output to research services.
@@ -304,7 +304,7 @@ Context7 is documentation; Exa is search/fetch; Codex is general cited search. T
 - ADR-013 must explicitly state:
   - `--no-extensions` removes MCP/Codex extensions from children.
   - `capture.keepVisible` exposes exact tools only to Main.
-  - Fabric network denial remains unchanged.
+  - `approvals.network:"allow"` enables Main's `fabric_exec` external research; children stay network-isolated via `extensions:false`.
   - No generic `mcp` proxy exposed by default.
   - Direct Main calls bypass Fabric's captured-tool approval gate.
   - "local-only child" is not secret isolation.
@@ -341,7 +341,7 @@ Context7 is documentation; Exa is search/fetch; Codex is general cited search. T
     .schema.mode == "off" and
     .approvals.write == "deny" and
     .approvals.execute == "deny" and
-    .approvals.network == "deny" and
+    .approvals.network == "allow" and
     .subagents.extensions == false
   ' .pi/fabric.json
   git diff --check

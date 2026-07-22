@@ -46,7 +46,7 @@ trust is required or this file is ignored.
     "read": "allow",
     "write": "deny",
     "execute": "deny",
-    "network": "deny",
+    "network": "allow",
     "agent": "allow"
   },
   "subagents": {
@@ -330,15 +330,18 @@ direct tools) and `pi-codex-search` are both package-discovered Pi extensions (`
 dist/worker.js:321-333`). Adding MCP names to a child's `--tools` allowlist only adds unknown names
 Pi ignores (`agent-session.js:626-645`) — the prior child-direct allowlist edits were no-ops.
 
-**Main-visible external tools.** Main calls only the exact retained Context7/Exa direct-tool names
-plus `codex_search`, exposed via `.pi/fabric.json` `capture.keepVisible` — the exact-name mechanism
-that retains specified extension tools in Main's direct model-facing registry under
-`fullCodeMode:true` (`pi-fabric docs/configuration.md:173-207`, `dist/capture/interceptor.js:97-110`).
-Direct retained tools bypass Fabric's captured-tool approval gate, so they reach Main even though
-`approvals.network:"deny"` is unchanged (network stays denied for `fabric_exec`). The exact
-direct-tool names are server-prefixed (`pi-mcp-adapter types.ts:431-437`) and must be
-registry-proven before the `capture.keepVisible` line is written; no generic `mcp` proxy is exposed
-by default (it can reach arbitrary configured MCP servers — `index.ts:254-271`).
+**Main-visible external tools.** Main reaches Context7/Exa primarily through `fabric_exec`
+programs using Fabric's internal MCP proxy (`mcp.<server>.<tool>`, enabled by
+`approvals.network:"allow"` — the configured posture for Main's external research), and
+additionally via the `capture.keepVisible`-retained direct-tool names
+(`context7_resolve-library-id`, `context7_query-docs`, `exa_web_search_exa`, `exa_web_fetch_exa`)
+plus `codex_search` — a narrower path bypassing `fabric_exec` entirely, exposed in Main's direct
+model-facing registry under `fullCodeMode:true` (`pi-fabric docs/configuration.md:173-207`,
+`dist/capture/interceptor.js:97-110`). The security boundary is the child dispatch
+(`extensions:false`), not Main's network posture. The exact direct-tool names are server-prefixed
+(`pi-mcp-adapter types.ts:431-437`) and must be registry-proven before the `capture.keepVisible`
+line is written; no generic `mcp` proxy is exposed by default (it can reach arbitrary configured
+MCP servers — `index.ts:254-271`).
 
 **Main-mediated flow.** Main validates the question is bounded and non-secret, calls only the
 retained external tools, treats all external content as prompt-injection-capable untrusted data,
