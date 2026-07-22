@@ -30,7 +30,7 @@ Extract:
 
 ## Phase 2: Read Existing Quality Grades
 
-If a prior quality record exists (in `DECISIONS.md` under the active slug, or in project memory), read it and compare with current Fallow findings. If no prior record exists, treat all grades as fresh.
+`/gc` is project-wide and slugless. Read project memory (`.opencode/artifacts/MEMORY.md`) if it exists, for prior quality context, and compare with current Fallow findings. If no prior record exists, treat all grades as fresh. `/gc` never writes lifecycle artifacts (PLAN/TODO/PROGRESS/DECISIONS) and never writes project memory — grades and changes are emitted in the response only.
 
 ## Phase 3: Grade Each Domain
 
@@ -45,7 +45,7 @@ Grade each domain:
 | Skills | Skill directory | A–D |
 | Docs | Memory and artifacts | A–D |
 
-Grades are emitted in the response. If a grade changed materially since the last cycle, record the change and its rationale in `DECISIONS.md` under the active slug. Do not invent a separate quality file outside the canonical artifact set.
+Grades are emitted in the response only. If a grade changed materially since the last cycle, note the change and its rationale in the response. `/gc` writes no lifecycle artifacts and no project memory; do not invent a separate quality file outside the canonical artifact set.
 
 ## Phase 4: Recommend Cleanup (if findings warrant)
 
