@@ -21,12 +21,11 @@ On-demand reference, not injected. Read this when personalizing responses or com
 
 ## Git Workflow
 
-- **Ask first** before commit or push.
-- **Surgical diffs only** — every changed line traces to the current request. Never
-  `git add .`; scope commits to your changes.
-- **Git safety:** never force-push main/master, never bypass hooks, never `reset --hard` /
-  `checkout .` / `clean -fd` without explicit request. Default branch is `main` only;
-  keep `master` synchronized via `git push origin main:master`.
+- **Ask first** before commit or push (standing exception: per-artifact commit+push is
+  pre-authorized after each artifact completes).
+- Scope commits to your changes only; never `git add .`.
+- Full git-safety rules (no force-push main/master, no destructive restoration, `main` only
+  with `master` synced) live in `AGENTS.md` — this file is preferences, not policy.
 
 ## Working Preferences
 

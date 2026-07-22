@@ -1,0 +1,7 @@
+# Pi/Fabric runtime state — never tracked.
+# Travels with the template so an adopted .pi/ stays clean even without the root .gitignore.
+/npm/
+/git/
+/node_modules/
+/fabric/
+/sessions/

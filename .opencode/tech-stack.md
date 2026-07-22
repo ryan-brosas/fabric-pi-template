@@ -10,56 +10,71 @@ supervisor/worker topology that other repositories can adopt.
 
 ## Runtime
 
-- **Pi coding agent:** `@earendil-works/pi-coding-agent` 0.81.1 (installed; runtime host)
-- **Fabric:** `pi-fabric` 0.22.4 (installed at `~/.pi/agent/npm/node_modules/pi-fabric`)
+- **Pi coding agent:** `@earendil-works/pi-coding-agent` 0.81.1
+  (installed host; `~/.local/lib/node_modules/@earendil-works/pi-coding-agent`)
+- **Fabric:** `pi-fabric` 0.22.4 (`~/.pi/agent/npm/node_modules/pi-fabric`)
   - Requires Node `>=24` and Pi `>=0.80.6` (peer deps satisfied)
   - Provides: one-shot agents, persistent actors, steering, mesh, worktree isolation, budgets
+  - Compaction is deterministic and LLM-free (`compaction.engine: "fabric"`) — no model tier
 - **Node:** `>=24`
+- **Remote:** `https://github.com/ryan-brosas/fabric-pi-template.git`
 
-## Model Tiers (intended wiring in `.pi/config.json`)
+## Model Tiers
 
-| Tier | Role(s) | Model | Thinking |
-|---|---|---|---|
-| Control plane / Main | sole scheduler, integrator, commit authority | `openai-codex/gpt-5.6-sol` | max |
-| Read-only GPT | `plan`, `review`, `debug` | `openai-codex/gpt-5.6-sol` | max |
-| Read-only gatherers | `explore`, `scout` | `openai-codex/gpt-5.4-mini` | supported max |
-| Writable pool (1 per session) | `implement` / general edits | `makora/zai-org/GLM-5.2-NVFP4` | — |
-| Compaction support | session summary | `claude-bridge/claude-haiku-4-5` | — |
-| Advisory council | supervisor (ambient, steers Main) + security/architecture advisors (mailbox-only, lifecycle gates); read-only | `openai-codex/gpt-5.6-sol` | max |
+There is **no `.pi/config.json`** — neither Pi 0.81.1 nor Fabric 0.22.4 reads it. Main defaults
+live in `.pi/settings.json`; child defaults in `.pi/fabric.json`; every dispatch passes exact
+`runner`/`model`/`thinking`/`tools`/`extensions` at the call site.
 
-Claude is reached only via the Claude Bridge provider, never a native Claude runner.
+| Tier | Role(s) | Model | Thinking | Extensions |
+|---|---|---|---|---|
+| Control plane / Main | sole scheduler, integrator, commit authority | `openai-codex/gpt-5.6-sol` | max | n/a (Main) |
+| Read-only GPT | `plan`, `review`, `debug` | `openai-codex/gpt-5.6-sol` | max | `false` |
+| Read-only gatherers | `explore`, `scout` | `openai-codex/gpt-5.4-mini` | supported max | `false` |
+| Writable pool (1 per session) | `implement` / general edits | `makora/zai-org/GLM-5.2-NVFP4` | max | **`true`** |
+| Advisory council | supervisor + security/architecture advisors; read-only | `openai-codex/gpt-5.6-sol` | max | `false` |
+
+**Extension split (load-bearing):** `extensions:false` makes Fabric pass Pi `--no-extensions`,
+which fails to resolve the Makora provider. GPT council and read-only children use
+`extensions:false`; Makora implementation workers MUST use `extensions:true` + `thinking:"max"`
++ an exact writable tool allowlist. Claude is reached only via the Claude Bridge provider,
+never a native Claude runner.
+
 One Makora GLM worker per session; the host runs 4-5 concurrent sessions, so total GLM
-concurrency is bounded by session count, not a per-session pool.
-The advisory council is per-session (`mesh.actorScope: "session"`): only the supervisor
-steers Main; security and architecture advisors are mailbox-only and invoked at lifecycle
-gates, never steering Main directly.
+concurrency is bounded by session count, not a per-session pool. The advisory council is
+per-session (`mesh.actorScope: "session"`); only the supervisor steers Main. Authority,
+routing, and the council contract live in `AGENTS.md` — this table is the model wiring only.
 
 ## Project Structure (intended)
 
 ```
 AGENTS.md                 # authority + safety constitution (root)
 .pi/
-  settings.json           # Pi project settings        (to create)
-  fabric.json             # Fabric config (actors, mesh, budgets)  (to create)
-  config.json             # role routes + model tiers  (to create)
-  prompts/*.md            # Pi prompt commands (auto-discovered)   (to create)
-  artifacts/              # PLAN.md, TODO.md, PROGRESS.md, DECISIONS.md (lazy)
+  settings.json           # Pi project settings (Main default provider/model/thinking)  (to create)
+  fabric.json             # Fabric config: fullCodeMode, schema, subagents, mesh, budgets  (to create)
+  .gitignore              # ignores /fabric/ /npm/ /git/ /sessions/ runtime state  (created)
+  prompts/*.md            # Pi prompt commands (auto-discovered, non-recursive)   (to create)
+  artifacts/<slug>/        # PLAN.md, TODO.md, PROGRESS.md, DECISIONS.md (lazy, tracked)
+    pi-template/          # canonical implementation contract for this template (created)
   fabric/mesh/            # Fabric mesh runtime state (gitignored, exists)
-.opencode/                # inherited OpenCode scaffold (reference, superseded)
+.opencode/                # inherited OpenCode scaffold (reference; /init outputs)
 ```
+
+No `.pi/config.json` and no `.pi/docs/` — dispatch params are per-call, not file-routed.
 
 ## Commands
 
-No application build/test/lint exists yet. Template-level validation, once `.pi/` is
-populated:
+No application build/test/lint exists yet. Template-level validation:
 
-- `pi --approve --list-models` — verify configured model IDs resolve
-- structural / manifest checks as added under `.pi/tools/`
-- `node --version` — confirm `>=24`
+- `pi --approve --list-models` — verify `openai-codex/gpt-5.6-sol`, `openai-codex/gpt-5.4-mini`,
+  and `makora/zai-org/GLM-5.2-NVFP4` resolve (host provider auth required).
+- `node --version` — confirm `>=24`.
+- Structural / manifest checks as added under `.pi/tools/`.
+- Bootstrap: `/trust` the project root, then restart Pi (untrusted projects ignore
+  `.pi/settings.json`, packages, prompts, and `.pi/fabric.json`).
 
 ## Boundaries
 
 - This is a template, not a shipped app: no `src/`, `lib/`, or `app/` application code.
 - The deleted legacy `.pi` implementation is NOT a reference; do not restore or mine it.
-- `.opencode/` is an inherited scaffold for reference only, not the authoritative
-  architecture.
+- `.opencode/` is an inherited scaffold for reference only, not the authoritative architecture.
+- Fabric is not a security sandbox; "read-only" tools are authority policy, not secret isolation.

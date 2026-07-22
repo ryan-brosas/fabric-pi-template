@@ -2,43 +2,55 @@
 
 ## Current Status
 
-Clean-slate. `/init --all` established foundational setup files. The Pi-native
-template structure under `.pi/` (settings, fabric config, role routes, prompts) is
-**not yet created** — it is the next workstream.
+Clean-slate, reset to `dbf74b7 chore: fresh start — Pi/Fabric template clean-slate`
+(local + remote `main`/`master`). The `/init` deep pass enriched the authority docs and
+created the canonical implementation contract under `.pi/artifacts/pi-template/`.
 
-Established this session:
-- `AGENTS.md` routing section rewritten to the clean-slate supervisor-led authority model
-  (kept the safety constitution verbatim; removed the rejected `/team`,
-  `fabric_exec`-brain, and CAS-board design).
-- `.opencode/tech-stack.md`, `.opencode/roadmap.md`, `.opencode/state.md`,
-  `.opencode/user.md` created (per `/init --all`, literal `.opencode/` paths).
+Established this pass:
+- `AGENTS.md` — applied the corrected architecture: removed `/night` and `.pi/config.json`
+  and Haiku-compaction references; added Makora `extensions:true`, single-writer-per-worktree,
+  per-slug lifecycle artifacts, `/verify` freshness, custom-supervisor (never self-stop), and
+  blocking-`ask` gate mechanics.
+- `.opencode/tech-stack.md`, `.opencode/roadmap.md`, `.opencode/state.md`, `.opencode/user.md`
+  de-duplicated against `AGENTS.md` (authority lives there).
+- `.pi/.gitignore` — runtime state only (`/fabric/ /npm/ /git/ /sessions/`); artifacts tracked.
+- `.pi/artifacts/pi-template/{PLAN,TODO,PROGRESS,DECISIONS}.md` — canonical contract.
+
+## Blockers
+
+None. Bootstrap prerequisite for runtime use: `/trust` the project root, then restart Pi
+(untrusted projects ignore `.pi/settings.json`, packages, prompts, and `.pi/fabric.json`).
 
 ## Active Decisions
 
-- **Authority model:** GPT-5.6-sol max Main = sole scheduler/integrator + commit
-  authority; persistent Fabric advisory council (supervisor + security + architecture
-  advisors, all read-only `directive`, gpt-5.6-sol max) — only the supervisor steers Main
-  (ambient, drift/blockers/missing verification); advisors are mailbox-only, invoked only
-  at lifecycle gates, and never steer Main. Supervisor arbitrates, never a scheduler. No
-  `/team`. Per-session (`mesh.actorScope: "session"`).
-- **Worker topology:** 1 Makora GLM 5.2 worker per session (ceiling, not a quota; host runs 4-5 sessions);
-  GPT-5.4-mini read-only gatherers; GPT-5.6-sol max for plan/review/debug.
-- **Lifecycle record:** Markdown artifacts only — no lifecycle kernel, schemas,
-  candidate manifests, receipts, or CAS board.
-- **Mesh:** durable coordination/mailbox only; never phase or lifecycle authority.
-- **Init paths:** `.opencode/` literal per the invoked `/init --all` (`.opencode` remains
-  a reference scaffold; the authoritative template home is `.pi/`).
+Authority, routing, topology, and the council contract live in `AGENTS.md`; trade-offs
+in `.pi/artifacts/pi-template/DECISIONS.md`. Summary only — do not edit here for authority:
+- Hybrid per-session council (supervisor steers; advisors mailbox-only at lifecycle gates).
+- 1 Makora worker/session; `extensions:true`; GPT read-only `extensions:false`.
+- Markdown lifecycle artifacts; no kernel/schemas/manifests/receipts/CAS board.
+- No `.pi/config.json`; dispatch params are per-call.
 
 ## Next Priorities
 
-1. Create `.pi/settings.json` and `.pi/fabric.json` (Pi project + Fabric config; pin
-   `mesh.actorScope: "session"` for per-session actor registries).
-2. Create `.pi/config.json` (role routes + model tiers + ceilings + budgets).
+1. Create `.pi/settings.json` (Main `defaultProvider`/`defaultModel`/`defaultThinkingLevel`;
+   pin `npm:pi-fabric@0.22.4`).
+2. Create `.pi/fabric.json` (`fullCodeMode:false`, `schema.mode:"off"`, read-only default
+   child tools, `subagents.maxDepth:1`, `mesh.actorScope:"session"`, `mesh.enabled:true`,
+   `memory.indexToolOutput:false`, `compaction.engine:"fabric"`, finite limits).
 3. Author `.pi/prompts/supervise.md` (native supervisor + advisor create/inspect,
-   session-scoped, supervisor-only steer).
-4. Author `.pi/prompts/gate.md` (lifecycle-gate workflow: parallel advisor `agent()` fan-out
-   + supervisor synthesis; mailbox-only advisors, no host events).
-5. Author thin lifecycle prompts: `.pi/prompts/{create,plan,ship,verify,research}.md`.
-6. Establish `.pi/artifacts/` canonical set (lazy) and `.pi/.gitignore` for mesh runtime.
-7. Validate model IDs resolve (`pi --approve --list-models`) and run a lifecycle smoke
-   check that touches only intended files.
+   session-scoped, supervisor-only steer, custom instructions — never self-stop).
+4. Author `.pi/prompts/gate.md` (lifecycle-gate workflow: blocking `agents.ask()` to
+   applicable advisors, validate each, one blocking `agents.ask(supervisor)` on conflict;
+   mailbox-only advisors, no host events).
+5. Author thin lifecycle prompts: `.pi/prompts/{create,plan,ship,verify,research}.md`
+   (explicit `<slug>`; self-contained; no agent routing).
+6. Smoke-test: model IDs resolve, Main retains native tools, review child edit fails,
+   gate blocks on errored advisor, `/verify` freshness invalidates on byte change.
+
+## Verification Status
+
+- `pi --approve --list-models` resolves `openai-codex/gpt-5.6-sol`,
+  `openai-codex/gpt-5.4-mini`, `makora/zai-org/GLM-5.2-NVFP4` (host provider auth).
+- No `.pi` runtime config/prompt files exist yet — runtime smoke pending milestone 1-2.
+- Pending per-artifact commit+push (standing policy: commit and push after completing
+  each artifact).
