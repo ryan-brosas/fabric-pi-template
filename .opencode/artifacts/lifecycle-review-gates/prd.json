@@ -1,0 +1,198 @@
+{
+  "title": "Lifecycle Review Gates — tier-gated read-only review at all four lifecycle prompts",
+  "slug": "lifecycle-review-gates",
+  "created": "2026-07-22",
+  "id": "lrg-001",
+  "approach": "Partially supersede ADR-008's no-consultation clause and its rejected embedded-gate alternative (b), preserving ADR-008's single supervisor, no mailbox panel, and no standalone /gate. Embed a tier-gated read-only review child gate into all four lifecycle prompts (/create Phase 10A spec review, /plan Phase 8A planning review, /ship Tier-Gated Diff Review, /verify Phase 5A advisory evidence review), using the existing review lane (GPT-5.6 Sol, max, extensions:false, read-only) — no new lane, no capability widening. /create persists both numeric Discovery Level and Effective Review Level because /plan is optional. Effective level = max(stored discovery, stored effective, current risk floor); risk floor >= L2 for auth/secrets/destructive/schema/concurrency/public-API/new-deps/cross-subsystem. L0-1 advisory/non-blocking; L2-3 blocking/disposition-required; /verify advisor always advisory. Reviewer returns severity+evidence only; Main reopens every cited path:line (Worker Distrust) — a child never blocks by its own authority. Review packet is in-memory host-supplied (diff, hashes, commands/exits, versions, source excerpts) because the read-only child cannot run git/verification. source-check-required is the fail-closed response at L2-3 when authoritative material is absent. Accepted findings trigger bounded convergence loops (max 2 rounds then escalate). /ship replaces Standard + Iterative scored modes with one Tier-Gated Diff Review fed by a Ship-Level Review Baseline. ADR-011 records the partial supersession; ADR-008 gets a forward reference. Ships after milestone-5 C2 and prewalk-extension C2 (both settled, ADR-010 present).",
+  "blocks": [
+    "Milestone-5 C2 must settle first (single-writer ADR-002; V6 regression validator scans all .pi/prompts/*.md) — SETTLED at HEAD 2a8b487",
+    "prewalk-extension C2 must settle for shared files (ship.md, AGENTS.md, DECISIONS.md, tech-stack.md, PLAN.md) — SETTLED at HEAD 596aae7; ADR-010 present",
+    "ADR-011 is next available (ADR-010 = prewalk handoff)",
+    "No change to the supervisor (supervise.md — a different, ambient/reactive mechanism)",
+    "No new agent lane or model tier (uses the existing review lane); no capability widening (read-only, extensions:false, no bash, no recursion)",
+    "No change to .pi/fabric.json, .pi/settings.json, .opencode/command/*.md source bodies, or historical milestone artifacts"
+  ],
+  "manifests": {
+    "write_paths": [
+      ".pi/prompts/create.md",
+      ".pi/prompts/plan.md",
+      ".pi/prompts/ship.md",
+      ".pi/prompts/verify.md",
+      ".pi/artifacts/pi-template/DECISIONS.md",
+      ".pi/artifacts/pi-template/PLAN.md",
+      "AGENTS.md",
+      ".opencode/tech-stack.md",
+      ".opencode/roadmap.md",
+      ".opencode/state.md",
+      ".opencode/artifacts/lifecycle-review-gates/spec.md",
+      ".opencode/artifacts/lifecycle-review-gates/prd.json",
+      ".opencode/artifacts/lifecycle-review-gates/plan.md",
+      ".opencode/artifacts/.active"
+    ],
+    "protected_source_paths": [
+      ".opencode/command/audit.md",
+      ".opencode/command/create.md",
+      ".opencode/command/fix.md",
+      ".opencode/command/gc.md",
+      ".opencode/command/init.md",
+      ".opencode/command/plan.md",
+      ".opencode/command/research.md",
+      ".opencode/command/ship.md",
+      ".opencode/command/verify.md",
+      ".pi/fabric.json",
+      ".pi/settings.json",
+      ".pi/prompts/supervise.md"
+    ],
+    "verified_paths": [
+      ".pi/prompts/create.md",
+      ".pi/prompts/plan.md",
+      ".pi/prompts/ship.md",
+      ".pi/prompts/verify.md",
+      ".pi/artifacts/pi-template/DECISIONS.md",
+      ".pi/artifacts/pi-template/PLAN.md",
+      "AGENTS.md",
+      ".opencode/tech-stack.md",
+      ".opencode/roadmap.md",
+      ".opencode/state.md",
+      ".opencode/artifacts/lifecycle-review-gates/spec.md",
+      ".opencode/artifacts/lifecycle-review-gates/prd.json",
+      ".opencode/artifacts/lifecycle-review-gates/plan.md",
+      ".opencode/artifacts/.active"
+    ],
+    "baseline_oid": "596aae7fef1a004096fff324657c877b7a000973",
+    "shared_serial_ownership": [
+      {
+        "path": ".pi/prompts/ship.md",
+        "owners": ["milestone-5-settled", "prewalk-extension-settled", "B1"]
+      },
+      { "path": "AGENTS.md", "owners": ["milestone-5-settled", "prewalk-extension-settled", "C1"] },
+      {
+        "path": ".pi/artifacts/pi-template/DECISIONS.md",
+        "owners": ["prewalk-extension-settled", "C1"]
+      },
+      {
+        "path": ".pi/artifacts/pi-template/PLAN.md",
+        "owners": ["prewalk-extension-settled", "C1"]
+      },
+      { "path": ".opencode/tech-stack.md", "owners": ["prewalk-extension-settled", "C2"] }
+    ]
+  },
+  "success_criteria": [
+    {
+      "criterion": "A1: spec/prd rebased — no stale ADR-008 'consistent' language; prd is 7-task bounded graph",
+      "verify": "! rg -n 'consistent with ADR-008|NOT a reversal' .opencode/artifacts/lifecycle-review-gates/spec.md && node -e 'const p=require(\"./.opencode/artifacts/lifecycle-review-gates/prd.json\");const ids=new Map(p.tasks.map((t,i)=>[t.id,i]));const counts={};if(p.tasks.length!==7||ids.size!==7)process.exit(1);for(const[i,t] of p.tasks.entries()){if(t.files.length>3)process.exit(1);counts[t.child_plan]=(counts[t.child_plan]||0)+1;for(const d of t.depends_on){if(!ids.has(d)||ids.get(d)>=i)process.exit(1)}}if(counts.A!==2||counts.B!==2||counts.C!==3)process.exit(1)'"
+    },
+    {
+      "criterion": "A2: /create has Phase 10A Spec Review Gate; /plan has Phase 8A Planning Review Gate; both persist numeric levels; ordered after validation/compliance",
+      "verify": "rg -n '^## Phase 10A: Spec Review Gate$' .pi/prompts/create.md && rg -n '^## Phase 8A: Planning Review Gate$' .pi/prompts/plan.md && rg -n '^\\*\\*Discovery Level:\\*\\*|^\\*\\*Effective Review Level:\\*\\*|^## Review Profile$' .pi/prompts/create.md .pi/prompts/plan.md && node -e 'const fs=require(\"fs\");const checks=[[\".pi/prompts/create.md\",[\"## Phase 8: Validate PRD\",\"## Phase 10: Convert PRD to Tasks\",\"## Phase 10A: Spec Review Gate\"]],[\".pi/prompts/plan.md\",[\"## Phase 7: Write Plan\",\"## Phase 8: Constitutional Compliance Gate\",\"## Phase 8A: Planning Review Gate\"]]];for(const[f,h] of checks){const s=fs.readFileSync(f,\"utf8\");let last=-1;for(const x of h){const i=s.indexOf(x);if(i<=last)process.exit(1);last=i}}'"
+    },
+    {
+      "criterion": "B1: /ship has exactly one Ship-Level Review Baseline and one Tier-Gated Diff Review; old Standard/Iterative modes and score approval absent",
+      "verify": "test \"$(rg -c '^### Ship-Level Review Baseline$' .pi/prompts/ship.md)\" = 1 && test \"$(rg -c '^### Tier-Gated Diff Review$' .pi/prompts/ship.md)\" = 1 && ! rg -n '^### Standard Review Mode$|^### Iterative Quality Loop Mode$|Score ≥|score \\(X/5\\)' .pi/prompts/ship.md && rg -n 'Host-Derived Candidate Intake|Selective Routing|Objective Generated-Code Quality|Language and Framework Overlay|source-check-required' .pi/prompts/ship.md"
+    },
+    {
+      "criterion": "B2: /verify has ordered Phase 5A-5D subsections; ADR-006 no-write phrase preserved",
+      "verify": "rg -n '^### Phase 5A: Advisory Evidence Review$|^### Phase 5B: Candidate Evidence Writes$|^### Phase 5C: Final No-Write Pass$|^### Phase 5D: Transcript-Only Result$' .pi/prompts/verify.md && node -e 'const s=require(\"fs\").readFileSync(\".pi/prompts/verify.md\",\"utf8\");const h=[\"## Phase 4: Coherence\",\"### Phase 5A: Advisory Evidence Review\",\"### Phase 5B: Candidate Evidence Writes\",\"### Phase 5C: Final No-Write Pass\",\"### Phase 5D: Transcript-Only Result\"];let last=-1;for(const x of h){const i=s.indexOf(x);if(i<=last)process.exit(1);last=i}}' && rg -ni 'sole.*verified|transcript only|no repository write' .pi/prompts/verify.md"
+    },
+    {
+      "criterion": "C1: ADR-011 present and references ADR-008 supersession; AGENTS + canonical PLAN have reviewer/quality/source markers",
+      "verify": "rg -n '^## ADR-011: Tier-gated lifecycle review gates$' .pi/artifacts/pi-template/DECISIONS.md && rg -n 'supersed.*ADR-008|ADR-011' .pi/artifacts/pi-template/DECISIONS.md && rg -n 'Objective Generated-Code Quality|Language and Framework Overlay|source-check-required' AGENTS.md .pi/artifacts/pi-template/PLAN.md"
+    },
+    {
+      "criterion": "C2: tech-stack/roadmap/state synchronized to 0.23.0 + tier-gated review + ADR-011; old non-goal absent",
+      "verify": "rg -n '0\\.23\\.0|tier-gated lifecycle review|ADR-011' .opencode/tech-stack.md .opencode/roadmap.md .opencode/state.md && ! rg -n 'No mandatory research/review agents every cycle' .opencode/roadmap.md"
+    },
+    {
+      "criterion": "C3: static closure — pi-fabric 0.23.0, list-models resolve, slug in 5 prompts, forbidden-token clean, git diff --check",
+      "verify": "git diff --check && node -p 'require(\"./.pi/npm/node_modules/pi-fabric/package.json\").version' | rg -x '0\\.23\\.0' && pi --approve --list-models | rg -F 'openai-codex/gpt-5.6-sol' && for f in create plan ship verify research; do rg -q '<slug>' \".pi/prompts/$f.md\" || exit 1; done && ! rg -n 'agent:|task\\(|question\\(|skill\\(|write\\(|\\.active|spec\\.md|prd\\.json|review-state\\.json' .pi/prompts/*.md"
+    },
+    {
+      "criterion": "milestone-5 regression invariants preserved: <slug> in create/plan/ship/verify/research, ship 'cannot declare verified' phrase, verify 'sole verified/transcript only/no repository write' phrase, frontmatter intact",
+      "verify": "for f in create plan ship verify research; do rg -q '<slug>' \".pi/prompts/$f.md\" || exit 1; done && rg -q 'cannot declare (terminal )?(verified status|completion)' .pi/prompts/ship.md && rg -qi 'sole.*verified|transcript only|no repository write' .pi/prompts/verify.md && node -e 'for(const f of [\"create\",\"plan\",\"ship\",\"verify\"]){const s=require(\"fs\").readFileSync(\".pi/prompts/\"+f+\".md\",\"utf8\");const m=/^---\\n([\\s\\S]*?)\\n---\\n/.exec(s);if(!m||!/description:/.test(m[1])||!/argument-hint:/.test(m[1]))process.exit(1)}'"
+    },
+    {
+      "criterion": "protected files unchanged from A1 settled baseline (fabric.json, settings.json, supervise.md, .opencode/command)",
+      "verify": "git diff --exit-code 596aae7fef1a004096fff324657c877b7a000973 -- .pi/fabric.json .pi/settings.json .pi/prompts/supervise.md .opencode/command"
+    }
+  ],
+  "tasks": [
+    {
+      "id": "A1",
+      "child_plan": "A",
+      "title": "Rebase and correct the binding specification",
+      "category": "implement",
+      "end_state": "spec.md records a deliberate partial supersession of ADR-008 (not 'consistent, not a reversal'), corrected phase placement, review packet contract, effective-level propagation, convergence loops, source hierarchy, and the objective generated-code rubric; prd.json is the seven-task bounded graph with the settled baseline OID and exact paths; .active points to lifecycle-review-gates.",
+      "depends_on": [],
+      "files": [
+        ".opencode/artifacts/lifecycle-review-gates/spec.md",
+        ".opencode/artifacts/lifecycle-review-gates/prd.json",
+        ".opencode/artifacts/.active"
+      ],
+      "verify": "! rg -n 'consistent with ADR-008|NOT a reversal' .opencode/artifacts/lifecycle-review-gates/spec.md && node -e 'const p=require(\"./.opencode/artifacts/lifecycle-review-gates/prd.json\");const ids=new Map(p.tasks.map((t,i)=>[t.id,i]));const counts={};if(p.tasks.length!==7||ids.size!==7)process.exit(1);for(const[i,t] of p.tasks.entries()){if(t.files.length>3)process.exit(1);counts[t.child_plan]=(counts[t.child_plan]||0)+1;for(const d of t.depends_on){if(!ids.has(d)||ids.get(d)>=i)process.exit(1)}}if(counts.A!==2||counts.B!==2||counts.C!==3)process.exit(1)' && git diff --check"
+    },
+    {
+      "id": "A2",
+      "child_plan": "A",
+      "title": "Add durable review levels and final-artifact gates (/create, /plan)",
+      "category": "implement",
+      "end_state": "create.md has Skip=0/Minimal=1/Standard=2/Deep=3 mapping, persists both numeric Discovery Level and Effective Review Level in Lite and Full PLAN formats, has a Review Profile, and a Phase 10A Spec Review Gate after Phase 8 validation and Phase 10 TODO conversion. plan.md has a Phase 8A Planning Review Gate after Phase 8 Constitutional Compliance. Both preserve frontmatter, <slug>, and forbidden-token cleanliness.",
+      "depends_on": ["A1"],
+      "files": [".pi/prompts/create.md", ".pi/prompts/plan.md"],
+      "verify": "rg -n '^## Phase 10A: Spec Review Gate$' .pi/prompts/create.md && rg -n '^## Phase 8A: Planning Review Gate$' .pi/prompts/plan.md && rg -n '^\\*\\*Discovery Level:\\*\\*|^\\*\\*Effective Review Level:\\*\\*|^## Review Profile$' .pi/prompts/create.md .pi/prompts/plan.md && rg -q '<slug>' .pi/prompts/create.md && rg -q '<slug>' .pi/prompts/plan.md && git diff --check"
+    },
+    {
+      "id": "B1",
+      "child_plan": "B",
+      "title": "Replace /ship review modes with one canonical final-diff gate",
+      "category": "implement",
+      "end_state": "ship.md has exactly one Ship-Level Review Baseline (before Phase 3 execution) and one Tier-Gated Diff Review replacing Mode Selection, Standard Review Mode, and Iterative Quality Loop Mode; preserves Host-Derived Candidate Intake, Selective Routing, the 'cannot declare verified' phrase, and <slug>; requires full Phase 4 rerun + packet regen + L2-3 re-review after any candidate mutation.",
+      "depends_on": ["A2"],
+      "files": [".pi/prompts/ship.md"],
+      "verify": "test \"$(rg -c '^### Ship-Level Review Baseline$' .pi/prompts/ship.md)\" = 1 && test \"$(rg -c '^### Tier-Gated Diff Review$' .pi/prompts/ship.md)\" = 1 && ! rg -n '^### Standard Review Mode$|^### Iterative Quality Loop Mode$|Score ≥|score \\(X/5\\)' .pi/prompts/ship.md && rg -n 'Host-Derived Candidate Intake|Selective Routing|source-check-required' .pi/prompts/ship.md && rg -q 'cannot declare (terminal )?(verified status|completion)' .pi/prompts/ship.md && rg -q '<slug>' .pi/prompts/ship.md && git diff --check"
+    },
+    {
+      "id": "B2",
+      "child_plan": "B",
+      "title": "Add advisory evidence review and a fresh final pass (/verify)",
+      "category": "implement",
+      "end_state": "verify.md has ordered Phase 5A (Advisory Evidence Review), 5B (Candidate Evidence Writes), 5C (Final No-Write Pass), 5D (Transcript-Only Result) subsections after Phase 4 Coherence; preserves the 'sole verified / transcript only / no repository write' phrase and <slug>.",
+      "depends_on": ["B1"],
+      "files": [".pi/prompts/verify.md"],
+      "verify": "rg -n '^### Phase 5A: Advisory Evidence Review$|^### Phase 5B: Candidate Evidence Writes$|^### Phase 5C: Final No-Write Pass$|^### Phase 5D: Transcript-Only Result$' .pi/prompts/verify.md && node -e 'const s=require(\"fs\").readFileSync(\".pi/prompts/verify.md\",\"utf8\");const h=[\"## Phase 4: Coherence\",\"### Phase 5A: Advisory Evidence Review\",\"### Phase 5B: Candidate Evidence Writes\",\"### Phase 5C: Final No-Write Pass\",\"### Phase 5D: Transcript-Only Result\"];let last=-1;for(const x of h){const i=s.indexOf(x);if(i<=last)process.exit(1);last=i}}' && rg -ni 'sole.*verified|transcript only|no repository write' .pi/prompts/verify.md && rg -q '<slug>' .pi/prompts/verify.md && git diff --check"
+    },
+    {
+      "id": "C1",
+      "child_plan": "C",
+      "title": "Record ADR-011 and canonical reviewer authority",
+      "category": "contract",
+      "end_state": "DECISIONS.md has ADR-011 (Tier-gated lifecycle review gates) explicitly superseding ADR-008's no-consultation clause and rejected embedded-gate alternative (b); ADR-008 has a forward reference; canonical PLAN.md has the exact review dispatch, packet contract, level propagation, freshness, source hierarchy, and failure rules; AGENTS.md has the reviewer role, objective generated-code policy, language/framework overlay, and reworded 'no fixed review matrix' wording.",
+      "depends_on": ["B2"],
+      "files": [
+        ".pi/artifacts/pi-template/DECISIONS.md",
+        ".pi/artifacts/pi-template/PLAN.md",
+        "AGENTS.md"
+      ],
+      "verify": "rg -n '^## ADR-011: Tier-gated lifecycle review gates$' .pi/artifacts/pi-template/DECISIONS.md && rg -n 'supersed.*ADR-008|ADR-011' .pi/artifacts/pi-template/DECISIONS.md && rg -n 'Objective Generated-Code Quality|Language and Framework Overlay|source-check-required' AGENTS.md .pi/artifacts/pi-template/PLAN.md && git diff --check"
+    },
+    {
+      "id": "C2",
+      "child_plan": "C",
+      "title": "Synchronize project summaries",
+      "category": "contract",
+      "end_state": "tech-stack.md has pi-fabric 0.23.0, the exact read-only review dispatch, and tier semantics; roadmap.md replaces the 'No mandatory research/review agents every cycle' non-goal with 'no fixed review matrix; evidence-based boundary review is tier-gated'; state.md records milestone/prewalk/lifecycle status and ADR-011.",
+      "depends_on": ["C1"],
+      "files": [".opencode/tech-stack.md", ".opencode/roadmap.md", ".opencode/state.md"],
+      "verify": "rg -n '0\\.23\\.0|tier-gated lifecycle review|ADR-011' .opencode/tech-stack.md .opencode/roadmap.md .opencode/state.md && ! rg -n 'No mandatory research/review agents every cycle' .opencode/roadmap.md && git diff --check"
+    },
+    {
+      "id": "C3",
+      "child_plan": "C",
+      "title": "Static closure and direct read-only runtime smoke",
+      "category": "verify",
+      "end_state": "No-write static verification: pi-fabric 0.23.0, list-models resolve both endpoints, slug in 5 prompts, forbidden-token clean across .pi/prompts/*.md, baseline-aware heading validator permits only the retired /ship headings, protected files unchanged from A1 baseline, git diff --check clean. Optional read-only review-child smoke under unchanged fingerprint.",
+      "depends_on": ["C2"],
+      "files": [],
+      "verify": "git diff --check && node -p 'require(\"./.pi/npm/node_modules/pi-fabric/package.json\").version' | rg -x '0\\.23\\.0' && pi --approve --list-models | rg -F 'openai-codex/gpt-5.6-sol' && pi --approve --list-models | rg -F 'makora/zai-org/GLM-5.2-NVFP4' && for f in create plan ship verify research; do rg -q '<slug>' \".pi/prompts/$f.md\" || exit 1; done && ! rg -n 'agent:|task\\(|question\\(|skill\\(|write\\(|\\.active|spec\\.md|prd\\.json|review-state\\.json' .pi/prompts/*.md"
+    }
+  ]
+}
