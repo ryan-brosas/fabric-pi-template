@@ -1,0 +1,249 @@
+{
+  "schema": "away-sandbox/1",
+  "version": 1,
+  "comment": "Host-owned, versioned profile manifest for the away sandbox runtime. The controller reads this (never the model) to derive a lane profile. Generated code cannot mutate this file: it is listed in runtime_protected_paths and the immutable startup closure (B2) hash-pins it. bootstrap.ts reads ONLY this path; a malicious project at any other cwd cannot override it.",
+
+  "pinned_versions": {
+    "node": "24.16.0",
+    "pi": "0.81.1",
+    "pi_path": "/home/ryan/.local/bin/pi",
+    "pi_fabric": "0.23.0",
+    "pi_fabric_path": ".pi/npm/node_modules/pi-fabric",
+    "pi_fabric_node_process_runtime": "dist/runtime/node-process-runtime.js:29",
+    "pi_fabric_node_process_child_source": "dist/runtime/node-process-child-source.js",
+    "bwrap": "0.9.0",
+    "bwrap_path": "/usr/bin/bwrap",
+    "makora_provider": "1.12.1",
+    "makora_provider_path": "/home/ryan/.pi/agent/git/github.com/monotykamary/pi-makora-provider"
+  },
+
+  "model_registry": {
+    "writer": {
+      "provider": "makora",
+      "model": "makora/zai-org/GLM-5.2-NVFP4",
+      "thinking": "max",
+      "provider_source": "/home/ryan/.pi/agent/git/github.com/monotykamary/pi-makora-provider/index.ts"
+    },
+    "verifier": {
+      "provider": "makora",
+      "model": "makora/zai-org/GLM-5.2-NVFP4",
+      "thinking": "max",
+      "provider_source": "/home/ryan/.pi/agent/git/github.com/monotykamary/pi-makora-provider/index.ts"
+    },
+    "reviewer": {
+      "provider": "openai-codex",
+      "model": "openai-codex/gpt-5.6-sol",
+      "thinking": "max",
+      "provider_source": null
+    },
+    "local_explorer": {
+      "provider": "openai-codex",
+      "model": "openai-codex/gpt-5.4-mini",
+      "thinking": "max",
+      "provider_source": null
+    },
+    "external_scout": {
+      "provider": "openai-codex",
+      "model": "openai-codex/gpt-5.4-mini",
+      "thinking": "max",
+      "provider_source": null
+    }
+  },
+
+  "extensions": {
+    "lane_extension": ".pi/away-runtime/lane-extension.ts"
+  },
+
+  "exec_path_override": ".pi/away-runtime/executor-wrapper.mjs",
+
+  "control_cwd_root": "~/.local/state/pi-away/control",
+
+  "env_allowlist": [
+    "PATH",
+    "HOME",
+    "LANG",
+    "LC_ALL",
+    "TERM",
+    "PI_OFFLINE",
+    "MAKORA_OPTIMIZE_TOKEN",
+    "OPENAI_API_KEY",
+    "GOOGLE_API_KEY",
+    "ANTHROPIC_API_KEY"
+  ],
+  "env_deny_prefixes": ["PI_FABRIC_", "PI_TRUST", "PI_APPROVE", "PI_PROJECT"],
+
+  "limits": {
+    "cgroup_pid_max": 256,
+    "cgroup_memory_bytes": 17179869184,
+    "cgroup_cpu_weight": 100,
+    "cgroup_storage_bytes": 1073741824,
+    "executor_memory_limit_bytes": 17179869184,
+    "executor_timeout_ms": 600000,
+    "max_file_count": 4096,
+    "max_output_chars": 200000,
+    "max_nested_result_chars": 100000
+  },
+
+  "host_call_refs": [
+    "away_read",
+    "away_list",
+    "away_search",
+    "away_stage_write",
+    "away_commit_staged",
+    "away_discard_staged",
+    "away_run_verify",
+    "away_attest"
+  ],
+  "host_call_risks": {
+    "away_read": "read",
+    "away_list": "read",
+    "away_search": "read",
+    "away_stage_write": "write",
+    "away_commit_staged": "write",
+    "away_discard_staged": "write",
+    "away_run_verify": "execute",
+    "away_attest": "execute"
+  },
+
+  "lanes": {
+    "local-explorer": {
+      "network": false,
+      "filesystem": true,
+      "writable": false,
+      "tools": ["fabric_exec"],
+      "host_call_refs": ["away_read", "away_list", "away_search"],
+      "approvals": {
+        "read": "allow",
+        "write": "deny",
+        "execute": "deny",
+        "network": "deny",
+        "agent": "deny"
+      },
+      "model": "local_explorer"
+    },
+    "external-scout": {
+      "network": true,
+      "filesystem": false,
+      "writable": false,
+      "tools": ["fabric_exec"],
+      "host_call_refs": ["away_search", "away_read"],
+      "approvals": {
+        "read": "allow",
+        "write": "deny",
+        "execute": "deny",
+        "network": "allow",
+        "agent": "deny"
+      },
+      "model": "external_scout"
+    },
+    "writer": {
+      "network": false,
+      "filesystem": true,
+      "writable": true,
+      "tools": ["fabric_exec"],
+      "host_call_refs": [
+        "away_read",
+        "away_list",
+        "away_search",
+        "away_stage_write",
+        "away_commit_staged",
+        "away_discard_staged",
+        "away_attest"
+      ],
+      "approvals": {
+        "read": "allow",
+        "write": "deny",
+        "execute": "deny",
+        "network": "deny",
+        "agent": "deny"
+      },
+      "model": "writer"
+    },
+    "reviewer": {
+      "network": false,
+      "filesystem": true,
+      "writable": false,
+      "tools": ["fabric_exec"],
+      "host_call_refs": ["away_read", "away_list", "away_search"],
+      "approvals": {
+        "read": "allow",
+        "write": "deny",
+        "execute": "deny",
+        "network": "deny",
+        "agent": "deny"
+      },
+      "model": "reviewer"
+    },
+    "verifier": {
+      "network": false,
+      "filesystem": true,
+      "writable": true,
+      "tools": ["fabric_exec"],
+      "host_call_refs": ["away_read", "away_list", "away_run_verify", "away_attest"],
+      "approvals": {
+        "read": "allow",
+        "write": "deny",
+        "execute": "deny",
+        "network": "deny",
+        "agent": "deny"
+      },
+      "model": "verifier"
+    }
+  },
+
+  "protected_paths": [
+    ".pi/fabric.json",
+    ".pi/settings.json",
+    "AGENTS.md",
+    ".pi/artifacts/pi-template/DECISIONS.md",
+    ".pi/artifacts/pi-template/PLAN.md",
+    ".pi/prompts/audit.md",
+    ".pi/prompts/create.md",
+    ".pi/prompts/fix.md",
+    ".pi/prompts/gc.md",
+    ".pi/prompts/init.md",
+    ".pi/prompts/plan.md",
+    ".pi/prompts/research.md",
+    ".pi/prompts/ship.md",
+    ".pi/prompts/supervise.md",
+    ".pi/prompts/verify.md",
+    ".opencode/command/audit.md",
+    ".opencode/command/create.md",
+    ".opencode/command/fix.md",
+    ".opencode/command/gc.md",
+    ".opencode/command/init.md",
+    ".opencode/command/plan.md",
+    ".opencode/command/research.md",
+    ".opencode/command/ship.md",
+    ".opencode/command/verify.md"
+  ],
+
+  "runtime_protected_paths": [
+    ".pi/away-runtime/bootstrap.ts",
+    ".pi/away-runtime/executor-wrapper.mjs",
+    ".pi/away-runtime/inner-guest.mjs",
+    ".pi/away-runtime/closure.ts",
+    ".pi/away-runtime/resources.ts",
+    ".pi/away-runtime/dispatch.ts",
+    ".pi/away-runtime/staging.ts",
+    ".pi/away-runtime/launcher.ts",
+    ".pi/away-runtime/rpc.ts",
+    ".pi/away-runtime/lane-extension.ts",
+    ".pi/away-runtime/attestation.ts",
+    ".pi/away-runtime/verifier.ts",
+    ".pi/away-runtime/command-catalog.ts",
+    ".pi/away-sandbox.json",
+    ".pi/extensions/",
+    ".pi/npm/",
+    ".pi/fabric/",
+    ".pi/git/",
+    ".pi/sessions/",
+    ".pi/fabric.json",
+    ".pi/settings.json",
+    ".pi/prompts/",
+    ".pi/artifacts/pi-template/DECISIONS.md",
+    ".pi/artifacts/pi-template/PLAN.md",
+    "AGENTS.md",
+    ".opencode/command/"
+  ]
+}
