@@ -109,6 +109,8 @@ Before research, determine discovery level based on PRD:
 
 Determine level from PRD content: Level 2+ if new library, external API, or "choose/evaluate" language. Level 3 if "architecture/design/system".
 
+`/create` persists both `**Discovery Level:**` and `**Effective Review Level:**` in the PLAN header. `/plan` reads them and may explicitly retain or revise either; it never silently drops them. If the PLAN lacks the levels (created before this gate existed), derive them now and write them back. The risk floor is the minimum level the work's risk profile imposes (L2 for auth, secrets/PII, destructive, schema/persistence, concurrency, public APIs, new deps, cross-subsystem); Effective Review Level = `max(discovery, risk floor)`.
+
 ## Phase 3: Research (if Level 1-3)
 
 Read the PRD and extract tasks, success criteria, affected files, scope.
@@ -251,6 +253,8 @@ Write the implementation plan into `.pi/artifacts/<slug>/PLAN.md` (enriching the
 
 **Discovery Level:** [0-3] - [Rationale]
 
+**Effective Review Level:** [0-3] - max(discovery, risk floor)
+
 **Context Budget:** [Estimated context usage, target ~50%]
 
 ---
@@ -303,6 +307,16 @@ Wave 3: C
 - **UI state coverage** — UI tasks list empty/loading/error/success states when applicable
 - **UX recovery path** — async/destructive/form tasks include retry/undo/confirm/error handling
 - **Accessibility wiring** — form and interactive tasks include labels, focus behavior, keyboard path, and semantic HTML
+
+## Review Profile
+
+The PLAN must include a `## Review Profile` section so the review gates have the context they need:
+
+- **Language and framework:** detected stack with exact manifest/lockfile versions.
+- **Local authorities:** applicable `AGENTS.md` rules, accepted DECISIONS, and PLAN requirements.
+- **Required source packet:** exact-version official material the reviewer needs (supplied inline by Main at gate time; the read-only reviewer cannot fetch it).
+- **Required checks:** the verification commands the work must pass.
+- **Applicable overlays:** generated-code quality, language/framework best practice, security, performance — whichever the risk profile invokes.
 
 ## Phase 8: Constitutional Compliance Gate
 
@@ -364,6 +378,43 @@ If violations found:
 
 Violations resolved. Plan is compliant.
 ```
+
+## Phase 8A: Planning Review Gate
+
+After the plan passes Constitutional Compliance (Phase 8), and before the report, run a tier-gated read-only review of the *final compliant* plan. This complements the static pattern scan with a judgment layer: requirement→artifact→key link→task→verification traceability, slice quality, dependency consistency, failure/recovery/security paths, source citations, and abstraction necessity.
+
+Compute the **Effective Review Level** = `max(stored Discovery Level, stored Effective Review Level, current risk floor)` from the PLAN header.
+
+### Dispatch (exact)
+
+```typescript
+const result = await agents.run({
+  task: "Planning review for <slug>. Audit the final constitutionally compliant PLAN.md: spec coverage, observable-truth completeness, key-link risk, slice quality, dependency-wave consistency, failure/recovery/security paths, framework source citations, abstraction necessity. Return evidence-backed findings only. <inline sanitized packet: PLAN.md, applicable AGENTS.md/DECISIONS excerpts, effective level + rationale>",
+  name: "lifecycle-review-plan",
+  runner: "pi",
+  model: "openai-codex/gpt-5.6-sol",
+  thinking: "max",
+  extensions: false,
+  recursive: false,
+  tools: ["read", "grep", "find", "ls"],
+  worktree: false,
+});
+```
+
+Only `status === "completed"` is a completed review. Partial text from a failed/stopped/timed-out child is context only.
+
+### Finding semantics
+
+Each finding: `[Critical|High|Medium|Low][category] path:line` + violated authority + concrete failure scenario and cost + smallest correction + confidence + evidence status (`local | host-supplied | source-check-required`). No score, no quota; zero findings is valid. A clean review never certifies readiness. Main reopens every cited `path:line` (Worker Distrust); only Main's validated disposition blocks.
+
+### Tier behavior
+
+- **L0-1 (advisory):** non-blocking; child failure warns and proceeds.
+- **L2-3 (blocking):** Main cannot advance until every Critical/High finding is adjudicated. `source-check-required` stops acceptance until Main or a network-capable scout obtains authoritative evidence and the review is rerun.
+
+### Convergence
+
+Accepted findings may stale compliance. After an accepted finding: rerun Phase 8 Constitutional Compliance, then re-review at L2-3. Bound convergence to **two review-integration rounds**; escalate unresolved findings to the operator.
 
 ## Phase 9: Report
 

@@ -82,6 +82,17 @@ Ask: "How much codebase research do you need?" with these options:
 - **Minimal** — 1 explore worker: quick file scan (~30 sec)
 - **Skip** — I know the codebase, use existing knowledge
 
+This choice becomes the **Discovery Level** persisted in the PLAN (Phase 6):
+
+| Choice | Discovery Level |
+|---|---|
+| Skip | 0 |
+| Minimal | 1 |
+| Standard | 2 |
+| Deep | 3 |
+
+The Discovery Level feeds the tier-gated review gates (`/create` Phase 10A, `/plan` Phase 8A, `/ship`, `/verify`): L0-1 review is advisory; L2-3 review is blocking. Because `/plan` is optional, `/create` must persist the level so a slug that skips `/plan` still carries it into `/ship`/`/verify`.
+
 ## Phase 4: Gather Context
 
 Based on research depth choice, delegate read-only context gathering:
@@ -161,6 +172,27 @@ For simple, well-scoped work (bugs, small tasks):
 
 For features and complex work, use the full template and write it to the active feature's plan (`.pi/artifacts/<slug>/PLAN.md`).
 
+### Persisted Review Levels
+
+Every PLAN (Lite or Full) must carry both numeric levels near the top, so later gates (`/plan`, `/ship`, `/verify`) compute a deterministic effective level even when `/plan` is skipped:
+
+```markdown
+**Discovery Level:** N — rationale
+**Effective Review Level:** N — max(discovery, risk floor)
+```
+
+The **risk floor** is the minimum level the work's risk profile imposes, independent of research depth. Apply at least **L2** for: authentication or authorization; secrets, credentials, PII, or sensitive data; destructive actions; database/schema/persistence changes; concurrency or distributed state; public APIs or compatibility contracts; new dependencies or unfamiliar external APIs; cross-subsystem work. The Effective Review Level is `max(discovery, risk floor)`. Never default missing or malformed data to L0.
+
+## Review Profile
+
+The PLAN must include a `## Review Profile` section (Full PRD) or a brief review-notes block (Lite PRD) so the review gates have the context they need:
+
+- **Language and framework:** detected stack with exact manifest/lockfile versions.
+- **Local authorities:** applicable `AGENTS.md` rules, accepted DECISIONS, and PLAN requirements.
+- **Required source packet:** exact-version official material the reviewer needs (supplied inline by Main at gate time; the read-only reviewer cannot fetch it).
+- **Required checks:** the verification commands the work must pass.
+- **Applicable overlays:** generated-code quality, language/framework best practice, security, performance — whichever the risk profile invokes.
+
 ## Phase 7: Write PRD
 
 Copy and fill the PRD template (lite or full) using context from Phase 4.
@@ -221,6 +253,45 @@ Do not create branches, worktrees, or stashes from this command. Workspace readi
 ## Phase 10: Convert PRD to Tasks
 
 Convert the PRD into an executable task list in `.pi/artifacts/<slug>/TODO.md` (with `depends_on`, `parallel`, `conflicts_with`, and `files` metadata per task).
+
+## Phase 10A: Spec Review Gate
+
+After the PRD is validated (Phase 8) and converted to tasks (Phase 10), and before the report, run a tier-gated read-only review of the *final synchronized* `PLAN.md` + `TODO.md`. This reviews the artifacts as they will enter `/ship`, not an earlier draft.
+
+Compute the **Effective Review Level** = `max(stored Discovery Level, stored Effective Review Level, current risk floor)` from the PLAN header.
+
+### Dispatch (exact)
+
+```typescript
+const result = await agents.run({
+  task: "Spec review for <slug>. Audit the final validated PLAN.md and TODO.md: scope clarity, observable-truth completeness, ambiguous non-goals, open questions that block /plan, task-to-criterion traceability, versioned source obligations in the Review Profile. Return evidence-backed findings only. <inline sanitized packet: PLAN.md, TODO.md, applicable AGENTS.md/DECISIONS excerpts, effective level + rationale>",
+  name: "lifecycle-review-create",
+  runner: "pi",
+  model: "openai-codex/gpt-5.6-sol",
+  thinking: "max",
+  extensions: false,
+  recursive: false,
+  tools: ["read", "grep", "find", "ls"],
+  worktree: false,
+});
+```
+
+Only `status === "completed"` is a completed review. Partial text from a failed/stopped/timed-out child is context only.
+
+### Finding semantics
+
+Each finding: `[Critical|High|Medium|Low][category] path:line` + violated authority + concrete failure scenario and cost + smallest correction + confidence + evidence status (`local | host-supplied | source-check-required`). No overall score, no quota; zero findings is valid. A clean review never certifies readiness.
+
+Main reopens every cited `path:line` and reproduces the reasoning before accepting (Worker Distrust). Only Main's validated disposition blocks or proceeds. Critical/High independently validated defects block at every level.
+
+### Tier behavior
+
+- **L0-1 (advisory):** reviewer completion is not a phase precondition. A child failure warns and proceeds. Existing hard safety/correctness rules still apply to validated Critical/High findings.
+- **L2-3 (blocking):** Main cannot advance to the report until the review is tied to current artifacts and every Critical/High finding is adjudicated (resolved, disproved with evidence, or explicitly accepted with rationale). A timeout or unavailable reviewer blocks unless the operator overrides.
+
+### Convergence
+
+Accepted findings may stale the validation or TODO conversion. After an accepted finding: regenerate TODO as necessary, rerun Phase 8 validation, then re-review at L2-3. Bound convergence to **two review-integration rounds**; if unresolved findings remain after two rounds, escalate to the operator with the accumulated findings.
 
 ## Phase 11: Report
 
