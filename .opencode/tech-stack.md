@@ -58,6 +58,19 @@ versions, source excerpts); children return evidence-backed findings only and ne
 own authority (Worker Distrust). Supersedes ADR-008's no-consultation clause only; the single
 supervisor, no mailbox panel, and no standalone `/gate` remain.
 
+**Proactive supervisor (ADR-012):** the advisory supervisor is extended from reactive-only to
+reactive + boundary-proactive via an explicit blocking handshake at the `/create`/`/plan`/
+`/research`/`/ship` boundaries (not `/verify`). The supervisor steers DIRECTION/STRATEGY as the
+opener for the next phase; the ADR-011 review gate is the closer (audits bytes). Research is
+Main-mediated on the `proactive-supervisor/v1` protocol: the supervisor is `extensions:false`
+and cannot spawn, so Main runs one read-only `agents.run` on `openai-codex/gpt-5.4-mini`
+(`extensions:false`, `recursive:false`, `read/grep/find/ls`, `worktree:false`) and feeds the
+result back via `agents.ask`. Direct protocol responses use `action:"silent"` (payload in
+`data`); `action:"message"` is reserved for ambient reactive steering. Advisory always —
+independently validated Critical/High defects retain their existing blocking semantics under
+Main. Supersedes ADR-008's "steers ONLY on drift" clause only; the ABSOLUTE never-dispatches,
+single supervisor, no mailbox panel, and no standalone `/gate` remain.
+
 **Extension split (load-bearing):** `extensions:false` makes Fabric pass Pi `--no-extensions`,
 which fails to resolve the Makora provider. GPT council and read-only children use
 `extensions:false`; Makora implementation workers MUST use `extensions:true` + `thinking:"max"`

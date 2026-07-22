@@ -41,8 +41,10 @@ milestone-3 + milestone-4 static suites); runtime enforcement pending bootstrap.
 
 Authority, routing, topology, and the council contract live in `AGENTS.md`; trade-offs
 in `.pi/artifacts/pi-template/DECISIONS.md`. Summary only — do not edit here for authority:
-- Single advisory supervisor (ambient; steers on drift; stays silent otherwise). The earlier
-  advisor + gate design was dropped as redundant (ADR-008).
+- Single advisory supervisor (ambient; steers on drift reactively per ADR-008, and
+  proactively at lifecycle boundaries via the `proactive-supervisor/v1` handshake per
+  ADR-012; Main-mediated read-only research on `openai-codex/gpt-5.4-mini`; stays silent
+  otherwise). The earlier advisor + gate design was dropped as redundant (ADR-008).
 - 1 Makora worker/session; `extensions:true`; GPT read-only `extensions:false`.
 - Markdown lifecycle artifacts; no kernel/schemas/manifests/receipts/CAS board.
 - No `.pi/config.json`; dispatch params are per-call.
@@ -77,5 +79,6 @@ in `.pi/artifacts/pi-template/DECISIONS.md`. Summary only — do not edit here f
   preservation 6/6; completion-authority split; no .active/latest; prd graph A:2/B:3/C:3);
   `git diff --check` exit=0; local HEAD = remote main = remote master = `bc4ae6a`.
 - Runtime child-spawn + prompt-discovery smoke pending `/trust` + restart.
-- Lifecycle review gates (ADR-011): milestone-5 + prewalk-extension shipped; lifecycle-review-gates A1-C2 implementation done, C3 static verify pending.
+- Lifecycle review gates (ADR-011): shipped, verified, pushed (HEAD dd0bf96).
+- Proactive supervisor (ADR-012): implementation done — boundary-proactive handshake in /create//plan//research//ship + Main-mediated read-only research on gpt-5.4-mini; A2-C2 implementation done, C3 static verify pending.
 - Per-artifact commit+push standing policy active.

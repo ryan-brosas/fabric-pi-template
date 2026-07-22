@@ -41,9 +41,11 @@ Each milestone is independently verifiable. Authority/topology decisions are rec
    actor per `AGENTS.md` (ambient supervisor; custom instructions, never self-stops). Create/
    reconcile via `.pi/prompts/supervise.md` (done — static). The earlier security/architecture
    advisor + gate design was dropped as redundant (ADR-008).
-   - Acceptance: re-running setup reuses the ID; resume restores the actor with correct
-     immutable fields; a second session gets a distinct ID; the supervisor steers on drift
-     and stays silent otherwise.
+    - Acceptance: re-running setup reuses the ID; resume restores the actor with correct
+      immutable fields; a second session gets a distinct ID; the supervisor steers on drift
+      (reactive, ADR-008) and proactively at lifecycle boundaries via the explicit
+      `proactive-supervisor/v1` handshake (ADR-012), with Main-mediated read-only research on
+      `openai-codex/gpt-5.4-mini`; stays silent otherwise.
 3. **Lifecycle prompts** — Main-owned prompts under `.pi/prompts/` porting **all nine**
    `.opencode/command/*.md` bodies (`audit`, `create`, `fix`, `gc`, `init`, `plan`,
    `research`, `ship`, `verify`): take all of each body, strip only OpenCode-only syntax,
