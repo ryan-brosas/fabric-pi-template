@@ -12,7 +12,7 @@ supervisor/worker topology that other repositories can adopt.
 
 - **Pi coding agent:** `@earendil-works/pi-coding-agent` 0.81.1
   (installed host; `~/.local/lib/node_modules/@earendil-works/pi-coding-agent`)
-- **Fabric:** `pi-fabric` 0.22.4 (`~/.pi/agent/npm/node_modules/pi-fabric`)
+- **Fabric:** `pi-fabric` 0.23.0 (`~/.pi/agent/npm/node_modules/pi-fabric`)
   - Requires Node `>=24` and Pi `>=0.80.6` (peer deps satisfied)
   - Provides: one-shot agents, persistent actors, steering, mesh, worktree isolation, budgets
   - Compaction is deterministic and LLM-free (`compaction.engine: "fabric"`) — no model tier
@@ -21,7 +21,7 @@ supervisor/worker topology that other repositories can adopt.
 
 ## Model Tiers
 
-There is **no `.pi/config.json`** — neither Pi 0.81.1 nor Fabric 0.22.4 reads it. Main defaults
+There is **no `.pi/config.json`** — neither Pi 0.81.1 nor Fabric 0.23.0 reads it. Main defaults
 live in `.pi/settings.json`; child defaults in `.pi/fabric.json`; every dispatch passes exact
 `runner`/`model`/`thinking`/`tools`/`extensions` at the call site.
 
@@ -32,6 +32,20 @@ live in `.pi/settings.json`; child defaults in `.pi/fabric.json`; every dispatch
 | Read-only gatherers | `explore`, `scout` | `openai-codex/gpt-5.4-mini` | supported max | `false` |
 | Writable pool (1 per session) | `implement` / general edits | `makora/zai-org/GLM-5.2-NVFP4` | max | **`true`** |
 | Advisory supervisor | ambient supervisor; read-only | `openai-codex/gpt-5.6-sol` | max | `false` |
+
+**Main full code mode + prewalk handoff:** `fullCodeMode:true` (Main authors `fabric_exec`
+programs for file work; Pi core tools move behind `pi.*` inside `fabric_exec`, isolated to
+Main — children and the supervisor use their own allowed tools directly). The **prewalk
+lane** routes novel/multi-file M–L work through a Main-authored `fabric_exec` program on
+GPT-5.6 Sol that performs the first real mutation, then hands the trajectory off to the
+Makora executor via explicit
+`agents.handoff({model:"makora/zai-org/GLM-5.2-NVFP4", extensions:true,
+tools:["read","grep","find","ls","edit","write"], thinking:"max"})` — trajectory-preserving
+(Fabric forks the finalized `fabric_exec` call/result), coarser than literal one-edit
+Stencil/OMP, ADR-009 per-call preserved (see ADR-010). Direct Makora `agents.run` remains the
+S/single-file mechanical lane; both share the one-writable-run ceiling, no silent fallback.
+`prewalk.model` is left unset (`prewalk:{}`) — the executor model is explicit per call, not
+inferred from `prewalk.model`.
 
 **Extension split (load-bearing):** `extensions:false` makes Fabric pass Pi `--no-extensions`,
 which fails to resolve the Makora provider. GPT council and read-only children use
