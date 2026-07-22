@@ -28,7 +28,7 @@ rg_neg() {
 	local path="$2"
 	local label="${3:-negative check}"
 	local rc=0
-	rg -n "$pattern" "$path" >/dev/null 2>&1 || rc=$?
+	rg -n -e "$pattern" "$path" >/dev/null 2>&1 || rc=$?
 	if [ "$rc" -eq 0 ]; then
 		fail "$label: forbidden match found"
 	elif [ "$rc" -eq 1 ]; then
@@ -39,7 +39,7 @@ rg_neg() {
 }
 
 # --- 1. Plugin isolation: no cross-plugin imports ---
-echo "[Check 1/7] Plugin isolation — no cross-plugin imports..."
+echo "[Check 1/8] Plugin isolation — no cross-plugin imports..."
 
 PLUGIN_DIR="$ROOT/.opencode/plugin"
 PLUGINS=()
@@ -60,7 +60,7 @@ done
 pass "No cross-plugin imports detected"
 
 # --- 2. SDK boundary: SDK doesn't import from plugin/ ---
-echo "[Check 2/7] SDK boundary — SDK has no plugin dependencies..."
+echo "[Check 2/8] SDK boundary — SDK has no plugin dependencies..."
 
 if [ -d "$PLUGIN_DIR/sdk" ]; then
 	SDK_FILES=$(find "$PLUGIN_DIR/sdk" -name "*.ts" 2>/dev/null)
@@ -75,7 +75,7 @@ fi
 pass "SDK boundary intact"
 
 # --- 3. File size limits ---
-echo "[Check 3/7] File size limits..."
+echo "[Check 3/8] File size limits..."
 
 check_size() {
 	local path="$1"
@@ -111,7 +111,7 @@ done
 pass "All files within size limits"
 
 # --- 4. No TODO/FIXME without owner ---
-echo "[Check 4/7] TODO/FIXME hygiene..."
+echo "[Check 4/8] TODO/FIXME hygiene..."
 
 BAD_TODO=$(grep -rn "TODO\|FIXME" "$ROOT/.opencode/plugin/"*.ts 2>/dev/null | grep -v "//.*owner:" || true)
 if [ -n "$BAD_TODO" ]; then
@@ -121,7 +121,7 @@ fi
 pass "TODO hygiene acceptable"
 
 # --- 5. Consistent naming: kebab-case filenames (basename only) ---
-echo "[Check 5/7] Filename convention..."
+echo "[Check 5/8] Filename convention..."
 
 BAD_NAMES=$(find "$ROOT/.opencode/plugin" "$ROOT/.opencode/tool" -name "*.ts" -o -name "*.sh" 2>/dev/null | grep -v node_modules | while IFS= read -r f; do
 	bn=$(basename "$f")
@@ -135,7 +135,7 @@ fi
 pass "Filename convention OK"
 
 # --- 6. Remediator: if this check fails, instructions are below ---
-echo "[Check 6/7] Remediation readiness..."
+echo "[Check 6/8] Remediation readiness..."
 
 # Ensure fallow is available (offline: probe an installed binary only; never
 # install, cache, or contact a registry from this checker).
@@ -146,7 +146,7 @@ else
 fi
 
 # --- 7. /create contract (Pi-native init: both modes + packet gate) ---
-echo "[Check 7/7] /create contract — both modes, packet gate, source bounds, provenance..."
+echo "[Check 7/8] /create contract — both modes, packet gate, source bounds, provenance..."
 
 CREATE="$ROOT/.pi/prompts/create.md"
 
@@ -219,6 +219,130 @@ else
 		pass "create.md: slug-first guard preserved"
 	else
 		fail "create.md: slug-first guard lost"
+	fi
+fi
+
+# --- 8. /init contract (Pi-native init: compiler, refresh, six-file packet, boilerplate, crash-safe) ---
+echo "[Check 8/8] /init contract — compiler, refresh, packet, boilerplate, crash-safe..."
+
+INIT="$ROOT/.pi/prompts/init.md"
+
+if [ ! -f "$INIT" ]; then
+	fail "init.md missing"
+else
+	# New flags: --from and --refresh (RED until P4.2)
+	if rg -q -- '--from' "$INIT" && rg -q -- '--refresh' "$INIT"; then
+		pass "init.md: --from and --refresh grammar present"
+	else
+		fail "init.md: missing --from/--refresh grammar"
+	fi
+
+	# Removed modes: --context/--user/--all absent (RED until P4.2)
+	rg_neg '--context|--user|--all' "$INIT" "init.md: old modes (--context/--user/--all) absent"
+
+	# Six-file packet: AGENTS.md + .pi/{tech-stack,ROADMAP,state,user,memory}.md (RED until P4.2)
+	if rg -q 'AGENTS\.md' "$INIT" && rg -q '\.pi/tech-stack\.md' "$INIT" && rg -q '\.pi/ROADMAP\.md' "$INIT" && rg -q '\.pi/state\.md' "$INIT" && rg -q '\.pi/user\.md' "$INIT" && rg -q '\.pi/memory\.md' "$INIT"; then
+		pass "init.md: full six-file packet referenced"
+	else
+		fail "init.md: missing one or more of the six packet files"
+	fi
+
+	# No line cap: old <60/max 150 cap removed (RED until P4.2)
+	rg_neg '<60 lines|max 150' "$INIT" "init.md: old AGENTS line cap absent"
+
+	# Managed boilerplate markers (RED until P4.2)
+	if rg -q 'pi:init:boilerplate:start' "$INIT" && rg -q 'pi:init:boilerplate:end' "$INIT"; then
+		pass "init.md: managed boilerplate markers present"
+	else
+		fail "init.md: missing managed boilerplate markers"
+	fi
+
+	# Byte-identical boilerplate: init.md interior == fixture (RED until P4.2)
+	BOILERPLATE="$ROOT/.opencode/artifacts/pi-native-init/boilerplate.md"
+	if [ -f "$BOILERPLATE" ] && node -e 'const fs=require("node:fs");const a="<!-- pi:init:boilerplate:start -->",b="<!-- pi:init:boilerplate:end -->";const x=p=>{const s=fs.readFileSync(p,"utf8"),i=s.indexOf(a),j=s.indexOf(b,i+a.length);if(i<0||j<0)throw Error("markers");return Buffer.from(s.slice(i+a.length,j));};if(!x(process.argv[1]).equals(x(process.argv[2])))throw Error("drift")' "$INIT" "$BOILERPLATE" 2>/dev/null; then
+		pass "init.md: boilerplate interior byte-identical to fixture"
+	else
+		fail "init.md: boilerplate interior drifts from fixture (or markers missing)"
+	fi
+
+	# Old .opencode output paths absent (RED until P4.2)
+	rg_neg '\.opencode/(tech-stack|roadmap|state|user)\.md' "$INIT" "init.md: old .opencode output paths absent"
+
+	# Readiness outcomes: READY/PARTIAL/BLOCKED (RED until P4.2)
+	if rg -q 'READY' "$INIT" && rg -q 'PARTIAL' "$INIT" && rg -q 'BLOCKED' "$INIT"; then
+		pass "init.md: READY/PARTIAL/BLOCKED readiness outcomes present"
+	else
+		fail "init.md: missing readiness outcomes (READY/PARTIAL/BLOCKED)"
+	fi
+
+	# State schema v1 + reload barrier (RED until P4.2)
+	if rg -q 'schema_version: 1' "$INIT" && rg -q 'context_reload_required' "$INIT"; then
+		pass "init.md: state schema v1 + reload barrier present"
+	else
+		fail "init.md: missing state schema v1 or reload barrier"
+	fi
+
+	# Crash-safe refresh: partial before mutation, ready last (RED until P4.2)
+	if rg -qi 'partial.*before|before.*mutat' "$INIT" && rg -qi 'ready.*last|last.*ready' "$INIT"; then
+		pass "init.md: crash-safe refresh ordering declared"
+	else
+		fail "init.md: missing crash-safe refresh ordering (partial-before-mutation, ready-last)"
+	fi
+
+	# Source bounds (RED until P4.2)
+	if rg -q '1,048,576' "$INIT" && rg -q '65,536' "$INIT"; then
+		pass "init.md: source size bounds present"
+	else
+		fail "init.md: missing source size bounds (1,048,576 / 65,536)"
+	fi
+
+	# Provenance + untrusted source (RED until P4.2)
+	if rg -q -i 'provenance' "$INIT" && rg -q -i 'sha256' "$INIT" && rg -q -i 'untrusted' "$INIT"; then
+		pass "init.md: provenance + untrusted-source declared"
+	else
+		fail "init.md: missing provenance or untrusted-source declaration"
+	fi
+
+	# Monotonic roadmap-ID (RED until P4.2)
+	if rg -q 'last_issued_id' "$INIT"; then
+		pass "init.md: monotonic roadmap-ID (last_issued_id) present"
+	else
+		fail "init.md: missing monotonic roadmap-ID (last_issued_id)"
+	fi
+
+	# Reload barrier: /reload present (RED until P4.2)
+	if rg -q -- '/reload' "$INIT"; then
+		pass "init.md: /reload reload barrier present"
+	else
+		fail "init.md: missing /reload reload barrier"
+	fi
+
+	# Input/appendix drift detection (RED until P4.2)
+	if rg -qi 'drift' "$INIT" && rg -qi 're-read|re-hash|revalidat' "$INIT"; then
+		pass "init.md: input/appendix drift detection declared"
+	else
+		fail "init.md: missing drift detection (re-read/re-hash before mutation)"
+	fi
+
+	# Preserved: --deep retained (GREEN)
+	if rg -q -- '--deep' "$INIT"; then
+		pass "init.md: --deep flag retained"
+	else
+		fail "init.md: --deep flag lost"
+	fi
+
+	# Preserved: $ARGUMENTS title convention (GREEN)
+	if rg -q '\$ARGUMENTS' "$INIT"; then
+		pass "init.md: \$ARGUMENTS template convention retained"
+	else
+		fail "init.md: \$ARGUMENTS template convention lost"
+	fi
+
+	# Preserved: validate commands actually work (GREEN)
+	if rg -qi 'validate.*actually works|actually works.*validate|validate each' "$INIT"; then
+		pass "init.md: command validation behavior retained"
+	else
+		fail "init.md: command validation behavior lost"
 	fi
 fi
 
