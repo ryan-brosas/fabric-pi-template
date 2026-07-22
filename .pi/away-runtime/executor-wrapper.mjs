@@ -189,7 +189,7 @@ function sendToFabric(msg) {
 function failWrapper(reason) {
   sendToFabric({
     type: "result",
-    result: { terminationReason: "runtime_error", error: `executor-wrapper: ${reason}` },
+    result: { terminationReason: "runtime_error", error: `executor-wrapper: ${reason}`, logs: [] },
   });
   // Ref'd timer: keep the process alive so the ipc message flushes, then exit
   // non-zero. An unref'd timer would let the process exit 0 before firing once
@@ -223,7 +223,17 @@ async function main() {
   }
 
   const { manifest, lane, allowlist } = loadLaneProfile(manifestPath, laneId);
-  const realNode = process.execPath; // inside this wrapper = the real node binary
+  // The launcher pins process.execPath to THIS wrapper via a NODE_OPTIONS --import
+  // preload before Fabric boots. NODE_OPTIONS is inherited by child node processes,
+  // so the preload re-runs inside this wrapper and re-pins process.execPath to the
+  // wrapper path — NOT the real node. process.argv[0] is the real node binary that
+  // executed the shebang (the preload does not touch argv), so it is the
+  // authoritative real-node source. (Without a preload, argv[0] === execPath anyway.)
+  let realNode = process.argv[0];
+  if (typeof realNode !== "string" || realNode.length === 0) realNode = process.execPath;
+  try {
+    realNode = fs.realpathSync(realNode);
+  } catch {}
   let libs;
   try {
     libs = lddResolve(realNode);
@@ -385,7 +395,7 @@ async function main() {
           fsynced: true,
         });
       }
-      sendToFabric({ type: "result", result });
+      sendToFabric({ type: "result", result: { ...result, logs: result.logs ?? [] } });
     }
     try {
       process.disconnect();

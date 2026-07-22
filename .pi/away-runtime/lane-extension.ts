@@ -60,7 +60,12 @@ export interface RegisteredTool {
   description: string;
   /** JSON-Schema-ish parameter shape (execute does the real validation). */
   parameters: object;
-  execute: (params: Record<string, unknown>, signal?: AbortSignal) => Promise<ToolResult>;
+  /** pi.registerTool passes (toolCallId, params, signal, onUpdate, ctx); only params is used. */
+  execute: (
+    toolCallId: string,
+    params: Record<string, unknown>,
+    signal?: AbortSignal,
+  ) => Promise<ToolResult>;
 }
 
 export interface ExtensionState {
@@ -119,7 +124,7 @@ function makeAwayRead(ctx: LaneExtensionContext, manifest: Manifest): Registered
       required: ["path"],
       additionalProperties: false,
     },
-    async execute(params) {
+    async execute(_toolCallId, params) {
       validateParams(params, new Set(["path"]));
       const p = requireString(params, "path");
       const sv = resolveSourceView(
@@ -146,7 +151,7 @@ function makeAwayList(ctx: LaneExtensionContext, manifest: Manifest): Registered
       properties: { path: { type: "string" } },
       additionalProperties: false,
     },
-    async execute(params) {
+    async execute(_toolCallId, params) {
       validateParams(params, new Set(["path"]));
       const p = typeof params.path === "string" && params.path.length > 0 ? params.path : ".";
       const sv = resolveSourceView(
@@ -174,7 +179,7 @@ function makeAwaySearch(ctx: LaneExtensionContext, manifest: Manifest): Register
       required: ["pattern"],
       additionalProperties: false,
     },
-    async execute(params) {
+    async execute(_toolCallId, params) {
       validateParams(params, new Set(["pattern", "path"]));
       const pattern = requireString(params, "pattern");
       const rootRel = typeof params.path === "string" && params.path.length > 0 ? params.path : ".";
@@ -255,7 +260,7 @@ function makeAwayStageWrite(
       required: ["path", "content"],
       additionalProperties: false,
     },
-    async execute(params) {
+    async execute(_toolCallId, params) {
       validateParams(params, new Set(["path", "content"]));
       const rel = requireString(params, "path");
       const content = requireString(params, "content");
@@ -293,7 +298,7 @@ function makeAwayCommitStaged(
       required: ["path"],
       additionalProperties: false,
     },
-    async execute(params) {
+    async execute(_toolCallId, params) {
       validateParams(params, new Set(["path"]));
       const rel = requireString(params, "path");
       rejectIfProtected(rel, manifest);
@@ -322,7 +327,7 @@ function makeAwayDiscardStaged(
       required: ["path"],
       additionalProperties: false,
     },
-    async execute(params) {
+    async execute(_toolCallId, params) {
       validateParams(params, new Set(["path"]));
       const rel = requireString(params, "path");
       const reservation = reservations.get(rel);
@@ -349,7 +354,7 @@ function makeAwayRunVerify(ctx: LaneExtensionContext): RegisteredTool {
       required: ["commandId"],
       additionalProperties: false,
     },
-    async execute(params) {
+    async execute(_toolCallId, params) {
       validateParams(params, new Set(["commandId"]));
       const commandId = requireString(params, "commandId");
       if (ctx.commandCatalog && !ctx.commandCatalog.has(commandId)) {
@@ -384,7 +389,7 @@ function makeAwayAttest(
       required: ["outcome"],
       additionalProperties: false,
     },
-    async execute(params) {
+    async execute(_toolCallId, params) {
       validateParams(params, new Set(["outcome"]));
       const outcomeRaw = params.outcome;
       if (typeof outcomeRaw !== "string" || !OUTCOMES.has(outcomeRaw as LaneOutcome)) {

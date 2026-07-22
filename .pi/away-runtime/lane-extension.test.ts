@@ -117,7 +117,7 @@ async function callTool(
 ): Promise<ReturnType<ReturnType<typeof createLaneExtension>["tools"][number]["execute"]>> {
   const tool = state.tools.find((t) => t.name === name);
   if (!tool) throw new Error(`tool not registered: ${name}`);
-  return tool.execute(params);
+  return tool.execute("test", params);
 }
 
 async function rejects(p: Promise<unknown>, re: RegExp): Promise<void> {
