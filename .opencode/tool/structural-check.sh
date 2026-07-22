@@ -39,7 +39,7 @@ rg_neg() {
 }
 
 # --- 1. Plugin isolation: no cross-plugin imports ---
-echo "[Check 1/10] Plugin isolation — no cross-plugin imports..."
+echo "[Check 1/11] Plugin isolation — no cross-plugin imports..."
 
 PLUGIN_DIR="$ROOT/.opencode/plugin"
 PLUGINS=()
@@ -60,7 +60,7 @@ done
 pass "No cross-plugin imports detected"
 
 # --- 2. SDK boundary: SDK doesn't import from plugin/ ---
-echo "[Check 2/10] SDK boundary — SDK has no plugin dependencies..."
+echo "[Check 2/11] SDK boundary — SDK has no plugin dependencies..."
 
 if [ -d "$PLUGIN_DIR/sdk" ]; then
 	SDK_FILES=$(find "$PLUGIN_DIR/sdk" -name "*.ts" 2>/dev/null)
@@ -75,7 +75,7 @@ fi
 pass "SDK boundary intact"
 
 # --- 3. File size limits ---
-echo "[Check 3/10] File size limits..."
+echo "[Check 3/11] File size limits..."
 
 check_size() {
 	local path="$1"
@@ -111,7 +111,7 @@ done
 pass "All files within size limits"
 
 # --- 4. No TODO/FIXME without owner ---
-echo "[Check 4/10] TODO/FIXME hygiene..."
+echo "[Check 4/11] TODO/FIXME hygiene..."
 
 BAD_TODO=$(grep -rn "TODO\|FIXME" "$ROOT/.opencode/plugin/"*.ts 2>/dev/null | grep -v "//.*owner:" || true)
 if [ -n "$BAD_TODO" ]; then
@@ -121,7 +121,7 @@ fi
 pass "TODO hygiene acceptable"
 
 # --- 5. Consistent naming: kebab-case filenames (basename only) ---
-echo "[Check 5/10] Filename convention..."
+echo "[Check 5/11] Filename convention..."
 
 BAD_NAMES=$(find "$ROOT/.opencode/plugin" "$ROOT/.opencode/tool" -name "*.ts" -o -name "*.sh" 2>/dev/null | grep -v node_modules | while IFS= read -r f; do
 	bn=$(basename "$f")
@@ -135,7 +135,7 @@ fi
 pass "Filename convention OK"
 
 # --- 6. Remediator: if this check fails, instructions are below ---
-echo "[Check 6/10] Remediation readiness..."
+echo "[Check 6/11] Remediation readiness..."
 
 # Ensure fallow is available (offline: probe an installed binary only; never
 # install, cache, or contact a registry from this checker).
@@ -146,7 +146,7 @@ else
 fi
 
 # --- 7. /create contract (Pi-native init: both modes + packet gate) ---
-echo "[Check 7/10] /create contract — both modes, packet gate, source bounds, provenance..."
+echo "[Check 7/11] /create contract — both modes, packet gate, source bounds, provenance..."
 
 CREATE="$ROOT/.pi/prompts/create.md"
 
@@ -223,7 +223,7 @@ else
 fi
 
 # --- 8. /init contract (Pi-native init: compiler, refresh, six-file packet, boilerplate, crash-safe) ---
-echo "[Check 8/10] /init contract — compiler, refresh, packet, boilerplate, crash-safe..."
+echo "[Check 8/11] /init contract — compiler, refresh, packet, boilerplate, crash-safe..."
 
 INIT="$ROOT/.pi/prompts/init.md"
 
@@ -360,7 +360,7 @@ if(i<0||j<0){console.log("ERROR")}else{const nonBp=s.slice(0,i)+s.slice(j+b.leng
 fi
 
 # --- 9. Lifecycle consumer contract (Pi-native init: packet gate + .pi/memory.md) ---
-echo "[Check 9/10] Lifecycle consumer contract — packet gate, .pi/memory.md, old paths absent..."
+echo "[Check 9/11] Lifecycle consumer contract — packet gate, .pi/memory.md, old paths absent..."
 
 # Slugged commands: plan, research, ship, verify
 # Each must gate on a ready packet after slug validation, use .pi/memory.md, and drop old .opencode paths.
@@ -451,7 +451,7 @@ if [ -f "$DECISIONS" ]; then
 	fi
 fi
 
-echo "[Check 10/10] Runtime skills portability — no .opencode deps, no verify.log, /init first..."
+echo "[Check 10/11] Runtime skills portability — no .opencode deps, no verify.log, /init first..."
 SKILLS_DIR="$ROOT/.pi/skills"
 
 # RED: no .opencode/ runtime dependencies in any shipped skill
@@ -470,6 +470,108 @@ if [ -f "$DL" ]; then
 	fi
 else
 	fail "development-lifecycle/SKILL.md missing"
+fi
+
+# --- 11. Final packet structure (Pi-native init: six-file packet, schema v1, boilerplate identity) ---
+echo "[Check 11/11] Final packet structure — six files, schema v1, three-way boilerplate identity..."
+
+STATE="$ROOT/.pi/state.md"
+AGENTS="$ROOT/AGENTS.md"
+
+# Six-file packet all exist on disk
+PACKET_MISSING=0
+for f in "$ROOT/AGENTS.md" "$ROOT/.pi/tech-stack.md" "$ROOT/.pi/ROADMAP.md" "$ROOT/.pi/state.md" "$ROOT/.pi/user.md" "$ROOT/.pi/memory.md"; do
+	if [ ! -f "$f" ]; then
+		fail "packet file missing: $f"
+		PACKET_MISSING=1
+	fi
+done
+if [ "$PACKET_MISSING" -eq 0 ]; then
+	pass "all six packet files present"
+fi
+
+# state.md schema v1 fields present (value partial/ready is the operator gate, not asserted here)
+if [ -f "$STATE" ]; then
+	if rg -q '^schema_version: 1$' "$STATE" && rg -q '^initialization_status:' "$STATE" && rg -q '^context_reload_required:' "$STATE" && rg -q '^generation_id:' "$STATE" && rg -q '^updated_at:' "$STATE" && rg -q '^agents_boilerplate_sha256:' "$STATE"; then
+		pass "state.md: schema v1 fields present"
+	else
+		fail "state.md: missing one or more schema v1 fields"
+	fi
+else
+	fail "state.md missing"
+fi
+
+# state.md agents_boilerplate_sha256 VALUE matches the AGENTS managed interior
+if [ -f "$STATE" ] && [ -f "$AGENTS" ]; then
+	RECORDED=$(rg -o '^agents_boilerplate_sha256: ([0-9a-f]{64})' "$STATE" -r '$1' 2>/dev/null || echo "")
+	LIVE=$(node -e '
+	const fs=require("fs"),crypto=require("crypto");
+	const s=fs.readFileSync(process.argv[1],"utf8");
+	const a="<!-- pi:init:boilerplate:start -->",b="<!-- pi:init:boilerplate:end -->";
+	const i=s.indexOf(a),j=s.indexOf(b,i+a.length);
+	if(i<0||j<0){process.exit(2)}
+	console.log(crypto.createHash("sha256").update(Buffer.from(s.slice(i+a.length,j))).digest("hex"));
+	' "$AGENTS" 2>/dev/null || echo "")
+	if [ -n "$RECORDED" ] && [ "$RECORDED" = "$LIVE" ]; then
+		pass "state.md: agents_boilerplate_sha256 matches AGENTS managed interior"
+	else
+		fail "state.md: agents_boilerplate_sha256 ($RECORDED) != AGENTS managed interior ($LIVE)"
+	fi
+fi
+
+# ROADMAP.md grammar v1 frontmatter
+ROADMAP="$ROOT/.pi/ROADMAP.md"
+if [ -f "$ROADMAP" ]; then
+	if rg -q '^roadmap_schema_version: 1$' "$ROADMAP" && rg -q '^last_issued_id:' "$ROADMAP"; then
+		pass "ROADMAP.md: grammar v1 frontmatter present"
+	else
+		fail "ROADMAP.md: missing grammar v1 frontmatter (roadmap_schema_version / last_issued_id)"
+	fi
+else
+	fail "ROADMAP.md missing"
+fi
+
+# Three-way boilerplate byte-identity: AGENTS ↔ fixture ↔ init.md
+BOILERPLATE="$ROOT/.opencode/artifacts/pi-native-init/boilerplate.md"
+INIT_PROMPT="$ROOT/.pi/prompts/init.md"
+if [ -f "$BOILERPLATE" ] && [ -f "$INIT_PROMPT" ] && [ -f "$AGENTS" ]; then
+	THREEWAY=$(node -e '
+	const fs=require("node:fs");
+	const a="<!-- pi:init:boilerplate:start -->",b="<!-- pi:init:boilerplate:end -->";
+	const interior=p=>{const s=fs.readFileSync(p,"utf8"),i=s.indexOf(a),j=s.indexOf(b,i+a.length);if(i<0||j<0)throw Error("markers");return Buffer.from(s.slice(i+a.length,j));};
+	try{
+		const fa=interior(process.argv[1]),fb=interior(process.argv[2]),fc=interior(process.argv[3]);
+		if(fa.equals(fb)&&fb.equals(fc)){console.log("IDENTICAL")}else{console.log("DRIFT")}
+	}catch(e){console.log("ERROR")}
+	' "$AGENTS" "$BOILERPLATE" "$INIT_PROMPT" 2>/dev/null || echo "ERROR")
+	if [ "$THREEWAY" = "IDENTICAL" ]; then
+		pass "three-way boilerplate byte-identity (AGENTS ↔ fixture ↔ init.md)"
+	elif [ "$THREEWAY" = "DRIFT" ]; then
+		fail "three-way boilerplate drift detected"
+	else
+		fail "three-way boilerplate check errored (markers missing?)"
+	fi
+else
+	fail "boilerplate/fixture/init.md missing for three-way check"
+fi
+
+# away-sandbox manifest protects the init packet
+MANIFEST="$ROOT/.pi/away-sandbox.json"
+if [ -f "$MANIFEST" ]; then
+	MANIFEST_OK=$(node -e '
+	const fs=require("node:fs");
+	const m=JSON.parse(fs.readFileSync(process.argv[1],"utf8"));
+	const pp=m.protected_paths||[];
+	const need=[".pi/ROADMAP.md",".pi/user.md",".pi/tech-stack.md",".pi/state.md",".pi/memory.md","AGENTS.md"];
+	console.log(need.every(n=>pp.includes(n))?"OK":"MISSING");
+	' "$MANIFEST" 2>/dev/null || echo "ERROR")
+	if [ "$MANIFEST_OK" = "OK" ]; then
+		pass "away-sandbox.json: protected_paths cover the init packet"
+	else
+		fail "away-sandbox.json: protected_paths missing one or more init packet files"
+	fi
+else
+	fail "away-sandbox.json missing"
 fi
 
 echo ""

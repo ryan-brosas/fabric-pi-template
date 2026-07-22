@@ -4,7 +4,7 @@ initialization_status: partial
 context_reload_required: true
 generation_id: gen-2026-07-23-01
 updated_at: 2026-07-23
-agents_boilerplate_sha256: 6803a2a012ed2096c1107861400ed8db9c02a1c870d6a087bc6ea0b31438dd56
+agents_boilerplate_sha256: f03c114b4cf989e1fd713546e4b69ee0beb2e4776f71ee2920a051ae3f462df1
 ---
 
 # Initialization State
@@ -35,7 +35,7 @@ post-`/reload` refresh with no drift is required before promotion to `ready`.
 
 ## Boilerplate
 
-- `agents_boilerplate_sha256`: `6803a2a012ed2096c1107861400ed8db9c02a1c870d6a087bc6ea0b31438dd56`
+- `agents_boilerplate_sha256`: `f03c114b4cf989e1fd713546e4b69ee0beb2e4776f71ee2920a051ae3f462df1` (SHA-256 of the `AGENTS.md` managed interior, between markers)
 - Fixture: `.opencode/artifacts/pi-native-init/boilerplate.md`
 - Managed region: `AGENTS.md` between markers `<!-- pi:init:boilerplate:start -->` and
   `<!-- pi:init:boilerplate:end -->` (byte-identical to the fixture).
