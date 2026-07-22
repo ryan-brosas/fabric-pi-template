@@ -39,7 +39,7 @@ rg_neg() {
 }
 
 # --- 1. Plugin isolation: no cross-plugin imports ---
-echo "[Check 1/9] Plugin isolation — no cross-plugin imports..."
+echo "[Check 1/10] Plugin isolation — no cross-plugin imports..."
 
 PLUGIN_DIR="$ROOT/.opencode/plugin"
 PLUGINS=()
@@ -60,7 +60,7 @@ done
 pass "No cross-plugin imports detected"
 
 # --- 2. SDK boundary: SDK doesn't import from plugin/ ---
-echo "[Check 2/9] SDK boundary — SDK has no plugin dependencies..."
+echo "[Check 2/10] SDK boundary — SDK has no plugin dependencies..."
 
 if [ -d "$PLUGIN_DIR/sdk" ]; then
 	SDK_FILES=$(find "$PLUGIN_DIR/sdk" -name "*.ts" 2>/dev/null)
@@ -75,7 +75,7 @@ fi
 pass "SDK boundary intact"
 
 # --- 3. File size limits ---
-echo "[Check 3/9] File size limits..."
+echo "[Check 3/10] File size limits..."
 
 check_size() {
 	local path="$1"
@@ -111,7 +111,7 @@ done
 pass "All files within size limits"
 
 # --- 4. No TODO/FIXME without owner ---
-echo "[Check 4/9] TODO/FIXME hygiene..."
+echo "[Check 4/10] TODO/FIXME hygiene..."
 
 BAD_TODO=$(grep -rn "TODO\|FIXME" "$ROOT/.opencode/plugin/"*.ts 2>/dev/null | grep -v "//.*owner:" || true)
 if [ -n "$BAD_TODO" ]; then
@@ -121,7 +121,7 @@ fi
 pass "TODO hygiene acceptable"
 
 # --- 5. Consistent naming: kebab-case filenames (basename only) ---
-echo "[Check 5/9] Filename convention..."
+echo "[Check 5/10] Filename convention..."
 
 BAD_NAMES=$(find "$ROOT/.opencode/plugin" "$ROOT/.opencode/tool" -name "*.ts" -o -name "*.sh" 2>/dev/null | grep -v node_modules | while IFS= read -r f; do
 	bn=$(basename "$f")
@@ -135,7 +135,7 @@ fi
 pass "Filename convention OK"
 
 # --- 6. Remediator: if this check fails, instructions are below ---
-echo "[Check 6/9] Remediation readiness..."
+echo "[Check 6/10] Remediation readiness..."
 
 # Ensure fallow is available (offline: probe an installed binary only; never
 # install, cache, or contact a registry from this checker).
@@ -146,7 +146,7 @@ else
 fi
 
 # --- 7. /create contract (Pi-native init: both modes + packet gate) ---
-echo "[Check 7/9] /create contract — both modes, packet gate, source bounds, provenance..."
+echo "[Check 7/10] /create contract — both modes, packet gate, source bounds, provenance..."
 
 CREATE="$ROOT/.pi/prompts/create.md"
 
@@ -223,7 +223,7 @@ else
 fi
 
 # --- 8. /init contract (Pi-native init: compiler, refresh, six-file packet, boilerplate, crash-safe) ---
-echo "[Check 8/9] /init contract — compiler, refresh, packet, boilerplate, crash-safe..."
+echo "[Check 8/10] /init contract — compiler, refresh, packet, boilerplate, crash-safe..."
 
 INIT="$ROOT/.pi/prompts/init.md"
 
@@ -360,7 +360,7 @@ if(i<0||j<0){console.log("ERROR")}else{const nonBp=s.slice(0,i)+s.slice(j+b.leng
 fi
 
 # --- 9. Lifecycle consumer contract (Pi-native init: packet gate + .pi/memory.md) ---
-echo "[Check 9/9] Lifecycle consumer contract — packet gate, .pi/memory.md, old paths absent..."
+echo "[Check 9/10] Lifecycle consumer contract — packet gate, .pi/memory.md, old paths absent..."
 
 # Slugged commands: plan, research, ship, verify
 # Each must gate on a ready packet after slug validation, use .pi/memory.md, and drop old .opencode paths.
@@ -449,6 +449,27 @@ if [ -f "$DECISIONS" ]; then
 	else
 		fail "DECISIONS.md: ADR-007 historical text lost"
 	fi
+fi
+
+echo "[Check 10/10] Runtime skills portability — no .opencode deps, no verify.log, /init first..."
+SKILLS_DIR="$ROOT/.pi/skills"
+
+# RED: no .opencode/ runtime dependencies in any shipped skill
+rg_neg '\.opencode/' "$SKILLS_DIR" "skills: no .opencode/ runtime deps"
+
+# RED: no global verify.log references
+rg_neg 'verify\.log' "$SKILLS_DIR" "skills: no global verify.log references"
+
+# RED: development-lifecycle names /init first
+DL="$SKILLS_DIR/development-lifecycle/SKILL.md"
+if [ -f "$DL" ]; then
+	if rg -q '/init' "$DL"; then
+		pass "development-lifecycle: /init named"
+	else
+		fail "development-lifecycle: /init not named"
+	fi
+else
+	fail "development-lifecycle/SKILL.md missing"
 fi
 
 echo ""
