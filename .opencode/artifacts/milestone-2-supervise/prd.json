@@ -1,0 +1,97 @@
+{
+  "bead": "br-001",
+  "title": "Milestone 2 — .pi/prompts/supervise.md",
+  "slug": "milestone-2-supervise",
+  "created": "2026-07-22",
+  "status": "approved",
+  "depends_on": ["Milestone 1 — Pi project config"],
+  "blocks": ["Milestone 3 — gate.md", "Milestone 6 — smoke test"],
+  "affected_files": [".pi/prompts/supervise.md"],
+  "success_criteria": [
+    {
+      "criterion": "/supervise creates 3 actors with exact fields",
+      "verify": "agents.actors() lists supervisor, security-advisor, architecture-advisor with extensions:false, model openai-codex/gpt-5.6-sol, thinking max, tools read/grep/find/ls"
+    },
+    {
+      "criterion": "Re-running /supervise reuses IDs (idempotent)",
+      "verify": "capture IDs from first run; second run returns identical IDs with no agents.create calls"
+    },
+    {
+      "criterion": "Resume restores actors with correct immutable fields",
+      "verify": "fresh session /supervise resolves or recreates with canonical fields; no immutable drift"
+    },
+    {
+      "criterion": "Second concurrent session gets distinct IDs",
+      "verify": "two sessions' agents.actors() lists are disjoint by ID"
+    },
+    {
+      "criterion": "Supervisor instructions contain no self-stop directive",
+      "verify": "rg -n \"Goal verified complete|stop\" .pi/prompts/supervise.md returns no supervisor self-stop text"
+    },
+    {
+      "criterion": "Immutable-field mismatch fails closed (remove + recreate)",
+      "verify": "fault-inject wrong tools value; /supervise removes + recreates and reports remediation"
+    }
+  ],
+  "tasks": [
+    {
+      "title": "Author custom supervisor instruction text",
+      "category": "content",
+      "end_state": "Supervisor instructions written with no self-stop, no readiness certification, silent-by-default directive contract.",
+      "depends_on": [],
+      "parallel": false,
+      "conflicts_with": [],
+      "files": [".pi/prompts/supervise.md"],
+      "verification": [
+        "rg -n \"Goal verified complete\" .pi/prompts/supervise.md returns no matches in supervisor-instruction block",
+        "instruction block has action:\"silent\" default and forbids action:\"stop\""
+      ]
+    },
+    {
+      "title": "Author security + architecture advisor instruction text",
+      "category": "content",
+      "end_state": "Both advisor instructions written, mailbox-only, domain-scoped, no steer-direct, no stop.",
+      "depends_on": [],
+      "parallel": true,
+      "conflicts_with": [],
+      "files": [".pi/prompts/supervise.md"],
+      "verification": [
+        "both advisor blocks contain mailbox-only, stay silent outside your domain, never steer Main directly"
+      ]
+    },
+    {
+      "title": "Author the idempotent create-or-inspect algorithm",
+      "category": "logic",
+      "end_state": "Prompt contains resolve-by-name -> create-or-compare -> fail-closed-on-immutable-mismatch -> update-mutable flow using locally-resolved IDs only.",
+      "depends_on": [
+        "Author custom supervisor instruction text",
+        "Author security + architecture advisor instruction text"
+      ],
+      "parallel": false,
+      "conflicts_with": [],
+      "files": [".pi/prompts/supervise.md"],
+      "verification": [
+        "re-run /supervise reuses IDs (no duplicate agents.create)",
+        "fault-injected immutable mismatch -> remove + recreate reported, not silent reuse"
+      ]
+    },
+    {
+      "title": "Validate prompt frontmatter + auto-discovery",
+      "category": "verify",
+      "end_state": "File has description (+ optional argument-hint) frontmatter and no agent routing or pseudo-tool calls.",
+      "depends_on": ["Author the idempotent create-or-inspect algorithm"],
+      "parallel": false,
+      "conflicts_with": [],
+      "files": [".pi/prompts/supervise.md"],
+      "verification": [
+        "head -5 .pi/prompts/supervise.md shows description: frontmatter",
+        "rg -n \"agent:|task\\(|question\\(\" .pi/prompts/supervise.md returns no routing/pseudo-tool-call lines"
+      ]
+    }
+  ],
+  "open_questions": [
+    "Should /supervise accept an inspect-only mode (no create)?",
+    "Confirm worktree:false acceptable for read-only persistent actors (assumed yes)",
+    "Exact advisor instruction wording finalized at ship time (draft in spec)"
+  ]
+}
