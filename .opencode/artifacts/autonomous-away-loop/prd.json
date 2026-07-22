@@ -1,0 +1,416 @@
+{
+  "title": "Autonomous away loop — unattended Pi lifecycle with human-only merge",
+  "slug": "autonomous-away-loop",
+  "created": "2026-07-22",
+  "id": "aal-001",
+  "approach": "A Main-owned away controller under .pi/extensions/away/ holds an exclusive OS lease keyed by the Git common directory and persists versioned state outside repository bytes, driving real Pi lifecycle prompts through Pi RPC (pi --mode rpc, whose prompt command expands prompt templates — the only inspected mechanism that invokes real lifecycle prompts programmatically; Fabric Main sendUserMessage skips template expansion). The supervisor remains a read-only extensions:false senior-engineer adviser (ADR-012) that opens each phase (ranks ideas, scouts direction); ADR-011 review gates remain the closer at each boundary. The controller advances on agent_settled, derives the next phase itself (never trusting model-supplied phase names), and queues exactly one continuation. A host-owned hash-pinned Git/GitHub broker performs exact publication operations (retained worktree creation, exact-path stage/commit, exact feature-branch push, API-only PR create, deterministic poll, post-merge fast-forward sync); the controller emits validated intents only. Publication is bound to verified bytes: exact commit -> clean status -> push exact OID -> remote-OID check -> fresh final no-write /verify against clean HEAD -> API-only /pr (no repo write). /pr never merges, force-pushes, deletes branches/worktrees, or writes repo files; human-only merge is enforced via GitHub branch rules + required human review (prompt policy alone insufficient). Up to 3 path-disjoint PRs in retained (never auto-deleted) worktrees, exactly one active writer globally; multiple features may sit in PR_MONITOR concurrently (up to maxOpenPullRequests) while one new feature is authored. Roadmap-first ideation with outside-the-box project-grounded fallback; split local-explorer (no network) and external-scout (no filesystem) research children; Main-direct codex_search. ADR-014 (after ADR-013 mcp-research-lane settles) codifies the narrow grant and preserved invariants. BLOCKING open question: which exact pi-fabric 0.23.0 per-process mechanism supplies away-only write/execute/network grants without changing normal .pi/fabric.json (currently write/execute/network are deny and ApprovalController throws on deny) — Plan A1 is a feasibility tracer that must prove this before broader implementation; A1 failure is BLOCKED (a separate follow-up PRD scopes the OS-sandbox fallback, not a silent switch). Rejected: Fabric built-in worktrees (ephemeral, destructive cleanup), session-entry-only ownership (duplicate-root risk), unbounded self-improvement (bounded/threshold-gated/cooldown), and any .opencode runtime dependency.",
+  "blocks": [
+    "ADR-013 (mcp-research-lane) must settle first — its C1 is uncommitted (AGENTS.md + PLAN.md edits) and ADR-013 is not yet appended to DECISIONS.md (last ADR is ADR-012 at line 370); A1 verify asserts ADR-013 present + clean/synced HEAD",
+    "ADR-014 is next available (010=prewalk, 011=lifecycle-review-gates, 012=proactive-supervisor, 013=mcp-research-lane)",
+    "Human-only merge, always; never self-merge (enforced via GitHub branch rules, not prompt text alone)",
+    "No force-push, reset --hard, clean -fd, rm -rf, branch/worktree deletion, or arbitrary model-generated shell",
+    "No normal-session permission widening: a dedicated away-only grant is required, not a global .pi/fabric.json change (current write/execute/network are deny)",
+    "Supervisor stays extensions:false read-only advisory (ADR-012 preserved); away controller does not give it dispatch/write authority",
+    "Only one writable pipeline runs globally across Pi sessions; up to 3 path-disjoint PRs may remain open concurrently in PR_MONITOR",
+    "No .opencode runtime dependency (.opencode is dev-scaffold only; away runtime lives under .pi)",
+    "V1 PRs are independent and path-disjoint from origin/main; dependency-stacked branches deferred",
+    "BLOCKING: per-process Fabric write/execute/network grant mechanism in 0.23.0 must be proven before Plan A1 ships; A1 failure is BLOCKED, not a silent fallback",
+    "Post-merge main->master sync (C1) is gated on Open Question 3 (server-side vs broker-side); C1 implements it conditional on that resolution",
+    "Repair planning consumes only allowlisted bounded PR/CI status fields, never raw comments/logs (C2/C3 sanitization boundary)"
+  ],
+  "manifests": {
+    "write_paths": [
+      ".pi/extensions/away/index.ts",
+      ".pi/extensions/away/controller.ts",
+      ".pi/extensions/away/state.ts",
+      ".pi/extensions/away/rpc.ts",
+      ".pi/extensions/away/protocol.ts",
+      ".pi/extensions/away/git.ts",
+      ".pi/extensions/away/github.ts",
+      ".pi/extensions/away/ideation.ts",
+      ".pi/extensions/away/host.ts",
+      ".pi/extensions/away/host.test.ts",
+      ".pi/extensions/away/controller.test.ts",
+      ".pi/extensions/away/rpc.test.ts",
+      ".pi/extensions/away/git.test.ts",
+      ".pi/extensions/away/github.test.ts",
+      ".pi/extensions/away/ideation.test.ts",
+      ".pi/away.json",
+      ".pi/prompts/ideate.md",
+      ".pi/prompts/pr.md",
+      ".pi/prompts/create.md",
+      ".pi/prompts/plan.md",
+      ".pi/prompts/research.md",
+      ".pi/prompts/ship.md",
+      ".pi/prompts/verify.md",
+      ".pi/prompts/supervise.md",
+      ".pi/artifacts/pi-template/DECISIONS.md",
+      ".pi/artifacts/pi-template/PLAN.md",
+      "AGENTS.md",
+      ".opencode/tech-stack.md",
+      ".opencode/roadmap.md",
+      ".opencode/state.md",
+      ".opencode/artifacts/autonomous-away-loop/spec.md",
+      ".opencode/artifacts/autonomous-away-loop/prd.json",
+      ".opencode/artifacts/.active"
+    ],
+    "protected_source_paths": [
+      ".pi/fabric.json",
+      ".pi/settings.json",
+      ".opencode/command/audit.md",
+      ".opencode/command/create.md",
+      ".opencode/command/fix.md",
+      ".opencode/command/gc.md",
+      ".opencode/command/init.md",
+      ".opencode/command/plan.md",
+      ".opencode/command/research.md",
+      ".opencode/command/ship.md",
+      ".opencode/command/verify.md"
+    ],
+    "verified_paths": [
+      ".pi/extensions/away/index.ts",
+      ".pi/extensions/away/controller.ts",
+      ".pi/extensions/away/state.ts",
+      ".pi/extensions/away/rpc.ts",
+      ".pi/extensions/away/protocol.ts",
+      ".pi/extensions/away/git.ts",
+      ".pi/extensions/away/github.ts",
+      ".pi/extensions/away/ideation.ts",
+      ".pi/extensions/away/host.ts",
+      ".pi/extensions/away/host.test.ts",
+      ".pi/extensions/away/controller.test.ts",
+      ".pi/extensions/away/rpc.test.ts",
+      ".pi/extensions/away/git.test.ts",
+      ".pi/extensions/away/github.test.ts",
+      ".pi/extensions/away/ideation.test.ts",
+      ".pi/away.json",
+      ".pi/prompts/ideate.md",
+      ".pi/prompts/pr.md",
+      ".pi/prompts/create.md",
+      ".pi/prompts/plan.md",
+      ".pi/prompts/research.md",
+      ".pi/prompts/ship.md",
+      ".pi/prompts/verify.md",
+      ".pi/prompts/supervise.md",
+      ".pi/artifacts/pi-template/DECISIONS.md",
+      ".pi/artifacts/pi-template/PLAN.md",
+      "AGENTS.md",
+      ".opencode/tech-stack.md",
+      ".opencode/roadmap.md",
+      ".opencode/state.md",
+      ".opencode/artifacts/autonomous-away-loop/spec.md",
+      ".opencode/artifacts/autonomous-away-loop/prd.json"
+    ],
+    "baseline_oid": "TBD-capture-at-A1-after-ADR-013-settle-and-verify",
+    "runtime_protected_paths": [
+      ".pi/extensions/away/index.ts",
+      ".pi/extensions/away/controller.ts",
+      ".pi/extensions/away/state.ts",
+      ".pi/extensions/away/rpc.ts",
+      ".pi/extensions/away/protocol.ts",
+      ".pi/extensions/away/git.ts",
+      ".pi/extensions/away/github.ts",
+      ".pi/extensions/away/ideation.ts",
+      ".pi/extensions/away/host.ts",
+      ".pi/fabric.json",
+      ".pi/settings.json",
+      ".pi/prompts/verify.md",
+      ".pi/artifacts/pi-template/DECISIONS.md",
+      ".pi/artifacts/pi-template/PLAN.md",
+      "AGENTS.md",
+      ".opencode/command/audit.md",
+      ".opencode/command/create.md",
+      ".opencode/command/fix.md",
+      ".opencode/command/gc.md",
+      ".opencode/command/init.md",
+      ".opencode/command/plan.md",
+      ".opencode/command/research.md",
+      ".opencode/command/ship.md",
+      ".opencode/command/verify.md"
+    ],
+    "shared_serial_ownership": [
+      {
+        "path": ".pi/prompts/supervise.md",
+        "owners": ["proactive-supervisor-settled", "mcp-research-lane-settled", "B3"]
+      },
+      {
+        "path": ".pi/prompts/create.md",
+        "owners": [
+          "proactive-supervisor-settled",
+          "lifecycle-review-gates-settled",
+          "mcp-research-lane-settled",
+          "B1"
+        ]
+      },
+      {
+        "path": ".pi/prompts/plan.md",
+        "owners": [
+          "proactive-supervisor-settled",
+          "lifecycle-review-gates-settled",
+          "mcp-research-lane-settled",
+          "B1"
+        ]
+      },
+      {
+        "path": ".pi/prompts/research.md",
+        "owners": ["proactive-supervisor-settled", "mcp-research-lane-settled", "B1"]
+      },
+      {
+        "path": ".pi/prompts/ship.md",
+        "owners": [
+          "proactive-supervisor-settled",
+          "lifecycle-review-gates-settled",
+          "milestone-5-settled",
+          "mcp-research-lane-settled",
+          "B2"
+        ]
+      },
+      {
+        "path": ".pi/prompts/verify.md",
+        "owners": ["lifecycle-review-gates-settled", "B2"]
+      },
+      {
+        "path": ".pi/artifacts/pi-template/DECISIONS.md",
+        "owners": ["proactive-supervisor-settled", "mcp-research-lane-settled", "D2"]
+      },
+      {
+        "path": ".pi/artifacts/pi-template/PLAN.md",
+        "owners": [
+          "proactive-supervisor-settled",
+          "lifecycle-review-gates-settled",
+          "mcp-research-lane-settled",
+          "D2"
+        ]
+      },
+      {
+        "path": "AGENTS.md",
+        "owners": [
+          "proactive-supervisor-settled",
+          "lifecycle-review-gates-settled",
+          "mcp-research-lane-settled",
+          "D2"
+        ]
+      },
+      {
+        "path": ".opencode/tech-stack.md",
+        "owners": ["proactive-supervisor-settled", "mcp-research-lane-settled", "D3"]
+      },
+      {
+        "path": ".opencode/roadmap.md",
+        "owners": ["proactive-supervisor-settled", "mcp-research-lane-settled", "D3"]
+      },
+      {
+        "path": ".opencode/state.md",
+        "owners": ["proactive-supervisor-settled", "mcp-research-lane-settled", "D3"]
+      }
+    ]
+  },
+  "success_criteria": [
+    {
+      "criterion": "A1: /away preflight --dry-run proves away-only write/execute/network authority without modifying .pi/fabric.json or widening normal sessions; mutates neither repo bytes nor refs; ADR-013 prerequisite present and HEAD clean/synced; A1 failure is BLOCKED (no silent fallback)",
+      "verify": "rg -n '^## ADR-013: MCP research lane$' .pi/artifacts/pi-template/DECISIONS.md && test -z \"$(git status --porcelain)\" && node --experimental-strip-types --test .pi/extensions/away/host.test.ts && git diff --check"
+    },
+    {
+      "criterion": "A2: pure versioned state reducer with revision/nonce validation, external append-only ledger (state.ts), OS lease keyed by repo identity, one-writer + budget enforcement; restart replay does not repeat commit/push/PR",
+      "verify": "node --experimental-strip-types --test .pi/extensions/away/controller.test.ts && rg -n 'maxActiveWriters|maxOpenPullRequests' .pi/away.json"
+    },
+    {
+      "criterion": "A3: Pi RPC prompt expands real lifecycle templates; agent_settled observed; one continuation queued; restart resumes session; worker cannot get publication authority",
+      "verify": "node --experimental-strip-types --test .pi/extensions/away/rpc.test.ts && rg -n 'agent_settled|prompt' .pi/extensions/away/rpc.ts"
+    },
+    {
+      "criterion": "B1: create/plan/research receive away-mode envelope + deterministic defaults; reject existing/partial namespaces, human checkpoints, new deps, secrets, destructive/schema actions; manual behavior unchanged; ADR-011+012+013 markers + <slug> + forbidden-token cleanliness preserved (positive away-mode envelope marker present)",
+      "verify": "rg -n 'away-mode envelope' .pi/prompts/create.md .pi/prompts/plan.md .pi/prompts/research.md && rg -n '<slug>' .pi/prompts/create.md .pi/prompts/plan.md .pi/prompts/research.md && ! rg -n 'agent:|task\\(|question\\(|skill\\(|write\\(|\\.active|spec\\.md|prd\\.json|review-state\\.json' .pi/prompts/*.md && rg -n '^## Phase 10A: Spec Review Gate$|^## Phase 8A: Planning Review Gate$' .pi/prompts/create.md .pi/prompts/plan.md && git diff --check"
+    },
+    {
+      "criterion": "B2: ship/verify/pr prompts define the delivery contract (ship exact-commit + clean-status; verify strict transcript-only receipt; pr.md no-write, no merge/force/delete/reset); push-precedes-fingerprint ordering is implemented and tested in C1 (controller/git), not B2; pr.md exists as a new file",
+      "verify": "test -f .pi/prompts/pr.md && rg -n 'cannot declare' .pi/prompts/ship.md && rg -n 'sole.*verified|transcript only|no repository write' .pi/prompts/verify.md && rg -n 'no repository write|API-only' .pi/prompts/pr.md && ! rg -n 'gh pr merge|force.push|reset --hard|rm -rf|branch -D' .pi/prompts/pr.md && git diff --check"
+    },
+    {
+      "criterion": "B3: /supervise --away + /away status|pause|resume|stop; normal /supervise remains advisory-only; ADR-012 hard limits + proactive-supervisor/v1 preserved",
+      "verify": "rg -n '\\-\\-away' .pi/prompts/supervise.md && rg -n 'never dispatch|never edit|never certify' .pi/prompts/supervise.md && rg -n 'proactive-supervisor/v1' .pi/prompts/supervise.md && git diff --check"
+    },
+    {
+      "criterion": "C1: exact-argv Git broker (retained worktree, exact-path stage/commit, exact ref push, post-merge ff-sync gated on sync-policy resolution); push-precedes-fingerprint ordering implemented + tested here; no reset --hard/clean -fd/rm -rf/force-push/branch -D; worktrees never auto-deleted",
+      "verify": "node --experimental-strip-types --test .pi/extensions/away/git.test.ts && ! rg -n 'reset --hard|clean -fd|rm -rf|force.push|branch -D' .pi/extensions/away/git.ts && rg -n 'PUSH_EXACT_HEAD|FINAL_VERIFY|push.*before.*verif' .pi/extensions/away/controller.ts"
+    },
+    {
+      "criterion": "C2: API-only GitHub PR create (not gh pr create implicit push); require repo identity + base=main + remote head==verified head + branch rules + no mismatched PR; deterministic poll without model turns; PR URL in external state only; repair consumes only allowlisted bounded status fields, never raw comments/logs (sanitization boundary); broker performs no merge operation",
+      "verify": "node --experimental-strip-types --test .pi/extensions/away/github.test.ts && ! rg -n 'gh pr merge|gh merge|PUT .*merge|reset --hard|force.push|branch -D|rm -rf' .pi/extensions/away/github.ts && rg -n 'sanit|allowlist|bounded.*status' .pi/extensions/away/github.ts"
+    },
+    {
+      "criterion": "C3: max 3 open PRs, one active writer, path reservation + overlap rejection, max 2 repair cycles, BLOCKED on closed-unmerged/changed-head/conflict/TTL, human merge -> sync + release + next ideation; multiple features may sit in PR_MONITOR concurrently up to maxOpenPullRequests",
+      "verify": "node --experimental-strip-types --test .pi/extensions/away/controller.test.ts && rg -n 'maxOpenPullRequests|maxActiveWriters|maxVerifyRepairCycles' .pi/away.json"
+    },
+    {
+      "criterion": "D1: roadmap-first ideation with sole canonical .pi/ROADMAP.md (ADR-016 v1 grammar: roadmap_schema_version: 1, monotonic last_issued_id, immutable RM-NNN; eligibility Ready + away-ok + no open decisions); protected/self-modifying paths (runtime_protected_paths, incl. init packet: managed AGENTS.md region + .pi/{ROADMAP,user,tech-stack,state,memory}.md) rejected; ideation reads .pi/ROADMAP.md read-only and never mutates it; feature creation uses source-backed /create <slug> --from .pi/ROADMAP.md#RM-NNN; open-PR path collisions rejected; local explorers no network, external scouts no filesystem; no candidate -> cooldown",
+      "verify": "node --experimental-strip-types --test .pi/extensions/away/ideation.test.ts && rg -n 'roadmap' .pi/prompts/ideate.md && rg -n 'local|filesystem|network' .pi/extensions/away/ideation.ts"
+    },
+    {
+      "criterion": "D2: ADR-014 codifies narrow grant + preserves each invariant separately: human-only merge, Main sole integrator, supervisor advisory, /verify authority, one active writer, no normal-session permission widening",
+      "verify": "rg -n '^## ADR-014: Autonomous away lifecycle$' .pi/artifacts/pi-template/DECISIONS.md && rg -n 'human.only.merge' .pi/artifacts/pi-template/DECISIONS.md && rg -n 'sole integrator' .pi/artifacts/pi-template/DECISIONS.md && rg -n 'advisory' .pi/artifacts/pi-template/DECISIONS.md && rg -n 'one.active.writer' .pi/artifacts/pi-template/DECISIONS.md && rg -n 'permission widening' .pi/artifacts/pi-template/DECISIONS.md && git diff --check"
+    },
+    {
+      "criterion": "D3: tech-stack/roadmap/state each synchronized to ADR-014 + away loop (dev-doc only; away runtime operates if .opencode absent)",
+      "verify": "rg -n 'ADR-014' .opencode/tech-stack.md && rg -n 'ADR-014' .opencode/roadmap.md && rg -n 'ADR-014' .opencode/state.md && rg -n 'autonomous away|away loop' .opencode/tech-stack.md .opencode/roadmap.md .opencode/state.md && git diff --check"
+    }
+  ],
+  "tasks": [
+    {
+      "id": "A1",
+      "child_plan": "A",
+      "title": "Prove the privilege boundary (preflight + approval-profile probe)",
+      "category": "implement",
+      "end_state": "A /away preflight --dry-run command proves an away-only process can obtain write/execute/network authority without modifying tracked .pi/fabric.json or widening normal sessions; it mutates neither repository bytes nor refs; root guard rejects Fabric children/actors; A1 asserts ADR-013 prerequisite is present and HEAD is clean/synchronized. A1 FAILURE IS BLOCKED — if no safe per-process grant exists in 0.23.0, a separate follow-up PRD scopes the OS-sandbox fallback; A1 does not silently switch architectures.",
+      "depends_on": [],
+      "files": [
+        ".pi/extensions/away/index.ts",
+        ".pi/extensions/away/host.ts",
+        ".pi/extensions/away/host.test.ts"
+      ],
+      "verify": "rg -n '^## ADR-013: MCP research lane$' .pi/artifacts/pi-template/DECISIONS.md && test -z \"$(git status --porcelain)\" && node --experimental-strip-types --test .pi/extensions/away/host.test.ts && git diff --check"
+    },
+    {
+      "id": "A2",
+      "child_plan": "A",
+      "title": "Add durable state and scheduling",
+      "category": "implement",
+      "end_state": "A pure versioned state reducer (controller.ts) plus an external append-only ledger + OS lease (state.ts) keyed by repository identity, with revision/nonce validation, running/paused/blocked/stopped scheduler states, and budget + one-writer enforcement (unit cases: duplicate roots, stale nonce, restart replay does not repeat commit/push/PR, budget exhaustion, writer serialization).",
+      "depends_on": ["A1"],
+      "files": [
+        ".pi/extensions/away/controller.ts",
+        ".pi/extensions/away/state.ts",
+        ".pi/away.json"
+      ],
+      "verify": "node --experimental-strip-types --test .pi/extensions/away/controller.test.ts && rg -n 'maxActiveWriters|maxOpenPullRequests' .pi/away.json"
+    },
+    {
+      "id": "A3",
+      "child_plan": "A",
+      "title": "Prove Pi RPC phase execution",
+      "category": "implement",
+      "end_state": "Prove against Pi 0.81.1 that the RPC prompt request expands /create, /plan, etc., agent_settled is observed, one continuation is queued, restart resumes the same session, and a feature worker cannot obtain publication authority.",
+      "depends_on": ["A2"],
+      "files": [
+        ".pi/extensions/away/rpc.ts",
+        ".pi/extensions/away/rpc.test.ts",
+        ".pi/extensions/away/protocol.ts"
+      ],
+      "verify": "node --experimental-strip-types --test .pi/extensions/away/rpc.test.ts"
+    },
+    {
+      "id": "B1",
+      "child_plan": "B",
+      "title": "Add away-mode semantics to authoring phases",
+      "category": "implement",
+      "end_state": "create.md, plan.md, research.md receive a trusted phase/nonce away-mode envelope from the controller, use deterministic discovery/risk defaults, reject existing/partial namespaces and unresolved decisions, return material research to PLAN, reject candidates needing human checkpoints/new deps/secrets/destructive/schema actions, and end with a nonce-bound transition intent; manual behavior unchanged; ADR-011+012+013 markers + <slug> + forbidden-token cleanliness preserved.",
+      "depends_on": ["A3"],
+      "files": [".pi/prompts/create.md", ".pi/prompts/plan.md", ".pi/prompts/research.md"],
+      "verify": "rg -n 'away-mode envelope' .pi/prompts/create.md .pi/prompts/plan.md .pi/prompts/research.md && rg -n '<slug>' .pi/prompts/create.md .pi/prompts/plan.md .pi/prompts/research.md && ! rg -n 'agent:|task\\(|question\\(|skill\\(|write\\(|\\.active|spec\\.md|prd\\.json|review-state\\.json' .pi/prompts/*.md && git diff --check"
+    },
+    {
+      "id": "B2",
+      "child_plan": "B",
+      "title": "Define the delivery contract in ship/verify/pr prompts",
+      "category": "implement",
+      "end_state": "ship.md/verify.md/pr.md (new) define the prompt contract: ship performs no arbitrary Git/GitHub commands (broker commits exact approved paths); verify emits a strict transcript-only receipt; pr.md is no-write and produces only a validated publication intent (no merge/force/delete/reset). The push-precedes-fingerprint ORDERING is implemented and tested in C1 (controller.ts/git.ts), not here; B2 defines the contract the controller enforces.",
+      "depends_on": ["B1"],
+      "files": [".pi/prompts/ship.md", ".pi/prompts/verify.md", ".pi/prompts/pr.md"],
+      "verify": "test -f .pi/prompts/pr.md && rg -n 'cannot declare' .pi/prompts/ship.md && rg -n 'sole.*verified|transcript only|no repository write' .pi/prompts/verify.md && rg -n 'no repository write|API-only' .pi/prompts/pr.md && ! rg -n 'gh pr merge|force.push|reset --hard|rm -rf|branch -D' .pi/prompts/pr.md && git diff --check"
+    },
+    {
+      "id": "B3",
+      "child_plan": "B",
+      "title": "Expose the combined UX",
+      "category": "implement",
+      "end_state": "/supervise --away [objective] reconciles the supervisor then starts the controller; /away status|pause|resume|stop manages it; normal /supervise remains actor-only; ADR-012 hard limits + proactive-supervisor/v1 preserved.",
+      "depends_on": ["B2"],
+      "files": [
+        ".pi/prompts/supervise.md",
+        ".pi/extensions/away/index.ts",
+        ".pi/extensions/away/protocol.ts"
+      ],
+      "verify": "rg -n '\\-\\-away' .pi/prompts/supervise.md && rg -n 'never dispatch|never edit|never certify' .pi/prompts/supervise.md && rg -n 'proactive-supervisor/v1' .pi/prompts/supervise.md && git diff --check"
+    },
+    {
+      "id": "C1",
+      "child_plan": "C",
+      "title": "Implement exact Git/worktree operations + push-before-verify ordering",
+      "category": "implement",
+      "end_state": "A broker allowlist (read-only identity/status/ref queries, exact-ref fetch, retained worktree creation from origin/main, exact-path staging, commit creation, exact-ref push, post-merge fast-forward sync gated on the sync-policy open-question resolution); the controller implements and tests the push-precedes-final-fingerprint ordering (push exact OID -> remote-OID check -> final no-write verify); no arbitrary args, no cleanup/branch-deletion/force/reset/clean; retained worktrees live under an XDG state dir and are never auto-deleted.",
+      "depends_on": ["B3"],
+      "files": [
+        ".pi/extensions/away/git.ts",
+        ".pi/extensions/away/git.test.ts",
+        ".pi/extensions/away/controller.ts"
+      ],
+      "verify": "node --experimental-strip-types --test .pi/extensions/away/git.test.ts && ! rg -n 'reset --hard|clean -fd|rm -rf|force.push|branch -D' .pi/extensions/away/git.ts && rg -n 'PUSH_EXACT_HEAD|FINAL_VERIFY|push.*before.*verif' .pi/extensions/away/controller.ts"
+    },
+    {
+      "id": "C2",
+      "child_plan": "C",
+      "title": "Implement GitHub publication and monitoring",
+      "category": "implement",
+      "end_state": "Exact GitHub API operations (not gh pr create implicit-push); before PR creation require repo identity + base=main + remote head==verified head + branch protection + human-review policy + no mismatched PR; poll deterministically without model turns; store PR URL/number only in external controller state; repair consumes only allowlisted bounded PR/CI status fields, never raw comments/logs (sanitization boundary against prompt injection); the broker performs no merge operation.",
+      "depends_on": ["C1"],
+      "files": [
+        ".pi/extensions/away/github.ts",
+        ".pi/extensions/away/github.test.ts",
+        ".pi/prompts/pr.md"
+      ],
+      "verify": "node --experimental-strip-types --test .pi/extensions/away/github.test.ts && ! rg -n 'gh pr merge|gh merge|PUT .*merge|reset --hard|force.push|branch -D|rm -rf' .pi/extensions/away/github.ts && rg -n 'sanit|allowlist|bounded.*status' .pi/extensions/away/github.ts"
+    },
+    {
+      "id": "C3",
+      "child_plan": "C",
+      "title": "Add multi-PR scheduling and repair",
+      "category": "implement",
+      "end_state": "Max 3 open PRs, exactly one active writer, path reservation + overlap rejection, independent branches from origin/main, CI/review repair priority (max 2 cycles, consuming only allowlisted bounded status fields), BLOCKED on closed-unmerged/changed-head/conflict/TTL, human merge -> ref sync + reservation release + next ideation; multiple features may sit in PR_MONITOR concurrently up to maxOpenPullRequests while one new feature is authored.",
+      "depends_on": ["C2"],
+      "files": [
+        ".pi/extensions/away/controller.ts",
+        ".pi/extensions/away/controller.test.ts",
+        ".pi/away.json"
+      ],
+      "verify": "node --experimental-strip-types --test .pi/extensions/away/controller.test.ts && rg -n 'maxOpenPullRequests|maxActiveWriters|maxVerifyRepairCycles' .pi/away.json"
+    },
+    {
+      "id": "D1",
+      "child_plan": "D",
+      "title": "Implement roadmap-first ideation + protected-path rejection",
+      "category": "implement",
+      "end_state": "ideate.md (new) + ideation.ts: roadmap items outrank speculative ideas; sole canonical roadmap is .pi/ROADMAP.md (ADR-016 v1 grammar: roadmap_schema_version: 1, monotonic last_issued_id, immutable RM-NNN); eligibility is Ready + Autonomy: away-ok + Open decisions: none; runtime_protected_paths (controller, broker, fabric.json, settings.json, verify.md, DECISIONS, PLAN, AGENTS, .opencode/command, and the init packet — managed AGENTS.md region + .pi/{ROADMAP,user,tech-stack,state,memory}.md) rejected as away candidates; ideation reads .pi/ROADMAP.md read-only and never mutates it; feature creation uses source-backed /create <slug> --from .pi/ROADMAP.md#RM-NNN preserving provenance; open-PR path collisions rejected; external scouts never get filesystem access; local explorers never get network; no qualifying idea -> cooldown.",
+      "depends_on": ["C3"],
+      "files": [
+        ".pi/prompts/ideate.md",
+        ".pi/extensions/away/ideation.ts",
+        ".pi/extensions/away/ideation.test.ts"
+      ],
+      "verify": "node --experimental-strip-types --test .pi/extensions/away/ideation.test.ts && rg -n 'roadmap' .pi/prompts/ideate.md && rg -n 'local|filesystem|network' .pi/extensions/away/ideation.ts"
+    },
+    {
+      "id": "D2",
+      "child_plan": "D",
+      "title": "Codify ADR-014",
+      "category": "contract",
+      "end_state": "ADR-014: Autonomous away lifecycle authorizes only retained worktree/branch creation, exact-path commits, exact feature-branch pushes, PR create/update + CI repair, bounded post-merge main->master sync if server-side unavailable; preserves (each asserted separately): human-only merge, no destructive cleanup, Main sole integrator, supervisor advisory, /verify authority + freshness, one active writer, no normal-session permission widening.",
+      "depends_on": ["D1"],
+      "files": [
+        ".pi/artifacts/pi-template/DECISIONS.md",
+        ".pi/artifacts/pi-template/PLAN.md",
+        "AGENTS.md"
+      ],
+      "verify": "rg -n '^## ADR-014: Autonomous away lifecycle$' .pi/artifacts/pi-template/DECISIONS.md && rg -n 'human.only.merge' .pi/artifacts/pi-template/DECISIONS.md && rg -n 'sole integrator' .pi/artifacts/pi-template/DECISIONS.md && rg -n 'advisory' .pi/artifacts/pi-template/DECISIONS.md && rg -n 'one.active.writer' .pi/artifacts/pi-template/DECISIONS.md && rg -n 'permission widening' .pi/artifacts/pi-template/DECISIONS.md && git diff --check"
+    },
+    {
+      "id": "D3",
+      "child_plan": "D",
+      "title": "Synchronize repository documentation",
+      "category": "contract",
+      "end_state": "Dev-doc sync only (away runtime operates if .opencode absent): document the away loop + ADR-014 in tech-stack.md, roadmap.md, state.md.",
+      "depends_on": ["D2"],
+      "files": [".opencode/tech-stack.md", ".opencode/roadmap.md", ".opencode/state.md"],
+      "verify": "rg -n 'ADR-014' .opencode/tech-stack.md && rg -n 'ADR-014' .opencode/roadmap.md && rg -n 'ADR-014' .opencode/state.md && rg -n 'autonomous away|away loop' .opencode/tech-stack.md .opencode/roadmap.md .opencode/state.md && git diff --check"
+    }
+  ]
+}

@@ -197,9 +197,7 @@ BOOT
     "pollIntervalMs": 60000
   },
   "roadmapPaths": [
-    ".pi/ROADMAP.md",
-    "ROADMAP.md",
-    "docs/ROADMAP.md"
+    ".pi/ROADMAP.md"
   ],
   "requiredCheckName": "away-final-verify",
   "remoteCiPolicy": { "kind": "no-workflows" }
@@ -503,7 +501,7 @@ There is no current root package/typecheck harness; Node's type-stripping test r
 - `[BLOCKING]` ADR-013 and corrected ADR-014 must reach verified status.
 - `[BLOCKING for live publication]` Install and configure the GitHub App and effective branch policy (approval + stale-review dismissal + last-push approval + admin enforcement + app-bound `away-final-verify` + no bypass actors + no force/deletion).
 - `[ASSUMPTION]` Initial active-compute budget is eight hours per epoch (`maxActiveComputeMs: 28800000`).
-- `[ASSUMPTION]` Roadmap lookup order is `.pi/ROADMAP.md`, `ROADMAP.md`, then `docs/ROADMAP.md`.
+- `[ASSUMPTION]` Roadmap lookup is the sole canonical default `.pi/ROADMAP.md` (ADR-016 v1 grammar: `roadmap_schema_version: 1`, monotonic `last_issued_id`, immutable `RM-NNN`); eligibility is Ready + `Autonomy: away-ok` + `Open decisions: none`; ideation reads `.pi/ROADMAP.md` read-only and never mutates it; reservations/completion live in the external ledger; feature creation uses source-backed `/create <slug> --from .pi/ROADMAP.md#RM-NNN`.
 - `[UNCERTAIN]` If organization-level Actions or runner policy cannot be inspected, preflight must block rather than infer safety.
 
 Unlimited open PRs imply potentially indefinite retained disk and metadata; actual resource exhaustion pauses work but never becomes a count cap.
