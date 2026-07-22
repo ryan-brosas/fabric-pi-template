@@ -1,6 +1,6 @@
 # Prewalk via native Fabric trajectory handoff (0.23.0)
 
-> **Status:** implementation done (A1–B2 committed; C2 static no-write verify PASS) — C1 live dogfood deferred to first full-code-mode session · **ID:** prewalk-001 · **Created:** 2026-07-22
+> **Status:** implementation done (A1–B2 committed; C2 static no-write verify PASS) — C1 live dogfood PASS (`handedOff:true`, `completed:true`) · **ID:** prewalk-001 · **Created:** 2026-07-22
 > **Baseline OID:** `bcbbda47ea5ad63b516cff0f8469d81614559834` (HEAD at re-scope)
 > **Replaces:** the prior synthetic-router design (same slug) — see "Superseded approach" below.
 
@@ -280,7 +280,15 @@ parallel: false
 conflicts_with: []
 files: []
 ```
-- Verify: `pi --approve --list-models | grep -F 'makora/zai-org/GLM-5.2-NVFP4'` (and the GPT models); handoff result `completed === true` observed in the run transcript/dashboard
+- Verify: `pi --approve --list-models | awk '$1=="openai-codex" && $2=="gpt-5.6-sol"{sol=1} $1=="openai-codex" && $2=="gpt-5.4-mini"{mini=1} $1=="makora" && $2=="zai-org/GLM-5.2-NVFP4"{glm=1} END{exit !(sol && mini && glm)}'`; handoff result `completed === true` observed in the run transcript/dashboard
+- **Frontier stage (live dogfood):** Main made this C1 evidence edit before scheduling the explicit trajectory handoff.
+- **Executor stage (live dogfood):** Makora inherited the finalized frontier trajectory and completed this follow-on edit.
+- **Observed outer result:** Fabric returned `handedOff: true`, `completed: true`, status `completed`, using executor `makora/zai-org/GLM-5.2-NVFP4`.
+- **Repeat frontier stage (live dogfood):** Main made a second C1 evidence edit before scheduling a fresh explicit trajectory handoff.
+- **Repeat executor stage (live dogfood):** A fresh Makora executor inherited the second finalized frontier trajectory and completed this follow-on edit.
+- **Automatic prewalk frontier stage:** Main made this mutation without calling `agents.handoff()`; the armed `/fabric prewalk` path should take over at the Fabric boundary.
+- **Automatic prewalk executor stage:** Makora inherited the automatically claimed frontier and completed this follow-on edit.
+- **Automatic prewalk outer result:** Fabric reported `prewalk:true`, trigger `pi.edit`, and `handedOff:true`; the executor edit landed, but the run ended `completed:false`, `status:timed_out` after the 500,000-token child limit.
 
 ### C2 — [verify] No-regression and model resolution
 **End state:** all success-criteria checks pass read-only: `fullCodeMode:true`, ADR-009

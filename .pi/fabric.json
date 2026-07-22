@@ -3,6 +3,9 @@
   "schema": {
     "mode": "off"
   },
+  "prewalk": {
+    "model": "makora/zai-org/GLM-5.2-NVFP4"
+  },
   "approvals": {
     "read": "allow",
     "write": "allow",
@@ -11,25 +14,26 @@
     "agent": "allow"
   },
   "subagents": {
+    "enabled": true,
     "runner": "pi",
-    "extensions": false,
+    "extensions": true,
     "maxDepth": 1,
     "maxConcurrent": 8,
     "maxPerExecution": 16,
     "timeoutMs": 600000,
-    "defaultTools": ["read", "grep", "find", "ls"],
+    "defaultTools": ["read", "grep", "find", "ls", "edit", "write"],
     "budgetUsd": 10,
     "maxTokensPerChild": 500000,
-    "model": "makora/zai-org/GLM-5.2-FP8",
+    "model": "makora/zai-org/GLM-5.2-NVFP4",
     "thinking": "max"
   },
   "mesh": {
     "actorScope": "session"
   },
   "memory": {
-    "enabled": false,
+    "enabled": true,
     "indexToolOutput": false,
-    "indexThinking": false
+    "indexThinking": true
   },
   "compaction": {
     "engine": "pi",
