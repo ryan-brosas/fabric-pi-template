@@ -104,3 +104,30 @@ block on drift rather than remove+recreate.
 **Alternatives:** (a) Project scope with a single owning process — fragile under
 concurrent sessions. (b) Global templates (`scope:"global"`) — non-live, import per
 session, adds a step. Chosen session scope as the natural per-session boundary.
+
+## ADR-006: External-only final verification declaration
+**Status:** accepted
+**Date:** 2026-07-22
+**Context:** `/verify` must prove a PASS is bound to the bytes tested via a before/after
+fingerprint tuple. Persisting the final fingerprint itself into a tracked artifact
+(`PROGRESS.md`) is self-defeating: the write alters the worktree, which changes a later
+fingerprint, which invalidates the very PASS it records. The same applies to any status
+write after the final fingerprint.
+**Decision:** `/verify` is the sole phase permitted to declare terminal verified status,
+and it does so in its response/session transcript only. Candidate evidence (commands, exit
+codes, hashes, pending notes) may be written to `PROGRESS.md` before the final pass, but
+the final verified declaration is external and no repository write (edit, stage, commit,
+push) occurs after the final before/after fingerprint. The `/verify` body encodes this;
+`AGENTS.md` Freshness and `PLAN.md` Verification encode the no-post-fingerprint-write rule.
+**Consequences:** Easier: the final PASS cannot invalidate itself; the fingerprint tuple
+is internally consistent; no special "exclude the verification record from its own digest"
+normalization is needed. Harder: the final evidence is not a tracked artifact — it lives in
+the session transcript, so auditability depends on the transcript being retained; a brand-new
+session cannot read another session's final declaration (decisions persist in Markdown, but
+terminal verified status does not). Operators who need durable proof must capture the
+transcript or re-run `/verify`.
+**Alternatives:** (a) Persist the final fingerprint in `PROGRESS.md` and exclude that one
+record from its own digest — fragile, requires a special-case normalization, and any
+later edit still invalidates it. (b) A separate evidence file excluded from the digest —
+adds an artifact outside the canonical four and the same exclusion machinery. Chosen
+external declaration as the only self-consistent option.

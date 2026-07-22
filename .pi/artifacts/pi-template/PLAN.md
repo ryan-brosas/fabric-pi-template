@@ -148,7 +148,7 @@ no "latest" inference. Concurrent sessions on different slugs stay disjoint.
 /create <slug> <idea>  ->  PLAN.md, TODO.md
 /plan <slug>           ->  slice ordering, open questions (optional)
 /ship <slug>           ->  implement slices; records work, NOT completion
-/verify <slug>         ->  freshness fingerprint; ONLY phase that writes verified status
+/verify <slug>         ->  freshness fingerprint; ONLY phase that may declare verified status (externally)
 /research <slug>       ->  sideways; feeds /plan or /create; lives in PROGRESS.md
 ```
 
@@ -168,8 +168,11 @@ A PASS is bound to the bytes tested. `/verify <slug>` captures a fingerprint tup
 
 Run the narrowest check, then typecheck/lint/test/build. PASS holds only if the tuple is
 unchanged after every check; a formatter, concurrent writer, or later edit invalidates a
-stale PASS — rerun. Persist commands, exit codes, and fingerprints in `PROGRESS.md`. Missing,
-skipped, timed-out, or non-zero checks cannot produce PASS.
+stale PASS — rerun. Candidate evidence (commands, exit codes, hashes) may be persisted in
+`PROGRESS.md` before the final pass; the final verified declaration is emitted in the
+`/verify` response/session transcript only, and no repository write occurs after the final
+before/after fingerprint (a post-fingerprint write would invalidate the PASS it records).
+Missing, skipped, timed-out, or non-zero checks cannot produce PASS.
 
 ## Commit Policy
 
@@ -189,11 +192,16 @@ skipped, timed-out, or non-zero checks cannot produce PASS.
    reuses IDs; exact-session restart restores same IDs; immutable/stopped drift blocks
    (no removal); new session uses distinct registry — risk: stock supervisor self-stops on
    completion; same-name create over a stopped actor deletes history.
-3. `.pi/prompts/gate.md` (blocking advisor ask + supervisor synthesis) — verify: errored
+3. `.pi/prompts/gate.md` (blocking advisor ask + supervisor synthesis) — **deferred to a
+   separate milestone** (not part of the nine-command lifecycle port). verify: errored
    advisor blocks; no duplicate steer loop — risk: `tell()` fire-and-forget yields no steer.
-4. `.pi/prompts/{create,plan,ship,verify,research}.md` — verify: two sessions on different
-   slugs stay disjoint; `/ship` cannot write verified status — risk: prompt pseudo-tool
-   calls give false enforcement.
+4. `.pi/prompts/{create,plan,ship,verify,research,fix,init,gc,audit}.md` — port **all nine**
+   `.opencode/command/*.md` bodies (operator-approved scope: take all of each body, strip
+   only OpenCode-only syntax, re-point to `.pi/artifacts/<slug>/`). The five lifecycle
+   commands take an explicit validated `<slug>`; the four operational commands keep natural
+   args. verify: two sessions on different slugs stay disjoint; `/ship` cannot declare
+   completion; `/verify` declares verified status externally only — risk: over-stripping
+   loses runnable behavior; prompt pseudo-tool calls give false enforcement.
 5. `.pi/tools/` verification fingerprint capture — verify: byte change after PASS
    invalidates — risk: stale PASS on concurrent edit.
 6. Smoke: model resolution, Main native tools, review-child edit rejection, gate block on
