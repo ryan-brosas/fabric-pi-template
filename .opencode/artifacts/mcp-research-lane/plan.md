@@ -62,7 +62,7 @@ Task D (supervise.md): needs Task A (protocol described generically; exact names
 Task E (create.md + plan.md): needs Task A, creates corrected gather + handshake  [DONE 8a1631b]
 Task F (research.md + ship.md): needs Task A, creates corrected research/ship text  [DONE 8a1631b]
 Task G-static (cross-prompt static regression): needs D + E + F, creates static behavior proof  [DONE]
-Task G-live (live supervisor handshake smoke): needs C, creates live behavior proof  [operator-gated; folds into C/J]
+Task G-live (live supervisor handshake smoke): needs G-static + C, creates live behavior proof  [operator-gated; folds into C/J]
 Task H (canonical authority): needs G-static, creates ADR-013 + corrected PLAN/AGENTS  [DONE 5dd5e34]
 Task I (summaries): needs H, creates synced tech-stack/roadmap/state  [DONE 5dd5e34]
 Task J (final review + verification): needs I + C + G-live, has_checkpoint, creates terminal fingerprint  [operator-gated]
@@ -88,7 +88,7 @@ Exact-version research invalidated the original child-direct design:
 - Fabric passes `--no-extensions` for `extensions:false` children (`.pi/npm/node_modules/pi-fabric/dist/worker.js:321-333`).
 - `pi-mcp-adapter` and `pi-codex-search` are both Pi extensions (declared at their `package.json:32-35` / `pi.extensions`).
 - Full-code mode captures extension tools unless their exact names appear in `capture.keepVisible` (`pi-fabric/docs/configuration.md:173-207`, `dist/capture/interceptor.js:97-110`).
-- Pi package discovery combines project and global package lists separately, then dedupes (`package-manager.js:925-934`); therefore do NOT project-pin duplicate MCP/Codex packages merely because `.pi/settings.json` contains only Fabric.
+- Pi package discovery combines project and global package lists separately, then dedupes (`package-manager.js:694-708`); therefore do NOT project-pin duplicate MCP/Codex packages merely because `.pi/settings.json` contains only Fabric.
 - `pi-codex-search@0.1.5` declares peers `^0.79.10` which exclude installed Pi 0.81.1 — compatibility is UNCERTAIN until a live registry/call gate proves it.
 
 ### Primary recommendation
@@ -253,10 +253,10 @@ Context7 is documentation; Exa is search/fetch; Codex is general cited search. T
   3. `/ship` retains its existing Makora `extensions:true` implementation path; only its supervisor-research dispatch is asserted local-only. Preserve `/ship`'s prohibition on terminal verification claims.
 - **Verify:** targeted dispatch checks; never use broad `! rg 'extensions:true' ship.md`.
 
-#### Task G: Cross-prompt behavioral regression
+#### Task G: Cross-prompt static regression
 
 - **Needs:** Tasks D, E, F.
-- **Creates:** static + live behavior proof.
+- **Creates:** static behavior proof.
 - **Steps:**
   1. Run the static cross-prompt scan:
      ```bash
@@ -268,7 +268,7 @@ Context7 is documentation; Exa is search/fetch; Codex is general cited search. T
        .pi/prompts/research.md
        .pi/prompts/ship.md
      )
-     if rg -n 'tools:\[[^]]*(resolve-library-id|query-docs|web_search_exa|web_fetch_exa|codex_search|mcp)' "${TARGETS[@]}"; then
+     if rg -n 'tools\s*:\s*\[[^]]*(resolve-library-id|query-docs|web_search_exa|web_fetch_exa|codex_search|mcp)' "${TARGETS[@]}"; then
        exit 1
      fi
      for file in "${TARGETS[@]}"; do
@@ -277,9 +277,17 @@ Context7 is documentation; Exa is search/fetch; Codex is general cited search. T
      git diff --check
      ```
   2. Add explicit per-location assertions for: `extensions:false`, `recursive:false`, `worktree:false`, `proactive-supervisor/v1`, `action:"silent"`, 8192-byte packet limit, `source-check-required`.
-  3. Exercise one live supervisor `research-request`: external tools called by Main; child receives only sanitized evidence; child cannot resolve MCP, Codex, `bash`, `fabric_exec`, or recursion; supervisor receives a bounded `research-result`.
-  4. Review the decision table for: codex failure, one MCP capability failure, all-external failure, sensitive query rejection, oversized output. Do NOT mutate global configuration to manufacture outages.
-- **Verify:** scan exits 0; live handshake returns a bounded `research-result`.
+- **Verify:** scan exits 0; per-location assertions pass.
+
+#### Task G-live: Live supervisor research-request smoke + decision-table review
+
+- **Needs:** Tasks G, C.
+- **has_checkpoint:** yes (live Pi session with capture.keepVisible external tools registered + live network path).
+- **Creates:** live behavior proof.
+- **Steps:**
+  1. Exercise one live supervisor `research-request`: external tools called by Main; child receives only sanitized evidence; child cannot resolve MCP, Codex, `bash`, `fabric_exec`, or recursion; supervisor receives a bounded `research-result`.
+  2. Review the decision table for: codex failure, one MCP capability failure, all-external failure, sensitive query rejection, oversized output. Do NOT mutate global configuration to manufacture outages.
+- **Verify:** live handshake returns a bounded `research-result`.
 
 ---
 
