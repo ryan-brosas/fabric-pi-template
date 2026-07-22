@@ -1,7 +1,7 @@
 ---
 schema_version: 1
-initialization_status: ready
-context_reload_required: false
+initialization_status: partial
+context_reload_required: true
 generation_id: gen-2026-07-23-01
 updated_at: 2026-07-23
 agents_boilerplate_sha256: f03c114b4cf989e1fd713546e4b69ee0beb2e4776f71ee2920a051ae3f462df1
@@ -13,14 +13,17 @@ Timestamped, non-authoritative snapshot of the Pi-native context packet. The
 frontmatter is machine-readable; the body is a human summary. Authority lives in
 `AGENTS.md` and `.pi/artifacts/pi-template/`.
 
-## Status: ready
+## Status: partial
 
-The packet is initialized and ready. Lifecycle commands that require a ready
-packet (`/create`, `/plan`, `/ship`, `/verify`, `/gc`) may proceed past the packet
-gate; their per-command validation (slug, namespace, etc.) still applies.
+The `AGENTS.md` Repository appendix was edited (`.opencode/tech-stack.md` →
+`.pi/tech-stack.md` per ADR-016). The managed boilerplate interior is unchanged
+(appendix is outside the markers). Lifecycle commands that require a ready
+packet must fail the packet gate until this state returns to `ready` with
+`context_reload_required: false`.
 
-`context_reload_required: false` — the post-`/reload` refresh confirmed no drift;
-the live `AGENTS.md` managed interior matches `agents_boilerplate_sha256`.
+`context_reload_required: true` — `AGENTS.md` changed; a post-`/reload`
+`/init --refresh` with no managed-region drift is required before promotion
+back to `ready`.
 
 ## Packet
 
@@ -31,7 +34,7 @@ the live `AGENTS.md` managed interior matches `agents_boilerplate_sha256`.
 | `.pi/ROADMAP.md` | seeded (v1 grammar, 2 Ready + 1 Next + Later) |
 | `.pi/user.md` | seeded (operator-approved preferences) |
 | `.pi/memory.md` | seeded (durable knowledge + Initialization Intent) |
-| `.pi/state.md` | this file (ready) |
+| `.pi/state.md` | this file (partial) |
 
 ## Boilerplate
 
@@ -48,8 +51,11 @@ the live `AGENTS.md` managed interior matches `agents_boilerplate_sha256`.
 ## Next
 
 The pi-native-init lifecycle is implemented (P1.1–P8.3 complete). The packet is
-ready; `/create <slug> "description"` and `/create <slug> --from .pi/ROADMAP.md#RM-NNN`
-are available. Roadmap Ready cards (RM-001, RM-002) are eligible for feature work;
-`/init --refresh` reconciles an established packet when the operator edits project
-intent. The retained-fixture runtime smoke remains a separate operator-gated
-checkpoint (requires `/trust` + restart + provider credentials).
+currently `partial` pending an `AGENTS.md` appendix edit (`.opencode/tech-stack.md`
+→ `.pi/tech-stack.md`). After the operator runs `/reload`, `/init --refresh`
+re-promotes to `ready` + `context_reload_required: false` (managed interior hash
+unchanged). Then `/create <slug> "description"` and
+`/create <slug> --from .pi/ROADMAP.md#RM-NNN` are available and roadmap Ready cards
+(RM-001, RM-002) are eligible for feature work. The retained-fixture runtime smoke
+remains a separate operator-gated checkpoint (requires `/trust` + restart + provider
+credentials).

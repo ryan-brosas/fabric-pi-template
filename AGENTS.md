@@ -210,7 +210,7 @@ NEVER EVER DO THAT AGAIN. The answer is literally ALWAYS the same: those are cha
 ## Repository
 
 A Pi-native coding template powered by `pi-fabric` (clean-slate). Stack details, model
-tiers, and provenance live in `.opencode/tech-stack.md`; the canonical implementation
+tiers, and provenance live in `.pi/tech-stack.md` (ADR-016); the canonical implementation
 contract is `.pi/artifacts/pi-template/PLAN.md`. Read those before non-trivial work.
 
 **Bootstrap (required, in order):** `/trust` the project root, then restart Pi — untrusted
