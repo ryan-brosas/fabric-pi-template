@@ -104,4 +104,18 @@ in `.pi/artifacts/pi-template/DECISIONS.md`. Summary only — do not edit here f
 - Lifecycle review gates (ADR-011): shipped, verified, pushed (HEAD dd0bf96).
 - Proactive supervisor (ADR-012): implementation done — boundary-proactive handshake in /create//plan//research//ship + Main-mediated read-only research on gpt-5.4-mini; A2-C2 implementation done, C3 static verify pending.
 - MCP research lane (ADR-013): implementation done — 5 prompts + ADR-013 + PLAN + AGENTS + summaries corrected to Main-mediated research (children read/grep/find/ls-only; Main acquires external evidence via fabric_exec's internal MCP proxy + capture.keepVisible, network:allow). Task C done — capture.keepVisible committed (438adef), all 5 external tools live-verified by operator. ADR-013 network:allow correction committed (3a250dc). Final verify (G2 live supervisor smoke + J fingerprint) pending operator — requires live Pi session.
+- Away sandbox runtime (ADR-014): implementation done — 14 waves P0.1–D1 complete
+  (committed 7316fd9, 0115fc9, 6683818, 22fdc52, a865330, eda8ea4, 04629f4, e15881f,
+  3aead78, ecdf432, 864a4b1, 4509ba2, 95e4db8, 7326ff1). Host-pinned bubblewrap
+  confinement runtime under `.pi/away-runtime/`: the tested node-process wrapper
+  boundary (A2-proven writable-execPath seam, version-coupled to pi-fabric 0.23.0;
+  child-source VALUE digest `ee0bb190...`); strict bubblewrap `--unshare-user`
+  (never fail-open) + cgroup-v2 systemd delegation; credentials stay in the trusted
+  parent; only generated node-process code is sandboxed. Strict failure conditions:
+  missing wrapper attestation / strict userns / cgroup support / closure hash each
+  block execution — no weaker fallback. D1 hermetic integration 14/14 + full
+  regression 207/207. ADR-014 codified (DECISIONS.md + PLAN.md + AGENTS.md).
+  Forward dependency: ADR-015 (autonomous-away-loop) — the real ledger/Git/GitHub
+  crash-replay full loop is deferred. D2 dev-doc sync done; D3 (feature-scoped
+  no-write acceptance) + Phase 5 pending.
 - Per-artifact commit+push standing policy active.

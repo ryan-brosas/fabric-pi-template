@@ -129,6 +129,42 @@ Capability-aware fallback. Exact direct-tool names registry-proven (live `/mcp t
 `/codex-search-settings status`); Task C done (`438adef`, all 5 tools live-verified).
 G2 (live supervisor smoke) + J (final fingerprint) pending operator.
 
+**Away sandbox runtime (ADR-014):** unattended (no operator) execution of
+model-generated `node-process` Fabric guests and candidate verification needs real
+OS confinement. `node-process` is explicitly not a security sandbox
+(`docs/configuration.md:10-12`), so the boundary is a host-pinned bubblewrap runtime
+under `.pi/away-runtime/` (`away-sandbox.json` manifest + wrapper + inner guest +
+lane extension + verifier). Fabric `node-process` stays the executor, but per-lane
+`process.execPath` is pinned to a trusted outer wrapper (`executor-wrapper.mjs`) via
+`NODE_OPTIONS=--import` before Fabric boots — the **writable-execPath seam**
+(A2-proven, version-coupled to pi-fabric 0.23.0; no config field, `process.execPath`
+is writable+configurable on Node 24, host-owned and pre-boot). The wrapper validates
+the exact Fabric argv + the child-source VALUE digest (sha256
+`ee0bb190d5af47ff6ee99a0dd5874889b44b0857db23b897b4c57c88956793fb`, 2838 chars,
+frozen to 0.23.0), then launches the untrusted inner guest inside strict bubblewrap
+(`--unshare-user` STRICT, never `--unshare-user-try`; PID/mount/IPC/UTS/net; minimal
+binding node+libs+ld-linux+inner-guest+/proc+/dev+/tmp only; `--clearenv`), filters
+every host-call by effective ref against the lane's allowlisted `away_*` refs, and
+fsyncs a terminal attestation before forwarding the result. PID/memory/CPU are
+enforced by cgroup-v2 systemd delegation (`systemd-run --user --wait --pipe --collect
+-p TasksMax=/MemoryMax=/CPUWeight=`; `--scope` unsuitable). Credentials and provider
+auth stay in the trusted parent (the credential at `~/.pi/agent/auth.json` is ENOENT
+in the sandbox); only generated node-process code is sandboxed. Five lanes
+(local-explorer, external-scout, writer, reviewer, verifier); only external-scout
+has network (and no filesystem/credential env). Controller-derived profiles — the
+model never chooses model/tools/cwd/env/binaries/args/risks or dispatches raw
+`agents.*`. The startup closure (wrapper, inner guest, lane extension, config,
+pinned source, command catalog) is hash-pinned and rechecked before launch, after
+restart, and before accepting a result. **Strict failure conditions:** missing
+wrapper attestation, strict userns, cgroup support, or closure hash each block
+execution — no weaker fallback wrapper, no fail-open userns variant, no fabricated
+success. The runtime is opt-in per away lane; normal interactive sessions keep
+their existing config and are unaffected. D1 hermetic integration (real
+launcher+RPC+wrapper+firewall+staging+verifier; fake only provider+clock) verified
+14/14 + full regression 207/207. **Forward dependency:** ADR-015
+(autonomous-away-loop) adds the real ledger/Git/GitHub crash-replay full loop on
+top of this confinement foundation; this feature defers that loop.
+
 **Extension split (load-bearing):** `extensions:false` makes Fabric pass Pi `--no-extensions`,
 which fails to resolve the Makora provider. GPT council and read-only children use
 `extensions:false`; Makora implementation workers MUST use `extensions:true` + `thinking:"max"`

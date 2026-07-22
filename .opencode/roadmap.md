@@ -114,7 +114,26 @@ Each milestone is independently verifiable. Authority/topology decisions are rec
      read-only GPT work overlaps; Main does not edit until the run settles.
 6. **Verification + quality gates** — focused checks per change; `/verify` freshness
    fingerprint; `/verify` is the only phase allowed to claim completion.
-   - Acceptance: a byte changed after a passing check invalidates the PASS.
+    - Acceptance: a byte changed after a passing check invalidates the PASS.
+
+## Away Sandbox Runtime (ADR-014)
+
+A host-pinned bubblewrap confinement runtime (`.pi/away-runtime/`) for unattended
+(no operator) execution of model-generated `node-process` Fabric guests and
+candidate verification — an opt-in away lane, not a widening of normal sessions.
+Fabric `node-process` stays the executor; per-lane `process.execPath` is pinned to a
+trusted outer wrapper before Fabric boots (the A2-proven writable-execPath seam,
+version-coupled to pi-fabric 0.23.0). Strict bubblewrap (`--unshare-user`, minimal
+binding, `--clearenv`) + cgroup-v2 systemd delegation; credentials stay in the
+trusted parent; only generated code is sandboxed. The model never dispatches raw
+`agents.*` or selects capabilities; host-calls cross IPC only as schema-validated
+`away_*` refs against the lane allowlist. **Strict failure conditions:** missing
+wrapper attestation, strict userns, cgroup support, or closure hash each block
+execution — no weaker fallback. Implementation done (waves A1–D1, all green,
+regression 207/207); ADR-014 codified (DECISIONS.md + PLAN.md + AGENTS.md).
+**Forward dependency:** ADR-015 (autonomous-away-loop) adds the real
+ledger/Git/GitHub crash-replay full loop on top of this confinement foundation;
+this feature defers that loop.
 
 ## Risks / Dependencies
 
