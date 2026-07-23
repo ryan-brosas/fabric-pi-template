@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { existsSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import { chmodSync, existsSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -336,6 +336,7 @@ describe("retained maintenance policy", () => {
     }, {
       stateRoot,
       runId: "run-fedcba9876543210",
+      piPath: process.execPath,
       async runWorkflow(workflow) {
         launches += 1;
         if (launches > 1) return { kind: "blocked", nextIndex: 1, message: "unexpected continuation" };
@@ -369,6 +370,7 @@ describe("retained maintenance policy", () => {
     }, {
       stateRoot,
       runId: "run-abcdef0123456789",
+      piPath: process.execPath,
       async runWorkflow(workflow) {
         launches += 1;
         if (launches === 1) {
@@ -393,6 +395,9 @@ describe("retained maintenance policy", () => {
   it("persists NO_CHANGE once and idles replay without launching another root", async () => {
     const stateRoot = mkdtempSync(join(tmpdir(), "away-maintenance-policy-"));
     const sessionFile = join(stateRoot, "sessions", "policy.jsonl");
+    const trustedPi = join(stateRoot, "cli.js");
+    writeFileSync(trustedPi, "#!/usr/bin/env node\n");
+    chmodSync(trustedPi, 0o700);
     const assistantText =
       'MAINTENANCE_SELECTION: {"schema":"maintenance-selection/1","kind":"no-change","reason":"No high-confidence writable improvement exists on this exact HEAD"}';
     let launches = 0;
@@ -406,8 +411,11 @@ describe("retained maintenance policy", () => {
     const first = await executeSeniorWorkflowAway(request, {
       stateRoot,
       runId: "run-0123456789abcdef",
+      processArgv: [process.execPath, trustedPi],
+      env: {},
       async runWorkflow(workflow) {
         launches += 1;
+        assert.equal(workflow.launch.argv[0], trustedPi);
         assert.equal(workflow.commands.length, 1);
         assert.match(workflow.commands[0], /^\/workflow .* --objective /);
         writeFileSync(sessionFile, "session\n");
@@ -733,6 +741,8 @@ describe("continuous senior service", () => {
   it("bounds maintenance mini-agent discovery before a live cycle", () => {
     const fabric = JSON.parse(readFileSync(join(REPO, ".pi", "fabric.json"), "utf8"));
     const workflow = readFileSync(join(REPO, ".pi", "prompts", "workflow.md"), "utf8");
+    const service = readFileSync(join(REPO, ".pi", "away-runtime", "pi-away-senior@.service"), "utf8");
+    assert.match(service, /^Environment=PI_AWAY_PI_BINARY=\/home\/ryan\/\.local\/bin\/pi$/m);
     assert.equal(fabric.subagents.maxConcurrent, 8);
     assert.equal(fabric.subagents.timeoutMs, 300_000);
     assert.equal(fabric.subagents.maxTokensPerChild, 30_000);

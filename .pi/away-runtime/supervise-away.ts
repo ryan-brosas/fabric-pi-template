@@ -12,7 +12,7 @@ import {
   realpathSync,
 } from "node:fs";
 import { homedir } from "node:os";
-import { dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
+import { basename, dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import {
@@ -136,6 +136,28 @@ export interface RootPiLaunchRequest {
   sessionDir: string;
   sessionFile?: string;
   piPath?: string;
+}
+
+export function resolveRootPiBinary(
+  explicit: string | undefined,
+  env: NodeJS.ProcessEnv = process.env,
+  argv: readonly string[] = process.argv,
+): string {
+  const inherited = argv[1] && isAbsolute(argv[1]) && basename(argv[1]) === "cli.js"
+    ? argv[1]
+    : undefined;
+  const candidate = explicit ?? env.PI_AWAY_PI_BINARY ?? inherited;
+  if (!candidate || !isAbsolute(candidate)) {
+    throw new Error(
+      "senior root requires an absolute current Pi binary via piPath, PI_AWAY_PI_BINARY, or the active Pi CLI",
+    );
+  }
+  const canonical = realpathSync(candidate);
+  const metadata = lstatSync(canonical);
+  if (!metadata.isFile() || metadata.isSymbolicLink() || (metadata.mode & 0o111) === 0) {
+    throw new Error("senior root Pi binary is not an executable regular file");
+  }
+  return canonical;
 }
 
 export function createRootPiLaunchSpec(request: RootPiLaunchRequest): {
@@ -1110,6 +1132,8 @@ export async function executeSeniorWorkflowAway(
     stateRoot?: string;
     timeoutMs?: number;
     piPath?: string;
+    env?: NodeJS.ProcessEnv;
+    processArgv?: readonly string[];
     runWorkflow?: typeof runRootPiWorkflow;
   } = {},
 ): Promise<AwayRunResult> {
@@ -1321,7 +1345,7 @@ export async function executeSeniorWorkflowAway(
     repoRoot: workspace,
     sessionDir: sessions,
     sessionFile: resume,
-    piPath: options.piPath,
+    piPath: resolveRootPiBinary(options.piPath, options.env, options.processArgv),
   });
 
   if (maintenance && packetReady && !maintenanceSelection) {

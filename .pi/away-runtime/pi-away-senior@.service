@@ -8,6 +8,7 @@ StartLimitIntervalSec=0
 Type=simple
 WorkingDirectory=%f
 Environment=PATH=/home/ryan/.nvm/versions/node/v24.16.0/bin:/usr/local/bin:/usr/bin:/bin
+Environment=PI_AWAY_PI_BINARY=/home/ryan/.local/bin/pi
 ExecStart=/home/ryan/.nvm/versions/node/v24.16.0/bin/node --experimental-strip-types %f/.pi/away-runtime/supervise-away.ts %f
 Restart=always
 RestartSec=15s
