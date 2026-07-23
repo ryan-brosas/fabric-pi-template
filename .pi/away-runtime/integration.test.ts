@@ -43,7 +43,8 @@ import { buildBwrapArgs } from "./executor-wrapper.mjs";
 import { verify } from "./verifier.ts";
 import type { CommandCatalog } from "./command-catalog.ts";
 import { openLedger } from "./ledger.ts";
-import { reconcileAwayRun, type AwayEffectHost, type AwayPullObservation } from "./controller.ts";
+import { type AwayEffectHost, type AwayPullObservation } from "./controller.ts";
+import { runProductionAwayController } from "./production-host.ts";
 import {
   createOrObserveCandidateCommit,
   deriveAwayBranch,
@@ -586,7 +587,7 @@ describe(
 // ----------------------------------------------------------------------------
 
 describe(
-  "A7 full confined autonomous loop",
+  "C2 production full confined autonomous loop",
   { skip: !PI_OK || !BWRAP_OK },
   () => {
     it("replays real confined staging, exact-OID verification, bare Git publication, and one draft PR", async () => {
@@ -634,7 +635,11 @@ describe(
 
       const host: AwayEffectHost = {
         async ensureWorkspace() {
-          assert.equal(execFileSync("git", ["status", "--porcelain"], { cwd: fixture.repoRoot, encoding: "utf8" }), "");
+          assert.equal(
+            execFileSync("git", ["status", "--porcelain"], { cwd: fixture.repoRoot, encoding: "utf8" }),
+            `?? ${target}\n`,
+            "production lifecycle left only the exact settled candidate path",
+          );
         },
         async ensureCandidate() {
           if (!candidateBlob) {
@@ -759,19 +764,66 @@ describe(
         },
       };
 
-      await assert.rejects(
-        () => reconcileAwayRun({ ledger, reservation, host, now: () => now++ }),
-        /injected crash after push/,
-      );
-      await assert.rejects(
-        () => reconcileAwayRun({ ledger, reservation, host, now: () => now++ }),
-        /injected crash after draft PR/,
-      );
-      const completed = await reconcileAwayRun({ ledger, reservation, host, now: () => now++ });
+const reservationResult = {
+        kind: "reserved",
+        card: { id: "RM-003", candidateSlug: "autonomous-away-loop" },
+        record: reservation,
+        roadmapHash: reservation.sourceHash,
+        closureHashes: {},
+      } as never;
+      let namespaceEstablished = false;
+      const lifecycleHost = {
+        namespaceState() { return namespaceEstablished ? "established" as const : "absent" as const; },
+        invoke(request: { phase: string; command: string; expectedOid?: string }) {
+          if (request.phase === "create") namespaceEstablished = true;
+          if (request.phase === "verify") {
+            return host.ensureVerification(request.expectedOid!).then((result) => ({
+              phase: "verify" as const,
+              command: request.command,
+              status: "completed" as const,
+              terminalClaim: "verified" as const,
+              verifiedOid: request.expectedOid,
+              fingerprint: result.fingerprint,
+              repositoryWritesAfterFingerprint: 0,
+            }));
+          }
+          return {
+            phase: request.phase as "create" | "ship",
+            command: request.command,
+            status: "completed" as const,
+            terminalClaim: "none" as const,
+          };
+        },
+        async createOrObserveCandidate() {
+          const candidate = await host.ensureCandidate();
+          const commit = await host.ensureCommit(candidate.oid);
+          return {
+            oid: commit.oid,
+            baseOid: fixture.baseOid,
+            clean: true,
+            hostObserved: true,
+            paths: [target],
+            hashes: { [target]: createHash("sha256").update(readFileSync(join(fixture.repoRoot, target))).digest("hex") },
+          };
+        },
+      };
+      const productionDependencies = {
+        async select() { return { kind: "reserved" as const, reservation: reservationResult, ledger }; },
+        hostFactory() { return lifecycleHost as never; },
+        effectHostFactory() { return host; },
+        now: () => now++,
+      };
 
-      assert.equal(completed.commitOid, commitOid);
-      assert.equal(completed.remoteOid, commitOid);
-      assert.equal(completed.pullRequestId, 7001);
+      const afterPush = await runProductionAwayController({ repoRoot: fixture.repoRoot }, productionDependencies);
+      assert.equal(afterPush.kind, "blocked");
+      assert.match((afterPush as { message: string }).message, /injected crash after push/);
+      const afterPull = await runProductionAwayController({ repoRoot: fixture.repoRoot }, productionDependencies);
+      assert.equal(afterPull.kind, "blocked");
+      assert.match((afterPull as { message: string }).message, /injected crash after draft PR/);
+      const completed = await runProductionAwayController({ repoRoot: fixture.repoRoot }, productionDependencies);
+
+      assert.equal(completed.kind, "completed");
+      assert.equal((completed as { candidateOid: string }).candidateOid, commitOid);
       assert.equal(pushCalls, 1, "push mutation occurs once across replay");
       assert.equal(github.createCalls, 1, "draft PR POST occurs once across replay");
       assert.ok(github.listCalls >= 1, "broker queries exact head/base before create");
