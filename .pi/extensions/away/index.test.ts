@@ -401,4 +401,50 @@ describe("supervisor-ready evidence", () => {
     );
     assert.equal(hasCanonicalSupervisorRegistry(root, sessionId, actorId, "health-1"), false);
   });
+
+  it("rejects role-only session-v3 decoy correlation records", () => {
+    const root = mkdtempSync(join(tmpdir(), "away-supervisor-decoy-"));
+    const sessionId = "session-1";
+    const actorId = "actor-1";
+    const requestId = "health-1";
+    const registryDir = join(root, ".pi", "fabric", "mesh", "actors", sessionId);
+    const actorDir = join(registryDir, actorId);
+    mkdirSync(join(root, ".pi", "prompts"), { recursive: true });
+    mkdirSync(actorDir, { recursive: true });
+    const instructions = "canonical supervisor instructions";
+    writeFileSync(
+      join(root, ".pi", "prompts", "supervise.md"),
+      `## Supervisor Instructions (custom — embed verbatim)\n\n\`\`\`\n${instructions}\n\`\`\`\n`,
+    );
+    const sessionFile = join(actorDir, "session.jsonl");
+    writeFileSync(
+      sessionFile,
+      [
+        JSON.stringify({ role: "user", content: `health-check ${requestId}` }),
+        JSON.stringify({ role: "assistant", content: `health-ack ${requestId}` }),
+      ].join("\n") + "\n",
+    );
+    writeFileSync(join(registryDir, "actors.json"), JSON.stringify({
+      format: 1,
+      actors: [{
+        id: actorId,
+        name: "supervisor",
+        instructions,
+        status: "idle",
+        events: ["agent_settled", "tool_error"],
+        topics: [],
+        delivery: "steer",
+        responseMode: "directive",
+        triggerTurn: true,
+        coalesce: true,
+        runner: "pi",
+        model: "openai-codex/gpt-5.6-sol",
+        thinking: "max",
+        tools: ["read", "grep", "find", "ls"],
+        extensions: false,
+        sessionFile,
+      }],
+    }));
+    assert.equal(hasCanonicalSupervisorRegistry(root, sessionId, actorId, requestId), false);
+  });
 });
