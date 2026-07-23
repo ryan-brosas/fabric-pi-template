@@ -598,9 +598,13 @@ describe("launcher.ts — real prompt/event settlement with a fake provider", ()
       // Timeout: if pi doesn't settle in 30s, fail.
       const result = await Promise.race([
         settled,
-        new Promise<never>((_, rej) =>
-          setTimeout(() => rej(new Error("pi did not settle in 30s")), 30000),
-        ),
+        new Promise<never>((_, reject) => {
+          const timer = setTimeout(
+            () => reject(new Error("pi did not settle in 30s")),
+            30000,
+          );
+          timer.unref();
+        }),
       ]);
 
       assert.ok(

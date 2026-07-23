@@ -47,6 +47,7 @@ export interface Launcher {
   assertUnused(): void;
   assertCommandAllowed(cmd: RpcRecord): void;
   send(cmd: RpcRecord): void;
+  request(cmd: RpcRecord): Promise<RpcRecord>;
   run(cb: (send: (cmd: RpcRecord) => void) => Promise<void>): Promise<void>;
   events(): AsyncIterable<RpcEvent>;
 }
@@ -75,10 +76,16 @@ export function launch(opts: LauncherOptions): Launcher {
   const pinExecPath = opts.pinExecPath ?? true;
 
   // A1 bootstrap: exact argv/env/controlCwd/fabric.json. Throws on unknown lane.
+  // Capture the real Node binary before the preload rewrites process.execPath;
+  // the lane extension uses this value for the same immutable closure hash.
+  const processEnv: Record<string, string | undefined> = {
+    ...(opts.processEnv ?? process.env),
+    PI_AWAY_NODE_BINARY: process.execPath,
+  };
   const bs = bootstrap(opts.profileId, {
     manifestPath: opts.manifestPath,
     controlCwd: opts.controlCwd,
-    processEnv: opts.processEnv,
+    processEnv,
   });
 
   // Re-load the manifest for the exec_path_override + lane_extension refs.
@@ -90,21 +97,9 @@ export function launch(opts: LauncherOptions): Launcher {
     ? manifest.exec_path_override
     : resolve(bs.repoRoot, manifest.exec_path_override);
 
-  // B2 closure recheck (launch gate). resolveClosure with requireAll:false so a
-  // disappeared input surfaces as exists:false; then hard-check the CRITICAL
-  // inputs. The lane_extension is a forward ref to C2 (not yet present at C1),
-  // so it is excluded from the hard check — it contributes to the closure hash
-  // (so its later appearance registers as drift) but does not block launch.
-  const closure = resolveClosure(opts.manifestPath, opts.profileId, { requireAll: false });
-  const laneExtAbs = isAbsolute(manifest.extensions.lane_extension)
-    ? manifest.extensions.lane_extension
-    : resolve(bs.repoRoot, manifest.extensions.lane_extension);
-  const criticalMissing = closure.inputs.filter((i) => i.declared !== laneExtAbs && !i.exists);
-  if (criticalMissing.length) {
-    throw new Error(
-      `closure: missing required input: ${criticalMissing.map((m) => m.declared).join(", ")}`,
-    );
-  }
+  // B2 closure launch gate. C2 is connected, so every declared immutable
+  // input — including the lane extension — is now mandatory before spawn.
+  const closure = resolveClosure(opts.manifestPath, opts.profileId, { requireAll: true });
   const closureHash = closure.hash;
 
   // Build the pi-host env (allowlisted by bootstrap). The preload that pins
@@ -129,6 +124,7 @@ export function launch(opts: LauncherOptions): Launcher {
   let used = false;
   let proc: ChildProcess | null = null;
   let procExited = false;
+  let dispatcher: RpcDispatcher | null = null;
   const eventQueue: RpcEvent[] = [];
   type WaitResult = IteratorResult<RpcEvent>;
   const eventWaiters: Array<(r: WaitResult) => void> = [];
@@ -142,10 +138,11 @@ export function launch(opts: LauncherOptions): Launcher {
 
   function send(cmd: RpcRecord): void {
     assertCommandAllowed(cmd);
-    if (!proc || proc.stdin.destroyed) {
+    const child = proc;
+    if (!child?.stdin || child.stdin.destroyed) {
       throw new Error("launcher: lane process not running");
     }
-    proc.stdin.write(serializeCommand(cmd));
+    child.stdin.write(serializeCommand(cmd));
   }
 
   function dispatchEvent(ev: RpcEvent): void {
@@ -177,6 +174,23 @@ export function launch(opts: LauncherOptions): Launcher {
     assertCommandAllowed,
 
     send,
+
+    request(cmd: RpcRecord): Promise<RpcRecord> {
+      assertCommandAllowed(cmd);
+      if (typeof cmd.id !== "string" && typeof cmd.id !== "number") {
+        return Promise.reject(new Error("launcher: correlated request id required"));
+      }
+      if (!dispatcher) {
+        return Promise.reject(new Error("launcher: lane process not running"));
+      }
+      const response = dispatcher.registerPending(cmd.id);
+      try {
+        send(cmd);
+      } catch {
+        dispatcher.end();
+      }
+      return response;
+    },
 
     events(): AsyncIterable<RpcEvent> {
       return {
@@ -210,22 +224,23 @@ export function launch(opts: LauncherOptions): Launcher {
       // promises on matching response ids, streams events, surfaces unknown-id
       // responses as wrongId (never fatal), and rejects still-pending commands
       // with an early-exit error when the stream closes.
-      const dispatcher = new RpcDispatcher({ maxRecordBytes: MAX_RPC_RECORD_BYTES });
-      dispatcher.on("event", (ev) => dispatchEvent(ev));
-      dispatcher.on("end", () => {
+      const activeDispatcher = new RpcDispatcher({ maxRecordBytes: MAX_RPC_RECORD_BYTES });
+      dispatcher = activeDispatcher;
+      activeDispatcher.on("event", (ev) => dispatchEvent(ev));
+      activeDispatcher.on("end", () => {
         procExited = true;
         drainWaitersDone();
       });
-      proc.stdout.on("data", (chunk: Buffer) => dispatcher.push(chunk));
-      proc.stdout.on("end", () => dispatcher.end());
+      proc.stdout!.on("data", (chunk: Buffer) => activeDispatcher.push(chunk));
+      proc.stdout!.on("end", () => activeDispatcher.end());
       proc.on("exit", () => {
         procExited = true;
-        dispatcher.end();
+        activeDispatcher.end();
         drainWaitersDone();
       });
       proc.on("error", () => {
         procExited = true;
-        dispatcher.end();
+        activeDispatcher.end();
         drainWaitersDone();
       });
 
@@ -237,7 +252,7 @@ export function launch(opts: LauncherOptions): Launcher {
         // consumer error never orphans the lane process or skips the single-use
         // mark. If the consumer threw, that error propagates after cleanup.
         try {
-          proc.stdin.end();
+          proc.stdin?.end();
         } catch {}
         if (!procExited) {
           await new Promise<void>((res) => {
@@ -247,6 +262,7 @@ export function launch(opts: LauncherOptions): Launcher {
             p.once("error", () => res());
           });
         }
+        dispatcher = null;
         used = true;
       }
     },
