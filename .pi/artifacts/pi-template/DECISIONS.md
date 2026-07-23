@@ -781,3 +781,62 @@ packet makes the gate non-deterministic; the full packet is always produced. (c)
 rejected: without machine-readable readiness, the packet gate is prompt-enforced and cannot be
 crash-safe. Chosen the full Pi-native packet with the narrow versioned state schema and verbatim
 managed boilerplate.
+
+## ADR-017: One connected away production composition root
+
+**Status:** accepted · **Date:** 2026-07-23
+
+**Context:** ADR-014 and ADR-015 defined confinement and crash-safe host effects, but the shipped
+extension still called a dependency-only controller, supervisor readiness used prose-sensitive
+correlation, lifecycle restart treated an established namespace as an error, and the hermetic full
+loop invoked the replay reducer through a test-local root. Those seams allowed unit success while the
+operator-visible path remained disconnected. A verifier-profile model turn against the dirty retained
+base could also inspect bytes different from the exact candidate OID later accepted by the verifier.
+
+**Decision:** Use `.pi/away-runtime/production-host.ts#runProductionAwayController` as the sole
+production composition root and bind the extension default directly to it. Preserve
+`createAwayExtension` injection only for focused tests.
+
+- The READY gate structurally parses bounded session-v3 entries and requires one exact parent chain
+  from the nonce-bound Fabric direct envelope to the silent health acknowledgement, correlated to the
+  session-local canonical read-only supervisor registry. The extension tool payload key is exactly
+  `token`; role-only records, prose, wrong IDs, stale requests, and duplicate/disconnected chains fail.
+- Before selection, the root validates packet/closure/Git facts and resumes one exact unfinished
+  reservation. Ordered host phase receipts bind repository/run/card/slug/base identity, canonical
+  prompt digest, settlement receipt hash, namespace state, and exact candidate paths/hashes. Partial
+  namespaces, multiple unfinished reservations, receipt gaps, source/base/hash drift, or replaced
+  workspaces block before a new lane or external effect. No-work performs no ledger/workspace/ref/
+  remote/PR mutation.
+- Create and ship use fixed confined writer profiles. The trusted host combines their settled paths
+  and hashes into one host-owned candidate commit on the dedicated ref. This is the ADR-015 away
+  exception to normal interactive agent commit denial; generated code remains Git-free and
+  credential-free.
+- Verify is bound directly to the exact candidate OID. The full allowlisted
+  `away-verifier-receipt/1` must report completed exit, matching OID, `manifestMatch:true`, and equal
+  SHA-256 pre/post input manifests; that manifest is the freshness fingerprint. No model turn over a
+  different dirty workspace can satisfy verification.
+- Lifecycle success is not public completion. The existing ADR-015 replay reducer must re-observe the
+  verified commit, matching dedicated remote ref, and one exact draft PR before `completed` is mapped
+  to the extension. Push and PR creation remain observe-before-mutate and idempotent across crashes.
+
+**Consequences:** The operator input, structural supervisor proof, retained lifecycle, verifier,
+ledger, Git, and GitHub effects now share one auditable call graph. Restart can continue from an
+established namespace without adopting unexplained bytes, and no-work exits before mutation. The
+cost is a larger trusted host module, retained evidence, and fail-closed dependence on exact receipts
+and identities. ADR-014 strict bubblewrap/cgroup/credential boundaries and ADR-015 append-only replay
+remain unchanged. Merge, default-ref update, force-push, deletion, cleanup, and roadmap mutation stay
+forbidden and human-only where applicable.
+
+**Evidence:** Production-host/controller/broker tests cover structural identities, replay ordering,
+exact-OID manifests, no-work, and terminal mapping. The hermetic full loop enters the shipped root and
+uses the real launcher, wrapper, staging, host candidate broker, strict verifier, local bare remote,
+and protocol GitHub service; all crash cuts converge to one branch publication and one draft PR while
+local/remote `main` and protected hashes remain unchanged. This is automated fixture evidence only;
+no live remote smoke was executed or claimed.
+
+**Alternatives:** (a) Keep the extension on `runAwayController` and treat production wiring as a later
+adapter — rejected as a shipped split brain. (b) Infer READY or lifecycle success from prose — rejected
+as uncorrelated and replay-unsafe. (c) Re-run `/create` into an established namespace — rejected as
+non-idempotent adoption/overwrite. (d) Let a verifier model inspect the retained dirty workspace then
+verify another OID — rejected as split-brain evidence. (e) Add a second status reducer or daemon —
+rejected; the existing append-only ledger and replay reducer remain authoritative.

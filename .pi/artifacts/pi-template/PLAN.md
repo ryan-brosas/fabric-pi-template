@@ -444,6 +444,26 @@ lane, validates the ready packet and closure, locks one repository, selects one 
 card, and appends its reservation to an external `away-loop-ledger/1` journal before creating a
 retained workspace or lifecycle namespace. Objective text is supplemental only.
 
+**Connected production composition root.** The extension default imports only
+`.pi/away-runtime/production-host.ts#runProductionAwayController`; the injected
+`createAwayExtension` seam remains test-only. The READY continuation is accepted only after one
+bounded structural session-v3 chain proves the exact Fabric direct request and descendant silent
+health acknowledgement against the canonical session-local actor registry. Substring or role-only
+decoys never unlock the root.
+
+Before selecting new work, the production root replays the repository ledger. One exact unfinished
+reservation with matching repository, source, card, slug, and base identity resumes its retained
+detached workspace and ordered phase receipts; multiple unfinished reservations, partial namespaces,
+receipt gaps, hash drift, or identity drift block before another lane or external effect. No eligible
+work returns `no-work` before ledger, workspace, ref, remote, or PR mutation.
+
+Create/ship settlement contributes exact host-observed paths and hashes to one host-owned candidate
+commit. Verify binds the exact candidate OID directly to the strict verifier receipt — no model turn
+inspects a different dirty tree — and uses equal pre/post input manifests as freshness evidence.
+Public `completed` is emitted only after the existing replay reducer re-observes the verified commit,
+matching dedicated remote ref, and one exact draft PR. Automated proof is hermetic (fake provider,
+local bare remote, protocol GitHub); no live remote smoke is executed or claimed.
+
 The journal is append-only, checksum-framed, fsynced, bounded, and secret-free. Its legal observed
 chain is `reserved`, `workspace_observed`, `candidate_observed`, `commit_observed`, `verified`,
 `push_intent`, `push_observed`, `pr_intent`, `pr_observed`, then `completed` (or terminal
