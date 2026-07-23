@@ -57,10 +57,10 @@ status: active
 - **Verify:** `node --experimental-strip-types --test .pi/away-runtime/{bootstrap,confinement,launcher,lane-extension,verifier}.test.ts`
 
 #### B2 [recovery] Compose resume, lifecycle, verification, and effects
-- [ ] RED: established-namespace restart, unfinished ordering, no-work purity, drift, and terminal composition cases.
-- [ ] GREEN: make lifecycle phases idempotently observable without a second status reducer.
-- [ ] Resume one exact unfinished reservation before selection and reconcile through existing brokers.
-- [ ] Return completed only after terminal ledger convergence.
+- [x] RED: established-namespace restart, unfinished ordering, no-work purity, drift, and terminal composition cases.
+- [x] GREEN: make lifecycle phases idempotently observable without a second status reducer.
+- [x] Resume one exact unfinished reservation before selection and reconcile through existing brokers.
+- [x] Return completed only after terminal ledger convergence.
 - **depends_on:** `[A2, B1]`
 - **parallel:** `false`
 - **conflicts_with:** `[B1, C1, C2]`

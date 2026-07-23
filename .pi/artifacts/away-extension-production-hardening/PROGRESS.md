@@ -54,3 +54,14 @@ status: done | updated: 2026-07-23
 - Read-only L3 review run `942428c75d344e9881085cf5b8c98ce1` timed out while repeatedly reading authority files and emitted no findings; Main independently completed the five-check quality gate.
 - Deviation: while changing three identical test call sites, Main used one in-memory `replaceAll` followed by `write`, contrary to the repository's manual-edit-only rule. The resulting diff was manually inspected and fully tested; no further scripted code edits were used.
 - No push performed.
+
+### 2026-07-23 - B2 restart and terminal composition
+status: done | updated: 2026-07-23
+
+- B2a commit `6f6071d`: controller accepts absent creation or exact host-replayed established create evidence; partial namespaces still block. Full controller suite 15/15 pass.
+- B2b commit `91f39bb`: query-only GitHub draft observation preserves reconcile's observe-before-mutate boundary; broker suite 7/7 pass.
+- B2 commit `e4a28ac`: lazy ordered phase-receipt replay, settlement rehash, exact dirty-path observation, unfinished-before-selection, no-work preflight without ledger/workspace mutation, and terminal-only production result mapping through the existing lifecycle/replay reducers.
+- Supervisor split-brain finding disposition: verify no longer launches a model against the dirty base workspace; host control binds exact `expectedOid`; full allowlisted verifier receipt requires matching pre/post manifests; fingerprint is the verified tree manifest.
+- Targeted restart/terminal checks: 9/9 pass. Controller/ledger/replay/Git/GitHub/production suite: 70/70 pass. Syntax and diff hygiene pass.
+- The shipped default path fully resolves live no-work. Eligible production fixtures supply the real low-level verifier/effect configuration; C2 proves those existing brokers through the same public entry.
+- No push performed.
