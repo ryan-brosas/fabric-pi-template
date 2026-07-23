@@ -13,9 +13,12 @@
 // hermetic: it depends only on the repo's away-runtime install + the passed
 // provider extension, never on the real Makora provider or the live repo.
 
+import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { existsSync, mkdirSync, readFileSync, readdirSync, statSync, writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
+
+import type { GitHubBrokerDependencies } from "./github-broker.ts";
 
 export interface FixtureStore {
   /** Reuse an existing fixture by key, or build it. Throws if the store is full. */
@@ -191,6 +194,174 @@ export function buildIntegrationFixture(
         PI_AWAY_STAGING_ROOT: stagingRoot,
         PI_AWAY_ATTEST_DIR: attestDir,
         PI_AWAY_REPO_ROOT: repoRoot,
+      };
+    },
+  };
+}
+// ---- autonomous-loop retained fixture -------------------------------------
+
+export interface AutonomousIntegrationFixture extends IntegrationFixture {
+  bareRemote: string;
+  baseOid: string;
+}
+
+/** Add real local Git state and a bare origin to the retained sandbox fixture. */
+export function buildAutonomousIntegrationFixture(
+  dir: string,
+  opts: BuildFixtureOptions,
+): AutonomousIntegrationFixture {
+  const fixture = buildIntegrationFixture(dir, opts);
+  const bareRemote = join(dir, "origin.git");
+  execFileSync("git", ["init", "-q", "-b", "main"], { cwd: fixture.repoRoot });
+  execFileSync("git", ["config", "user.name", "A7 Fixture"], { cwd: fixture.repoRoot });
+  execFileSync("git", ["config", "user.email", "a7@localhost.invalid"], { cwd: fixture.repoRoot });
+  execFileSync("git", ["add", "--", "."], { cwd: fixture.repoRoot });
+  execFileSync("git", ["commit", "-q", "-m", "fixture base"], { cwd: fixture.repoRoot });
+  execFileSync("git", ["init", "-q", "--bare", bareRemote]);
+  execFileSync("git", ["remote", "add", "origin", bareRemote], { cwd: fixture.repoRoot });
+  execFileSync("git", ["push", "-q", "origin", "main"], { cwd: fixture.repoRoot });
+  const baseOid = execFileSync("git", ["rev-parse", "HEAD"], {
+    cwd: fixture.repoRoot,
+    encoding: "utf8",
+  }).trim();
+  return { ...fixture, bareRemote, baseOid };
+}
+
+interface ProtocolPull {
+  id: number;
+  number: number;
+  draft: true;
+  html_url: string;
+  head: { ref: string; label: string };
+  base: { ref: string };
+}
+
+export interface ProtocolGitHubService {
+  dependencies: GitHubBrokerDependencies;
+  readonly createCalls: number;
+  readonly listCalls: number;
+  observe(
+    head: string,
+    base: string,
+  ):
+    | { kind: "absent" }
+    | { kind: "match"; pullRequestId: number; requestId: string };
+}
+
+/**
+ * Protocol-faithful fake for the broker's `gh api --include` transport. It
+ * validates method, endpoint, pinned headers, and typed draft fields, then
+ * returns real HTTP header/body frames with stable request evidence.
+ */
+export function createProtocolGitHubService(repository: string): ProtocolGitHubService {
+  const owner = repository.split("/")[0];
+  let pull: ProtocolPull | undefined;
+  let createCalls = 0;
+  let listCalls = 0;
+  let requestSequence = 0;
+
+  const response = (status: number, body: unknown): { status: number; stdout: string; stderr: string } => {
+    requestSequence += 1;
+    const reason = status === 201 ? "Created" : "OK";
+    return {
+      status: 0,
+      stdout: `HTTP/1.1 ${status} ${reason}\r\nX-GitHub-Request-Id: github-fixture-${requestSequence}\r\n\r\n${JSON.stringify(body)}`,
+      stderr: "",
+    };
+  };
+
+  const valueAfter = (args: string[], flag: string): string => {
+    const at = args.indexOf(flag);
+    if (at < 0 || at + 1 >= args.length) throw new Error(`github fixture: missing ${flag}`);
+    return args[at + 1];
+  };
+
+  const fields = (args: string[]): Map<string, string> => {
+    const result = new Map<string, string>();
+    for (let index = 0; index < args.length - 1; index += 1) {
+      if (args[index] !== "-f" && args[index] !== "-F") continue;
+      const raw = args[index + 1];
+      const separator = raw.indexOf("=");
+      if (separator < 1) throw new Error("github fixture: malformed field");
+      result.set(raw.slice(0, separator), raw.slice(separator + 1));
+    }
+    return result;
+  };
+
+  const dependencies: GitHubBrokerDependencies = {
+    runGh(args) {
+      if (args[0] !== "api" || valueAfter(args, "--hostname") !== "github.com") {
+        throw new Error("github fixture: invalid gh API invocation");
+      }
+      const headers = args
+        .flatMap((value, index) => value === "-H" ? [args[index + 1]] : [])
+        .filter(Boolean);
+      if (
+        !headers.includes("Accept: application/vnd.github+json") ||
+        !headers.includes("X-GitHub-Api-Version: 2022-11-28")
+      ) {
+        throw new Error("github fixture: missing pinned REST headers");
+      }
+      const endpoint = args.at(-1);
+      if (endpoint !== `/repos/${repository}/pulls`) {
+        throw new Error("github fixture: unexpected endpoint");
+      }
+      const method = valueAfter(args, "--method");
+      const requestFields = fields(args);
+      if (method === "GET") {
+        listCalls += 1;
+        const expectedHead = pull ? `${owner}:${pull.head.ref}` : requestFields.get("head");
+        if (requestFields.get("head") !== expectedHead || requestFields.get("base") !== "main") {
+          throw new Error("github fixture: list coordinates mismatch");
+        }
+        const matches = pull && requestFields.get("head") === `${owner}:${pull.head.ref}`
+          ? [pull]
+          : [];
+        return response(200, matches);
+      }
+      if (method === "POST") {
+        createCalls += 1;
+        if (
+          requestFields.get("draft") !== "true" ||
+          requestFields.get("base") !== "main" ||
+          !requestFields.get("head") ||
+          !requestFields.get("title")
+        ) {
+          throw new Error("github fixture: draft create fields mismatch");
+        }
+        if (pull) throw new Error("github fixture: duplicate POST");
+        const head = requestFields.get("head")!;
+        pull = {
+          id: 7001,
+          number: 17,
+          draft: true,
+          html_url: `https://github.com/${repository}/pull/17`,
+          head: { ref: head, label: `${owner}:${head}` },
+          base: { ref: "main" },
+        };
+        return response(201, pull);
+      }
+      throw new Error("github fixture: method not allowlisted");
+    },
+    async sleep() {},
+    now: () => 0,
+  };
+
+  return {
+    dependencies,
+    get createCalls() {
+      return createCalls;
+    },
+    get listCalls() {
+      return listCalls;
+    },
+    observe(head, base) {
+      if (!pull) return { kind: "absent" };
+      if (pull.head.ref !== head || pull.base.ref !== base) return { kind: "absent" };
+      return {
+        kind: "match",
+        pullRequestId: pull.id,
+        requestId: `github-observe-${requestSequence}`,
       };
     },
   };

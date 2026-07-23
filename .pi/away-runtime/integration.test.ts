@@ -14,6 +14,7 @@
 import assert from "node:assert/strict";
 import { describe, it, before } from "node:test";
 import { execFileSync } from "node:child_process";
+import { createHash } from "node:crypto";
 import {
   existsSync,
   mkdirSync,
@@ -26,19 +27,30 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 import {
+  buildAutonomousIntegrationFixture,
   buildIntegrationFixture,
   createFixtureStore,
+  createProtocolGitHubService,
   fixtureKey,
   type IntegrationFixture,
 } from "./fixtures.ts";
 import { fabricExecTurn, textTurn, writeFakeProvider } from "./fake-provider.ts";
 import { launch } from "./launcher.ts";
 import type { Launcher } from "./launcher.ts";
-import { createLaneExtension } from "./lane-extension.ts";
+import { AWAY_SETTLEMENT_SCHEMA, createLaneExtension } from "./lane-extension.ts";
 import { listExtensionReceipts } from "./attestation.ts";
 import { buildBwrapArgs } from "./executor-wrapper.mjs";
 import { verify } from "./verifier.ts";
 import type { CommandCatalog } from "./command-catalog.ts";
+import { openLedger } from "./ledger.ts";
+import { reconcileAwayRun, type AwayEffectHost, type AwayPullObservation } from "./controller.ts";
+import {
+  createOrObserveCandidateCommit,
+  deriveAwayBranch,
+  observeRemoteBranch,
+  publishDedicatedBranch,
+} from "./git-broker.ts";
+import { createOrGetDraftPullRequest } from "./github-broker.ts";
 
 const REPO = join(import.meta.dirname, "..", "..");
 const REAL_MANIFEST = join(REPO, ".pi", "away-sandbox.json");
@@ -258,7 +270,7 @@ describe("D1 crash injection (no dup / no descendant / no protected-path change)
           pinExecPath: true,
           processEnv: broken.envFor("writer"),
         }),
-      /closure: missing required input|missing required input/,
+      /closure: missing required closure input/,
       "launch rejects a missing wrapper before spawning",
     );
   });
@@ -486,6 +498,47 @@ describe(
 
       l.markUsed();
     });
+
+    it("settles an exact staged path through the internal command and terminal receipt", async () => {
+      const target = "src/away-connected.txt";
+      const content = "connected through settlement\n";
+      const code = `const r=await tools.call({ref:"extensions.away_stage_write",args:${JSON.stringify({ path: target, content })}});return JSON.stringify(r);`;
+      const { fx } = makeSlowFixture([fabricExecTurn(code), textTurn("STAGED")]);
+      const lane = launch({
+        manifestPath: fx.manifestPath,
+        profileId: "writer",
+        controlCwd: fx.controlCwd,
+        pinExecPath: true,
+        processEnv: envForLane(fx, "writer"),
+      });
+      const hash = createHash("sha256").update(content).digest("hex");
+      const payload = Buffer.from(
+        JSON.stringify({
+          schema: AWAY_SETTLEMENT_SCHEMA,
+          candidates: [{ path: target, hash }],
+        }),
+        "utf8",
+      ).toString("base64url");
+
+      await lane.run(async (send) => {
+        send({ type: "prompt", id: "settle_write", message: "stage the exact fixture change" });
+        for await (const event of lane.events()) {
+          if (event.type === "agent_settled") break;
+        }
+        send({ type: "prompt", id: "settle_commit", message: `/away-settle ${payload}` });
+        const deadline = Date.now() + 30_000;
+        while (Date.now() < deadline && listExtensionReceipts(fx.attestDir).length === 0) {
+          await new Promise((resolve) => setTimeout(resolve, 25));
+        }
+        assert.equal(listExtensionReceipts(fx.attestDir).length, 1, "terminal receipt exists");
+      });
+
+      assert.equal(readFileSync(join(fx.repoRoot, target), "utf8"), content);
+      const receipt = JSON.parse(readFileSync(listExtensionReceipts(fx.attestDir)[0], "utf8"));
+      assert.equal(receipt.outcome, "completed");
+      assert.equal(receipt.wrapperFsynced, true);
+      assert.equal(receipt.closureHash, lane.closureHash);
+    });
   },
 );
 
@@ -525,6 +578,211 @@ describe(
         `expected an unavailable repository bridge, got: ${JSON.stringify(text).slice(0, 400)}`,
       );
       l.markUsed();
+    });
+  },
+);
+// ----------------------------------------------------------------------------
+// Suite 7: autonomous retained fixture — ADR-014 + ledger + Git + GitHub
+// ----------------------------------------------------------------------------
+
+describe(
+  "A7 full confined autonomous loop",
+  { skip: !PI_OK || !BWRAP_OK },
+  () => {
+    it("replays real confined staging, exact-OID verification, bare Git publication, and one draft PR", async () => {
+      const dir = mkdtempSync(join(tmpdir(), "a7-full-loop-retained-"));
+      const target = "src/autonomous.txt";
+      const content = "autonomous confined candidate\n";
+      const providerPath = writeFakeProvider(dir, [
+        fabricExecTurn(
+          `const r=await tools.call({ref:"extensions.away_stage_write",args:${JSON.stringify({ path: target, content })}});return JSON.stringify(r);`,
+        ),
+        textTurn("STAGED"),
+      ]);
+      const fixture = buildAutonomousIntegrationFixture(dir, {
+        providerExtPath: providerPath,
+        limits: { executor_timeout_ms: 30_000 },
+      });
+      const github = createProtocolGitHubService("fixture/repo");
+      const ledger = openLedger(join(dir, "ledger"));
+      const runId = "run-a7-01234567";
+      const branch = deriveAwayBranch("RM-003", runId);
+      let now = 100;
+      const reservation = ledger.append({
+        runId,
+        repositoryId: "repo-a7-01234567",
+        cardId: "RM-003",
+        sourceHash: createHash("sha256").update("fixture-roadmap").digest("hex"),
+        baseOid: fixture.baseOid,
+        effectKey: `${runId}:reserved`,
+        status: "reserved",
+        timestamp: now++,
+        slug: "autonomous-away-loop",
+      }).record;
+      const manifestBefore = createHash("sha256").update(readFileSync(fixture.manifestPath)).digest("hex");
+      const mainBefore = execFileSync("git", ["rev-parse", "refs/heads/main"], {
+        cwd: fixture.repoRoot,
+        encoding: "utf8",
+      }).trim();
+
+      let candidateBlob: string | undefined;
+      let commitOid: string | undefined;
+      let verification: Awaited<ReturnType<AwayEffectHost["ensureVerification"]>> | undefined;
+      let pushCalls = 0;
+      let crashAfterPush = true;
+      let crashAfterPull = true;
+
+      const host: AwayEffectHost = {
+        async ensureWorkspace() {
+          assert.equal(execFileSync("git", ["status", "--porcelain"], { cwd: fixture.repoRoot, encoding: "utf8" }), "");
+        },
+        async ensureCandidate() {
+          if (!candidateBlob) {
+            const lane = launch({
+              manifestPath: fixture.manifestPath,
+              profileId: "writer",
+              controlCwd: fixture.controlCwd,
+              pinExecPath: true,
+              processEnv: envForLane(fixture, "writer"),
+            });
+            const hash = createHash("sha256").update(content).digest("hex");
+            const payload = Buffer.from(JSON.stringify({
+              schema: AWAY_SETTLEMENT_SCHEMA,
+              candidates: [{ path: target, hash }],
+            }), "utf8").toString("base64url");
+            await lane.run(async (send) => {
+              send({ type: "prompt", id: "a7-write", message: "stage the autonomous fixture candidate" });
+              for await (const event of lane.events()) {
+                if (event.type === "agent_settled") break;
+              }
+              send({ type: "prompt", id: "a7-settle", message: `/away-settle ${payload}` });
+              const deadline = Date.now() + 30_000;
+              while (Date.now() < deadline && listExtensionReceipts(fixture.attestDir).length === 0) {
+                await new Promise((resolve) => setTimeout(resolve, 25));
+              }
+              assert.equal(listExtensionReceipts(fixture.attestDir).length, 1);
+            });
+            candidateBlob = execFileSync("git", ["hash-object", target], {
+              cwd: fixture.repoRoot,
+              encoding: "utf8",
+            }).trim();
+          }
+          return { oid: candidateBlob };
+        },
+        async ensureCommit(observedCandidate) {
+          assert.equal(observedCandidate, candidateBlob);
+          if (!commitOid) {
+            const result = createOrObserveCandidateCommit({
+              repoRoot: fixture.repoRoot,
+              baseOid: fixture.baseOid,
+              branch,
+              runId,
+              cardId: "RM-003",
+              paths: [target],
+              hashes: { [target]: createHash("sha256").update(readFileSync(join(fixture.repoRoot, target))).digest("hex") },
+            });
+            commitOid = result.oid;
+          }
+          return { oid: commitOid };
+        },
+        async ensureVerification(observedCommit) {
+          assert.equal(observedCommit, commitOid);
+          if (!verification) {
+            const result = await verify({
+              oid: observedCommit,
+              repoPath: fixture.repoRoot,
+              commandId: "candidate",
+              catalog: {
+                candidate: {
+                  id: "candidate",
+                  binary: REAL_NODE,
+                  argv: ["--eval", `const fs=require("node:fs");if(fs.readFileSync("/src/${target}","utf8")!==${JSON.stringify(content)})process.exit(1)`],
+                  cwd: "/scratch",
+                },
+              },
+              limits: JSON.parse(readFileSync(fixture.manifestPath, "utf8")).limits,
+              workRoot: join(dir, "verify-work"),
+              commandBinary: REAL_NODE,
+              bwrapPath: REAL_BWRAP,
+              attestDir: join(dir, "verify-attest"),
+            });
+            assert.equal(result.receipt.outcome, "completed");
+            const receiptHash = createHash("sha256").update(readFileSync(result.receiptPath)).digest("hex");
+            verification = {
+              oid: observedCommit,
+              receiptHash,
+              fingerprint: result.receipt.postManifest,
+              fresh: result.receipt.manifestMatch,
+            };
+          }
+          return verification;
+        },
+        async observeRemote(observedCommit) {
+          const state = observeRemoteBranch({
+            repoRoot: fixture.repoRoot,
+            remote: "origin",
+            branch,
+            expectedOid: observedCommit,
+          });
+          return state.kind === "absent"
+            ? { kind: "absent" }
+            : state.kind === "match"
+              ? { kind: "match", oid: state.oid }
+              : { kind: "divergent", oid: state.oid };
+        },
+        async publish(observedCommit) {
+          pushCalls += 1;
+          publishDedicatedBranch({ repoRoot: fixture.repoRoot, remote: "origin", branch, oid: observedCommit });
+          if (crashAfterPush) {
+            crashAfterPush = false;
+            throw new Error("injected crash after push");
+          }
+        },
+        async observePullRequest(): Promise<AwayPullObservation> {
+          return github.observe(branch, "main");
+        },
+        async createOrGetDraftPullRequest(requestId): Promise<AwayPullObservation> {
+          const pull = await createOrGetDraftPullRequest({
+            repository: "fixture/repo",
+            hostname: "github.com",
+            base: "main",
+            head: branch,
+            title: "RM-003 autonomous fixture",
+            body: "Hermetic A7 evidence",
+            requestId,
+          }, github.dependencies);
+          if (crashAfterPull) {
+            crashAfterPull = false;
+            throw new Error("injected crash after draft PR");
+          }
+          return { kind: "match", pullRequestId: pull.pullRequestId, requestId: pull.requestId };
+        },
+      };
+
+      await assert.rejects(
+        () => reconcileAwayRun({ ledger, reservation, host, now: () => now++ }),
+        /injected crash after push/,
+      );
+      await assert.rejects(
+        () => reconcileAwayRun({ ledger, reservation, host, now: () => now++ }),
+        /injected crash after draft PR/,
+      );
+      const completed = await reconcileAwayRun({ ledger, reservation, host, now: () => now++ });
+
+      assert.equal(completed.commitOid, commitOid);
+      assert.equal(completed.remoteOid, commitOid);
+      assert.equal(completed.pullRequestId, 7001);
+      assert.equal(pushCalls, 1, "push mutation occurs once across replay");
+      assert.equal(github.createCalls, 1, "draft PR POST occurs once across replay");
+      assert.ok(github.listCalls >= 1, "broker queries exact head/base before create");
+      assert.equal(execFileSync("git", ["rev-parse", "refs/heads/main"], { cwd: fixture.repoRoot, encoding: "utf8" }).trim(), mainBefore);
+      assert.equal(execFileSync("git", ["--git-dir", fixture.bareRemote, "rev-parse", "refs/heads/main"], { encoding: "utf8" }).trim(), fixture.baseOid);
+      assert.equal(execFileSync("git", ["--git-dir", fixture.bareRemote, "rev-parse", `refs/heads/${branch}`], { encoding: "utf8" }).trim(), commitOid);
+      assert.equal(createHash("sha256").update(readFileSync(fixture.manifestPath)).digest("hex"), manifestBefore);
+      assert.deepEqual(
+        ledger.replay().records.filter((record) => record.runId === runId).map((record) => record.status),
+        ["reserved", "workspace_observed", "candidate_observed", "commit_observed", "verified", "push_intent", "push_observed", "pr_intent", "pr_observed", "completed"],
+      );
     });
   },
 );
