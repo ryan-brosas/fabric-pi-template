@@ -434,8 +434,34 @@ block execution — no weaker fallback wrapper, no fail-open userns variant, no 
 **Authority.** Main stays sole integrator; merge stays human-only; the verifier reuses the launcher
 with a distinct profile (exact remote OID checkout, read-only source+deps, no net, no creds,
 broker-controlled argv from command IDs) and a stale PASS is invalidated by any change. This is an
-opt-in away lane; normal interactive sessions are unaffected. ADR-015 (autonomous-away-loop) adds the
-real ledger/Git/GitHub crash-replay full loop on top of this foundation; this feature defers that loop.
+opt-in away lane; normal interactive sessions are unaffected. ADR-015 adds the tested autonomous
+ledger/Git/GitHub crash-replay loop while preserving every ADR-014 confinement boundary.
+
+## Autonomous away loop (ADR-015)
+
+`/supervise --away [objective]` is the explicit one-shot entry. The trusted host, never the generated
+lane, validates the ready packet and closure, locks one repository, selects one eligible stable roadmap
+card, and appends its reservation to an external `away-loop-ledger/1` journal before creating a
+retained workspace or lifecycle namespace. Objective text is supplemental only.
+
+The journal is append-only, checksum-framed, fsynced, bounded, and secret-free. Its legal observed
+chain is `reserved`, `workspace_observed`, `candidate_observed`, `commit_observed`, `verified`,
+`push_intent`, `push_observed`, `pr_intent`, `pr_observed`, then `completed` (or terminal
+`blocked`/`aborted`). Duplicate identical effects are no-ops; identity drift, earlier corruption,
+stale evidence, divergent refs, ambiguous PRs, or cap exhaustion block. Torn final frames and all
+workspaces/receipts/refs are retained; the runtime never performs destructive cleanup.
+
+Lifecycle artifacts remain authoritative. `/create` alone establishes the slug namespace, `/ship`
+records implementation without terminal completion, the host creates or observes an exact-path
+candidate commit on a dedicated `pi-away/rm-NNN-<run>` ref, and `/verify` alone verifies that exact
+clean OID. No repository write follows the final verification fingerprint. The host then observes
+before pushing the dedicated ref and queries exact GitHub head/base before creating at most one draft
+PR. Completion rechecks receipt freshness, commit and remote OIDs, and one exact draft PR.
+
+Git, GitHub, credentials, ledger mutation, refs, command argv, and retry policy stay in the trusted
+host. Generated code retains only the controller-selected ADR-014 lane and allowlisted `away_*`
+bridge. Merge, `main` update, force-push, branch deletion, roadmap mutation, recurring scheduling,
+and cross-host locking remain out of scope; merge is human-only.
 
 **Pi-native closure (ADR-016).** The startup closure contains no `.opencode` path — all closure
 inputs resolve under `.pi/` or host paths, so a copied `.pi` runtime operates with `.opencode`

@@ -612,14 +612,71 @@ autonomous mutation, added by ADR-016's P7.1; `.opencode/command/**` remains pro
 This does not change ADR-014's independent confinement authority; it records the relationship to
 ADR-016's Pi-native init packet.
 
-**Forward dependency.** ADR-015 (autonomous-away-loop) adds the real ledger/Git/GitHub crash-replay
-full loop on top of this confinement foundation; this feature defers that loop.
+**Implemented extension.** ADR-015 (autonomous-away-loop) adds the tested ledger/Git/GitHub
+crash-replay loop on top of this confinement foundation without widening sandbox authority.
 
 **Alternatives:** (a) `node-process` as the boundary — rejected: it is not a sandbox; shell-capable
 children and broad risk grants. (b) Fail-open `--unshare-user-try` — rejected: userns failure would
 run unconfined. (c) Pin a wrapper via Fabric config — rejected: no such field exists in 0.23.0 or 0.24.3; the
 writable-execPath seam is the only mechanism and it is host-owned and pre-boot. (d) Pass credentials
 into the sandbox env — rejected: an exfiltration channel; credentials stay in the parent.
+
+## ADR-015: Autonomous away loop
+
+**Status:** accepted · **Date:** 2026-07-25
+
+**Context:** ADR-014 established strict confinement for one generated-code lane and exact-OID
+verification, but intentionally stopped before unattended orchestration. A crash between host commit,
+push, verification evidence, or draft-PR creation could otherwise duplicate or lose an external
+effect. Roadmap prose and model claims are not durable effect authority, while putting credentials,
+Git, GitHub, or the journal inside the sandbox would defeat ADR-014.
+
+**Decision:** Add an explicitly invoked, single-repository, one-card host controller on top of
+ADR-014.
+
+- The trusted host validates the ready packet and immutable closure, acquires one repository `flock`,
+  deterministically selects the lowest eligible stable roadmap card, and fsyncs a reservation before
+  workspace or lifecycle mutation. Supplemental objective text can narrow work but cannot select a
+  different card.
+- External effects use the append-only, checksum-framed `away-loop-ledger/1` journal outside the
+  repository. Its legal chain is `reserved` → `workspace_observed` → `candidate_observed` →
+  `commit_observed` → `verified` → `push_intent` → `push_observed` → `pr_intent` → `pr_observed` →
+  `completed`, with terminal `blocked`/`aborted`. Exact duplicate records are no-ops; conflicting
+  evidence, earlier corruption, or cap exhaustion blocks. Torn final bytes are retained, never
+  truncated.
+- Lifecycle authority remains the four slug artifacts: `/create` alone establishes the namespace,
+  `/ship` cannot claim completion, and `/verify` alone declares terminal verification for the exact
+  clean candidate OID. The ledger records external observations, not lifecycle state.
+- Generated code remains credential-free and Git-free. It sees only its controller-derived ADR-014
+  lane and `away_*` bridge. The host validates exact staged paths/hashes, creates or observes one
+  dedicated `pi-away/rm-NNN-<run>` commit with local-ref compare-and-swap, verifies that OID in the
+  strict verifier, then publishes only that dedicated branch.
+- Before every ambiguous mutation the host queries authoritative state. Push reconciliation compares
+  the exact remote ref; GitHub reconciliation queries exact head/base, creates at most one draft pull
+  request through pinned REST headers, and queries again after ambiguous success. Completion rechecks
+  verification receipt freshness, commit OID, remote OID, and one exact draft PR.
+- Scope is one host and one repository invocation. Merge, default-branch update, force-push, branch or
+  evidence deletion, roadmap mutation, recurring scheduling, and automatic cleanup remain forbidden.
+  Retained workspaces, ledger segments, refs, receipts, and PR evidence are audit material.
+
+**Consequences:** Restart can converge after every durable cut point without blindly replaying a push
+or POST, and auditors can bind roadmap provenance to candidate, verification, remote ref, and draft PR.
+The cost is retained evidence growth, strict single-host locking, version-coupled confinement, and
+fail-closed operation when any local or remote observation is partial, stale, divergent, or ambiguous.
+Human merge authority and Main's normal interactive integrator role remain unchanged.
+
+**Evidence:** `ledger.test.ts`, `controller.test.ts`, `git-broker.test.ts`,
+`github-broker.test.ts`, and `replay.test.ts` cover each boundary. `integration.test.ts` runs the real
+launcher/wrapper/firewall/staging/verifier path with a local bare Git remote, a protocol-faithful
+GitHub service, injected post-push/post-PR crashes, protected-path hashes, and unchanged local/remote
+`main`.
+
+**Alternatives:** (a) Store state in roadmap or lifecycle prose — rejected: not an external-effect
+journal and unsafe under crash replay. (b) Let the model commit/push/call GitHub — rejected: exposes
+credentials and makes arguments/refs model-controlled. (c) Treat request IDs as idempotency keys —
+rejected: GitHub request IDs are evidence only. (d) Use SQLite or a daemon — rejected: unnecessary for
+the one-shot, one-host scope and adds a new dependency/authority surface. (e) Auto-clean retained
+evidence — rejected: destructive and removes recovery/audit material.
 
 ## ADR-016: Pi-native initialization packet and `/init` as the mandatory first lifecycle touch
 
