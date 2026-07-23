@@ -355,9 +355,21 @@ describe("C2 — away_attest settlement + attestation", () => {
     state.token.endWrite();
   });
 
+  it("rejects attestation before the host releases the writer token", async () => {
+    const attestDir = freshAttest();
+    const state = createLaneExtension({ ...ctxFor(fx, "writer"), attestDir });
+    seedWrapperReceipt(attestDir, "writer");
+    await rejects(
+      callTool(state, "away_attest", { outcome: "completed" }),
+      /writer token held|settlement has not released/,
+    );
+    assert.equal(state.isAttested(), false);
+  });
+
   it("rejects attestation when the wrapper has not fsynced (sandbox active)", async () => {
     const attestDir = freshAttest();
     const state = createLaneExtension({ ...ctxFor(fx, "writer"), attestDir });
+    state.release();
     await rejects(
       callTool(state, "away_attest", { outcome: "completed" }),
       /wrapper has not fsynced/,
@@ -375,6 +387,7 @@ describe("C2 — away_attest settlement + attestation", () => {
     const attestDir = freshAttest();
     const state = createLaneExtension({ ...ctxFor(fx, "writer"), attestDir });
     seedWrapperReceipt(attestDir, "writer");
+    state.release();
     const r = await callTool(state, "away_attest", { outcome: "completed" });
     assert.match(r.content[0].text, /attested:/);
     assert.equal(state.isAttested(), true);
@@ -386,6 +399,7 @@ describe("C2 — away_attest settlement + attestation", () => {
     const attestDir = freshAttest();
     const state = createLaneExtension({ ...ctxFor(fx, "writer"), attestDir });
     seedWrapperReceipt(attestDir, "writer");
+    state.release();
     await callTool(state, "away_attest", { outcome: "completed" });
     await rejects(callTool(state, "away_attest", { outcome: "completed" }), /already attested/);
   });
@@ -394,6 +408,7 @@ describe("C2 — away_attest settlement + attestation", () => {
     const attestDir = freshAttest();
     const state = createLaneExtension({ ...ctxFor(fx, "writer"), attestDir });
     seedWrapperReceipt(attestDir, "writer");
+    state.release();
     await callTool(state, "away_attest", { outcome: "completed" });
     const receipts = readdirSync(attestDir).filter((n) => n.startsWith("extension-receipt-"));
     const parsed = JSON.parse(readFileSync(join(attestDir, receipts[0]), "utf8"));

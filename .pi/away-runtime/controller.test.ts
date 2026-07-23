@@ -30,6 +30,9 @@ import {
   deriveGitFacts,
   withRepositoryLease,
   reserveNext,
+  answerAwayPolicy,
+  driveReservedLifecycle,
+  runAwayController,
   ControllerBlockError,
   type GitFacts,
   type ControllerDependencies,
@@ -1058,5 +1061,245 @@ describe("git facts and runtime closure", () => {
       assert.deepEqual(result.closureHashes, FIXED_CLOSURE, "injected closureFacts should be plumbed through");
       assert.equal(openLedger(ledger).replay().records.length, 1);
     }
+  });
+});
+
+describe("A3 lifecycle controller", () => {
+  async function reservedFixture() {
+    const slug = "lifecycle-card";
+    const packet = makePacket({ roadmap: eligibleRoadmap(slug, 1) });
+    const ledger = retainedTempDir("away-ledger-");
+    const result = await reserveNext(
+      reserveOpts(packet, ledger, "lifecycle-run"),
+      makeFixedDeps(packet, slug, {}),
+    );
+    assert.equal(result.kind, "reserved");
+    if (result.kind !== "reserved") throw new Error("unreachable");
+    return result;
+  }
+
+  it("drives source-backed create, ship, host candidate commit, and exact-OID verify in order", async () => {
+    const reservation = await reservedFixture();
+    const calls: string[] = [];
+    let namespaceChecks = 0;
+    const result = await driveReservedLifecycle(
+      reservation,
+      { supplementalObjective: "tighten parser bounds" },
+      {
+        async namespaceState(slug) {
+          calls.push(`namespace:${slug}`);
+          namespaceChecks += 1;
+          return namespaceChecks === 1 ? "absent" : "established";
+        },
+        async invoke(request) {
+          calls.push(`invoke:${request.phase}`);
+          assert.equal(request.answerPolicy("discovery-level"), "deep");
+          assert.equal(request.answerPolicy("clean-isolated-workspace"), "proceed");
+          assert.equal(request.answerPolicy("agent-commit"), "deny");
+          if (request.phase === "create") {
+            assert.equal(request.command, "/create lifecycle-card --from .pi/ROADMAP.md#RM-001");
+            assert.equal(request.supplementalObjective, "tighten parser bounds");
+            return { phase: "create", command: request.command, status: "completed", terminalClaim: "none" } as const;
+          }
+          if (request.phase === "ship") {
+            assert.equal(request.command, "/ship lifecycle-card");
+            return { phase: "ship", command: request.command, status: "completed", terminalClaim: "none" } as const;
+          }
+          assert.equal(request.command, "/verify lifecycle-card");
+          assert.equal(request.expectedOid, "b".repeat(40));
+          return {
+            phase: "verify", command: request.command, status: "completed", terminalClaim: "verified",
+            verifiedOid: "b".repeat(40), fingerprint: "c".repeat(64), repositoryWritesAfterFingerprint: 0,
+          } as const;
+        },
+        async createOrObserveCandidate(request) {
+          calls.push("candidate");
+          assert.equal(request.slug, "lifecycle-card");
+          assert.equal(request.baseOid, FIXED_BASE_OID);
+          return {
+            oid: "b".repeat(40), baseOid: FIXED_BASE_OID, clean: true, hostObserved: true,
+            paths: ["src/change.ts"], hashes: { "src/change.ts": "d".repeat(64) },
+          };
+        },
+      },
+    );
+    assert.deepEqual(calls, [
+      "namespace:lifecycle-card", "invoke:create", "namespace:lifecycle-card",
+      "invoke:ship", "candidate", "invoke:verify",
+    ]);
+    assert.deepEqual(result, {
+      kind: "completed", slug: "lifecycle-card", cardId: "RM-001",
+      candidateOid: "b".repeat(40), fingerprint: "c".repeat(64),
+    });
+  });
+
+  it("reserves by repository identity before applying supplemental objective data", async () => {
+    const reservation = await reservedFixture();
+    let namespaceChecks = 0;
+    const result = await runAwayController(
+      { repoRoot: "/repo", supplementalObjective: "never select from this text" },
+      {
+        async reserve(request) {
+          assert.deepEqual(request, { repoRoot: "/repo" });
+          return reservation;
+        },
+        host: {
+          async namespaceState() {
+            namespaceChecks += 1;
+            return namespaceChecks === 1 ? "absent" as const : "established" as const;
+          },
+          async invoke(request) {
+            if (request.phase === "verify") {
+              return {
+                phase: "verify", command: request.command, status: "completed",
+                terminalClaim: "verified", verifiedOid: "b".repeat(40),
+                fingerprint: "c".repeat(64), repositoryWritesAfterFingerprint: 0,
+              } as const;
+            }
+            return {
+              phase: request.phase, command: request.command, status: "completed",
+              terminalClaim: "none",
+            } as const;
+          },
+          async createOrObserveCandidate() {
+            return {
+              oid: "b".repeat(40), baseOid: FIXED_BASE_OID, clean: true,
+              hostObserved: true, paths: ["src/change.ts"],
+              hashes: { "src/change.ts": "d".repeat(64) },
+            };
+          },
+        },
+      },
+    );
+    assert.equal(result.kind, "completed");
+  });
+
+  it("answers only fixed unattended policy questions and rejects unknown dialogue", () => {
+    assert.equal(answerAwayPolicy("discovery-level"), "deep");
+    assert.equal(answerAwayPolicy("clean-isolated-workspace"), "proceed");
+    for (const question of ["agent-commit", "agent-push", "agent-publication", "agent-merge"]) {
+      assert.equal(answerAwayPolicy(question), "deny");
+    }
+    assert.throws(
+      () => answerAwayPolicy("choose-a-database"),
+      (error: unknown) => error instanceof ControllerBlockError && error.gate === "policy-answer" && /unexpected question/.test(error.message),
+    );
+  });
+
+  it("blocks namespace drift, ship completion claims, dirty candidates, and stale verify evidence", async () => {
+    const reservation = await reservedFixture();
+    const baseHost = {
+      async namespaceState() { return "absent" as const; },
+      async invoke(request: { phase: string; command: string }) {
+        return { phase: request.phase, command: request.command, status: "completed", terminalClaim: "none" } as const;
+      },
+      async createOrObserveCandidate() {
+        return {
+          oid: "b".repeat(40), baseOid: FIXED_BASE_OID, clean: true, hostObserved: true,
+          paths: ["src/change.ts"], hashes: { "src/change.ts": "d".repeat(64) },
+        };
+      },
+    };
+    await assert.rejects(
+      driveReservedLifecycle(reservation, {}, { ...baseHost, async namespaceState() { return "established" as const; } }),
+      /namespace.*absent/i,
+    );
+
+    let checks = 0;
+    await assert.rejects(
+      driveReservedLifecycle(reservation, {}, {
+        ...baseHost,
+        async namespaceState() { checks += 1; return checks === 1 ? "absent" as const : "established" as const; },
+        async invoke(request) {
+          if (request.phase === "ship") return { phase: "ship", command: request.command, status: "completed", terminalClaim: "verified" } as const;
+          return baseHost.invoke(request);
+        },
+      }),
+      /ship.*terminal/i,
+    );
+
+    checks = 0;
+    await assert.rejects(
+      driveReservedLifecycle(reservation, {}, {
+        ...baseHost,
+        async namespaceState() { checks += 1; return checks === 1 ? "absent" as const : "established" as const; },
+        async createOrObserveCandidate() {
+          return {
+            oid: "b".repeat(40), baseOid: FIXED_BASE_OID, clean: false, hostObserved: true,
+            paths: ["src/change.ts"], hashes: { "src/change.ts": "d".repeat(64) },
+          };
+        },
+      }),
+      /candidate.*clean/i,
+    );
+
+    checks = 0;
+    await assert.rejects(
+      driveReservedLifecycle(reservation, {}, {
+        ...baseHost,
+        async namespaceState() { checks += 1; return checks === 1 ? "absent" as const : "established" as const; },
+        async createOrObserveCandidate() {
+          return {
+            oid: "b".repeat(40), baseOid: FIXED_BASE_OID, clean: true,
+            hostObserved: true, paths: ["src/change.ts"], hashes: {},
+          };
+        },
+      }),
+      /candidate.*hash/i,
+    );
+
+    checks = 0;
+    await assert.rejects(
+      driveReservedLifecycle(reservation, {}, {
+        ...baseHost,
+        async namespaceState() { checks += 1; return checks === 1 ? "absent" as const : "established" as const; },
+        async createOrObserveCandidate() {
+          return {
+            oid: FIXED_BASE_OID, baseOid: FIXED_BASE_OID, clean: true,
+            hostObserved: true, paths: ["src/change.ts"],
+            hashes: { "src/change.ts": "d".repeat(64) },
+          };
+        },
+      }),
+      /candidate.*distinct/i,
+    );
+
+    checks = 0;
+    await assert.rejects(
+      driveReservedLifecycle(reservation, {}, {
+        ...baseHost,
+        async namespaceState() { checks += 1; return checks === 1 ? "absent" as const : "established" as const; },
+        async invoke(request) {
+          if (request.phase === "verify") {
+            return {
+              phase: "verify", command: request.command, status: "completed",
+              terminalClaim: "verified", verifiedOid: "d".repeat(40),
+              fingerprint: "c".repeat(64), repositoryWritesAfterFingerprint: 0,
+            } as const;
+          }
+          return baseHost.invoke(request);
+        },
+      }),
+      /verify.*OID/i,
+    );
+
+    checks = 0;
+    await assert.rejects(
+      driveReservedLifecycle(reservation, {}, {
+        ...baseHost,
+        async namespaceState() { checks += 1; return checks === 1 ? "absent" as const : "established" as const; },
+        async invoke(request) {
+          if (request.phase === "verify") {
+            return {
+              phase: "verify", command: request.command, status: "completed",
+              terminalClaim: "verified", verifiedOid: "b".repeat(40),
+              fingerprint: "c".repeat(64), repositoryWritesAfterFingerprint: 1,
+            } as const;
+          }
+          return baseHost.invoke(request);
+        },
+      }),
+      /fingerprint.*write/i,
+    );
   });
 });

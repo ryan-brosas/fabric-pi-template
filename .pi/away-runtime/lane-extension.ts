@@ -402,6 +402,9 @@ function makeAwayAttest(
       if (token.inFlight > 0) {
         throw new Error("away-extension: attest blocked: bridge work in flight");
       }
+      if (!token.released) {
+        throw new Error("away-extension: attest blocked: writer token held");
+      }
       const wrapper = readWrapperReceipt(ctx.attestDir, ctx.laneId);
       if (!wrapper) {
         throw new Error(

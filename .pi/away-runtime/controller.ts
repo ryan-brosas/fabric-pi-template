@@ -998,3 +998,309 @@ export async function reserveNext(
     };
   });
 }
+
+// ---------------------------------------------------------------------------
+// A3 lifecycle policy and state machine
+// ---------------------------------------------------------------------------
+
+export type AwayPolicyQuestion =
+  | "discovery-level"
+  | "clean-isolated-workspace"
+  | "agent-commit"
+  | "agent-push"
+  | "agent-publication"
+  | "agent-merge";
+
+export type AwayPolicyAnswer = "deep" | "proceed" | "deny";
+export type AwayNamespaceState = "absent" | "partial" | "established";
+export type AwayLifecyclePhase = "create" | "ship" | "verify";
+
+export interface AwayLifecycleInvocation {
+  phase: AwayLifecyclePhase;
+  command: string;
+  slug: string;
+  supplementalObjective?: string;
+  expectedOid?: string;
+  answerPolicy: (question: string) => AwayPolicyAnswer;
+}
+
+export interface AwayLifecycleObservation {
+  phase: AwayLifecyclePhase;
+  command: string;
+  status: "completed" | "blocked" | "failed";
+  terminalClaim: "none" | "verified";
+  unexpectedDialogue?: string;
+  claims?: string[];
+  verifiedOid?: string;
+  fingerprint?: string;
+  repositoryWritesAfterFingerprint?: number;
+}
+
+export interface AwayCandidateRequest {
+  runId: string;
+  cardId: string;
+  slug: string;
+  baseOid: string;
+}
+
+export interface AwayCandidateObservation {
+  oid: string;
+  baseOid: string;
+  clean: boolean;
+  hostObserved: boolean;
+  paths: string[];
+  hashes: Record<string, string>;
+}
+
+export interface AwayLifecycleHost {
+  namespaceState(slug: string): Promise<AwayNamespaceState> | AwayNamespaceState;
+  invoke(
+    request: AwayLifecycleInvocation,
+  ): Promise<AwayLifecycleObservation> | AwayLifecycleObservation;
+  createOrObserveCandidate(
+    request: AwayCandidateRequest,
+  ): Promise<AwayCandidateObservation> | AwayCandidateObservation;
+}
+
+export interface DriveLifecycleOptions {
+  supplementalObjective?: string;
+}
+
+export interface AwayLifecycleCompleted {
+  kind: "completed";
+  slug: string;
+  cardId: string;
+  candidateOid: string;
+  fingerprint: string;
+}
+
+export interface AwayControllerRequest {
+  repoRoot: string;
+  supplementalObjective?: string;
+}
+
+export interface AwayReservationRequest {
+  repoRoot: string;
+}
+
+export interface AwayControllerRunDependencies {
+  reserve: (request: AwayReservationRequest) => Promise<ReserveResult>;
+  host: AwayLifecycleHost;
+}
+
+export type AwayControllerResult =
+  | AwayLifecycleCompleted
+  | { kind: "no-work"; reason: string }
+  | { kind: "blocked"; message: string };
+
+/** Fixed unattended answers. Any other dialogue stops the run. */
+export function answerAwayPolicy(question: string): AwayPolicyAnswer {
+  switch (question) {
+    case "discovery-level":
+      return "deep";
+    case "clean-isolated-workspace":
+      return "proceed";
+    case "agent-commit":
+    case "agent-push":
+    case "agent-publication":
+    case "agent-merge":
+      return "deny";
+    default:
+      throw block("policy-answer", `unexpected question: ${String(question).slice(0, 256)}`);
+  }
+}
+
+function boundedObjective(value: string | undefined): string | undefined {
+  if (value === undefined) return undefined;
+  const objective = value.trim();
+  if (objective.length === 0) return undefined;
+  if (objective.length > 4096) throw block("lifecycle", "supplemental objective too long");
+  if (/[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/.test(objective)) {
+    throw block("lifecycle", "supplemental objective contains a control character");
+  }
+  return objective;
+}
+
+function validateLifecycleObservation(
+  observation: AwayLifecycleObservation,
+  phase: AwayLifecyclePhase,
+  command: string,
+  terminalClaim: "none" | "verified",
+): void {
+  if (!observation || typeof observation !== "object") {
+    throw block("lifecycle", `${phase} returned no host observation`);
+  }
+  if (
+    observation.phase !== phase ||
+    observation.command !== command ||
+    observation.status !== "completed"
+  ) {
+    throw block("lifecycle", `${phase} host observation mismatch`);
+  }
+  if (observation.unexpectedDialogue || (observation.claims?.length ?? 0) > 0) {
+    throw block("policy-answer", `${phase} produced unexpected dialogue or claims`);
+  }
+  if (observation.terminalClaim !== terminalClaim) {
+    throw block("lifecycle", `${phase} terminal claim is not ${terminalClaim}`);
+  }
+}
+
+function validateCandidate(
+  candidate: AwayCandidateObservation,
+  baseOid: string,
+): void {
+  if (!candidate || typeof candidate !== "object") {
+    throw block("candidate", "host observation missing");
+  }
+  if (!HEX_OID.test(candidate.oid) || candidate.baseOid !== baseOid) {
+    throw block("candidate", "OID or base OID mismatch");
+  }
+  if (candidate.oid === baseOid) {
+    throw block("candidate", "candidate commit must be distinct from the reserved base");
+  }
+  if (!candidate.clean || candidate.hostObserved !== true) {
+    throw block("candidate", "candidate must be clean and host-observed");
+  }
+  if (!Array.isArray(candidate.paths) || candidate.paths.length === 0 || candidate.paths.length > 256) {
+    throw block("candidate", "candidate paths are missing or exceed the limit");
+  }
+  if (!candidate.hashes || typeof candidate.hashes !== "object" || Array.isArray(candidate.hashes)) {
+    throw block("candidate", "candidate hashes are missing");
+  }
+  const hashPaths = Object.keys(candidate.hashes).sort();
+  const candidatePaths = [...candidate.paths].sort();
+  if (
+    hashPaths.length !== candidatePaths.length ||
+    hashPaths.some((path, index) => path !== candidatePaths[index])
+  ) {
+    throw block("candidate", "candidate path/hash set mismatch");
+  }
+  const seen = new Set<string>();
+  for (const path of candidate.paths) {
+    const parts = typeof path === "string" ? path.split("/") : [];
+    if (
+      typeof path !== "string" ||
+      path.length === 0 ||
+      path.length > 4096 ||
+      path.startsWith("/") ||
+      path.includes("\\") ||
+      /[\u0000\r\n]/.test(path) ||
+      parts.some((part) => part === "" || part === "." || part === "..") ||
+      seen.has(path)
+    ) {
+      throw block("candidate", "candidate contains an invalid path");
+    }
+    const hash = candidate.hashes[path];
+    if (typeof hash !== "string" || !HEX64.test(hash)) {
+      throw block("candidate", `candidate hash is invalid for ${path}`);
+    }
+    seen.add(path);
+  }
+}
+
+/** Drive only an already durable A2 reservation; never select from free-form objective text. */
+export async function driveReservedLifecycle(
+  reservation: Extract<ReserveResult, { kind: "reserved" }>,
+  options: DriveLifecycleOptions,
+  host: AwayLifecycleHost,
+): Promise<AwayLifecycleCompleted> {
+  if (!reservation || reservation.kind !== "reserved") {
+    throw block("lifecycle", "a durable reservation is required");
+  }
+  const slug = reservation.card.candidateSlug;
+  const cardId = reservation.card.id;
+  const objective = boundedObjective(options.supplementalObjective);
+  const initialNamespace = await host.namespaceState(slug);
+  if (initialNamespace !== "absent") {
+    throw block("namespace", `expected absent namespace for ${slug}, found ${initialNamespace}`);
+  }
+
+  const createCommand = `/create ${slug} --from .pi/ROADMAP.md#${cardId}`;
+  const create = await host.invoke({
+    phase: "create",
+    command: createCommand,
+    slug,
+    supplementalObjective: objective,
+    answerPolicy: answerAwayPolicy,
+  });
+  validateLifecycleObservation(create, "create", createCommand, "none");
+  const createdNamespace = await host.namespaceState(slug);
+  if (createdNamespace !== "established") {
+    throw block("namespace", `create did not establish PLAN.md and TODO.md for ${slug}`);
+  }
+
+  const shipCommand = `/ship ${slug}`;
+  const ship = await host.invoke({
+    phase: "ship",
+    command: shipCommand,
+    slug,
+    supplementalObjective: objective,
+    answerPolicy: answerAwayPolicy,
+  });
+  validateLifecycleObservation(ship, "ship", shipCommand, "none");
+
+  const candidate = await host.createOrObserveCandidate({
+    runId: reservation.record.runId,
+    cardId,
+    slug,
+    baseOid: reservation.record.baseOid,
+  });
+  validateCandidate(candidate, reservation.record.baseOid);
+
+  const verifyCommand = `/verify ${slug}`;
+  const verify = await host.invoke({
+    phase: "verify",
+    command: verifyCommand,
+    slug,
+    expectedOid: candidate.oid,
+    answerPolicy: answerAwayPolicy,
+  });
+  validateLifecycleObservation(verify, "verify", verifyCommand, "verified");
+  if (verify.verifiedOid !== candidate.oid) {
+    throw block("verify", "verified OID does not match the host candidate OID");
+  }
+  if (typeof verify.fingerprint !== "string" || !HEX64.test(verify.fingerprint)) {
+    throw block("verify", "verification fingerprint is missing or invalid");
+  }
+  if (verify.repositoryWritesAfterFingerprint !== 0) {
+    throw block("verify", "fingerprint freshness was invalidated by a repository write");
+  }
+  return {
+    kind: "completed",
+    slug,
+    cardId,
+    candidateOid: candidate.oid,
+    fingerprint: verify.fingerprint,
+  };
+}
+
+/** Canonical extension entry seam. A7 supplies the confined host binding. */
+export async function runAwayController(
+  request: AwayControllerRequest,
+  dependencies?: AwayControllerRunDependencies,
+): Promise<AwayControllerResult> {
+  try {
+    if (!isAbsolute(request.repoRoot)) {
+      throw block("lifecycle", "repoRoot must be absolute");
+    }
+    const supplementalObjective = boundedObjective(request.supplementalObjective);
+    if (!dependencies) {
+      // TODO(away-a7): bind the confined lifecycle host after broker slices land. on-or-after 2026-07-23
+      throw block("lifecycle-host", "confined lifecycle host is not connected");
+    }
+    const reservation = await dependencies.reserve({ repoRoot: request.repoRoot });
+    if (reservation.kind === "no-work") {
+      return { kind: "no-work", reason: reservation.reason };
+    }
+    return await driveReservedLifecycle(
+      reservation,
+      { supplementalObjective },
+      dependencies.host,
+    );
+  } catch (error) {
+    return {
+      kind: "blocked",
+      message: error instanceof Error ? error.message : String(error),
+    };
+  }
+}

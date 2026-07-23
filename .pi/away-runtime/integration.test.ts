@@ -312,6 +312,7 @@ describe("D1 crash injection (no dup / no descendant / no protected-path change)
       attestDir: freshAttest,
       repoRoot: fx.repoRoot,
     });
+    state.release();
     const attestTool = state.tools.find((t) => t.name === "away_attest");
     await assert.rejects(
       () => attestTool.execute("test", { outcome: "completed" }),
