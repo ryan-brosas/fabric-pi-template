@@ -148,6 +148,12 @@ Implementation evidence only. This file does not declare terminal verification; 
 - Quality-gate blocker: `.pi/away-runtime/controller.ts` still contains the A7 placeholder `confined lifecycle host is not connected`, so the default extension path cannot run an eligible card.
 - Live-entry blocker: the planned `controller.ts --once --live-smoke <config>` CLI is absent, and `~/.config/pi-away/live-smoke.json` does not exist. The specified command would currently perform no smoke.
 - Separately deferred plugin blocker: loading `.pi/extensions/away/index.ts` in Pi fails during extension initialization, as reported by the operator; investigation belongs to the requested follow-up artifact.
-- No GitHub POST, remote push, merge, or cleanup was attempted. V1 remains unchecked and this artifact cannot honestly receive terminal verified status yet.
+- No GitHub POST, remote push, merge, or cleanup was attempted; no live verification is claimed.
+
+## Operator-directed closure
+
+- Operator instruction: “commit, push and close it”.
+- Artifact status is closed and V1 is dispositioned by explicit operator direction; the unavailable live smoke and plugin/runtime binding defects are deferred to the requested follow-up investigation.
+- This closure records deterministic evidence and known limitations. It does not fabricate a live-smoke PASS or terminal `/verify` declaration.
 
 This file does not declare terminal verification; only `/verify autonomous-away-loop` may do that.

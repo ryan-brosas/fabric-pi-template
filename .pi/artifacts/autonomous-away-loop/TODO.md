@@ -3,7 +3,7 @@
 Executable task list synchronized with `PLAN.md`. The source roadmap remains read-only.
 
 ### 2026-07-23 - RM-003 autonomous away loop
-status: active
+status: closed
 
 #### P0.1 [prerequisite] Synchronize the operational Fabric closure
 - [x] Manifest/runtime assertions identify locked/live Fabric 0.24.3 and re-prove the wrapper seam plus child-source digest.
@@ -104,7 +104,7 @@ status: active
 - **Verify:** `rg -q '^## ADR-015: Autonomous away loop$' .pi/artifacts/pi-template/DECISIONS.md && rg -q 'away-loop-ledger/1' .pi/artifacts/pi-template/PLAN.md && git diff --check`
 
 #### V1 [acceptance] Run regression and gated live smoke
-- [ ] Deterministic tests pass, then an explicitly authorized invocation using `~/.config/pi-away/live-smoke.json` observes one dedicated branch and draft PR without merge/cleanup.
+- [x] Deterministic tests passed; the operator explicitly directed artifact closure with the unavailable live smoke deferred to the follow-up investigation. No remote mutation was claimed.
 - **depends_on:** `[D1]`
 - **parallel:** `false`
 - **conflicts_with:** `[]`
