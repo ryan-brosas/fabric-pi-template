@@ -24,10 +24,12 @@ function harness(options: {
   evidence?: boolean;
   idle?: boolean;
   result?: Record<string, unknown>;
+  controllerError?: Error;
 } = {}) {
   let input: InputHandler | undefined;
   let settled: EventHandler | undefined;
   let sessionStart: EventHandler | undefined;
+  let sessionShutdown: EventHandler | undefined;
   let runtimeBound = false;
   const commands = new Set<string>();
   const tools = new Map<string, ToolDefinition>();
@@ -39,6 +41,7 @@ function harness(options: {
       if (event === "input") input = handler as InputHandler;
       if (event === "agent_settled") settled = handler;
       if (event === "session_start") sessionStart = handler;
+      if (event === "session_shutdown") sessionShutdown = handler;
     },
     registerCommand(name: string) { commands.add(name); },
     registerTool(definition: ToolDefinition & { name: string }) { tools.set(definition.name, definition); },
@@ -66,6 +69,7 @@ function harness(options: {
     supervisorReady: () => options.evidence ?? true,
     runController: async (request) => {
       calls.push(request as Record<string, unknown>);
+      if (options.controllerError) throw options.controllerError;
       return options.result ?? {
         kind: "completed",
         cardId: "RM-001",
@@ -80,6 +84,10 @@ function harness(options: {
   return {
     get input() { return input; },
     get settled() { return settled; },
+    get sessionStart() { return sessionStart; },
+    get sessionShutdown() { return sessionShutdown; },
+    bind() { runtimeBound = true; },
+    unbind() { runtimeBound = false; },
     commands, tools, activeTools, entries, calls, ctx,
   };
 }
@@ -87,6 +95,108 @@ function harness(options: {
 describe("extension loading lifecycle", () => {
   it("factory does not call bound actions before session_start", () => {
     assert.doesNotThrow(() => harness());
+  });
+});
+
+describe("away pending state transitions", () => {
+  const READY = "away_supervisor_ready";
+
+  it("session_start clears pending and the READY tool for every startup/reload/new/resume/fork reason without fabricating a blocked entry", async () => {
+    for (const reason of ["startup", "reload", "new", "resume", "fork"] as const) {
+      const h = harness();
+      assert.deepEqual(
+        await h.input!({ text: "/supervise --away objective", source: "interactive" }, h.ctx),
+        { action: "transform", text: "/supervise --away-controller nonce-1" },
+      );
+      assert.equal(h.activeTools.has(READY), true);
+      await h.sessionStart!({ reason }, h.ctx);
+      assert.equal(h.activeTools.has(READY), false, `${reason}: READY tool inactive`);
+      assert.equal(h.entries.length, 0, `${reason}: no blocked entry fabricated`);
+      assert.equal(h.calls.length, 0, `${reason}: controller not called`);
+      assert.deepEqual(
+        await h.input!({ text: "/supervise --away again", source: "interactive" }, h.ctx),
+        { action: "transform", text: "/supervise --away-controller nonce-1" },
+        `${reason}: pending cleared`,
+      );
+    }
+  });
+
+  it("session_shutdown cleanup clears pending without invoking bound action methods after unbinding", async () => {
+    const h = harness();
+    await h.input!({ text: "/supervise --away objective", source: "interactive" }, h.ctx);
+    assert.equal(h.activeTools.has(READY), true);
+    h.unbind();
+    assert.doesNotThrow(() => h.sessionShutdown!({ reason: "quit" }, h.ctx));
+    h.bind();
+    assert.deepEqual(
+      await h.input!({ text: "/supervise --away again", source: "interactive" }, h.ctx),
+      { action: "transform", text: "/supervise --away-controller nonce-1" },
+      "pending cleared after shutdown",
+    );
+    assert.equal(h.calls.length, 0);
+  });
+
+  it("a settled supervisor turn clears pending and the READY tool with a blocked entry", async () => {
+    const h = harness();
+    await h.input!({ text: "/supervise --away objective", source: "interactive" }, h.ctx);
+    assert.equal(h.activeTools.has(READY), true);
+    await h.settled!({}, h.ctx);
+    assert.equal(h.activeTools.has(READY), false);
+    assert.equal((h.entries.at(-1)?.data as { kind?: string }).kind, "blocked");
+    assert.equal(h.calls.length, 0);
+    assert.deepEqual(
+      await h.input!({ text: "/supervise --away again", source: "interactive" }, h.ctx),
+      { action: "transform", text: "/supervise --away-controller nonce-1" },
+    );
+  });
+
+  it("a controller throw clears pending and the READY tool", async () => {
+    const h = harness({ controllerError: new Error("controller boom") });
+    await h.input!({ text: "/supervise --away objective", source: "interactive" }, h.ctx);
+    assert.equal(h.activeTools.has(READY), true);
+    await assert.rejects(
+      h.tools.get(READY)!.execute("call-1", { token: "nonce-1" }, undefined, undefined, h.ctx),
+      /controller boom/,
+    );
+    assert.equal(h.calls.length, 1, "controller was invoked once before throwing");
+    assert.equal(h.activeTools.has(READY), false);
+    assert.deepEqual(
+      await h.input!({ text: "/supervise --away again", source: "interactive" }, h.ctx),
+      { action: "transform", text: "/supervise --away-controller nonce-1" },
+    );
+  });
+
+  it("a wrong token clears pending and the READY tool before the controller runs", async () => {
+    const h = harness({ evidence: true });
+    await h.input!({ text: "/supervise --away objective", source: "interactive" }, h.ctx);
+    assert.equal(h.activeTools.has(READY), true);
+    await assert.rejects(
+      h.tools.get(READY)!.execute("call-1", { token: "wrong" }, undefined, undefined, h.ctx),
+      /token/i,
+    );
+    assert.equal(h.calls.length, 0, "controller not called for a wrong token");
+    assert.equal(h.activeTools.has(READY), false);
+    assert.deepEqual(
+      await h.input!({ text: "/supervise --away again", source: "interactive" }, h.ctx),
+      { action: "transform", text: "/supervise --away-controller nonce-1" },
+    );
+  });
+
+  it("preserves the READY tool while a valid request stays pending after a missing-evidence attempt", async () => {
+    const h = harness({ evidence: false });
+    await h.input!({ text: "/supervise --away objective", source: "interactive" }, h.ctx);
+    assert.equal(h.activeTools.has(READY), true);
+    await assert.rejects(
+      h.tools.get(READY)!.execute("call-1", { token: "nonce-1" }, undefined, undefined, h.ctx),
+      /supervisor/i,
+    );
+    assert.equal(h.calls.length, 0);
+    assert.equal(h.activeTools.has(READY), true, "READY stays active while the request is still pending");
+    assert.deepEqual(
+      await h.input!({ text: "/supervise --away other", source: "interactive" }, h.ctx),
+      { action: "handled" },
+      "the pending request is still armed",
+    );
   });
 });
 

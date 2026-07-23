@@ -341,13 +341,13 @@ export function createAwayExtension(dependencies: AwayExtensionDependencies) {
       async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
         const current = pending;
         const token = (params as { token?: unknown }).token;
-        if (
-          !current ||
-          current.running ||
-          typeof token !== "string" ||
-          token !== current.token ||
-          !TOKEN.test(token)
-        ) {
+        if (!current || current.running) {
+          throw new Error("Away controller token is missing, stale, or invalid.");
+        }
+        if (typeof token !== "string" || token !== current.token || !TOKEN.test(token)) {
+          pending = undefined;
+          deactivate(pi);
+          if (ctx.hasUI) ctx.ui.setStatus(STATUS_KEY, undefined);
           throw new Error("Away controller token is missing, stale, or invalid.");
         }
         if (!supervisorReady(ctx.sessionManager.getBranch(), current.token, ctx)) {
@@ -374,7 +374,12 @@ export function createAwayExtension(dependencies: AwayExtensionDependencies) {
         }
       },
     });
-    deactivate(pi);
+
+    pi.on("session_start", (_event, ctx) => {
+      pending = undefined;
+      deactivate(pi);
+      if (ctx.hasUI) ctx.ui.setStatus(STATUS_KEY, undefined);
+    });
 
     pi.on("input", (event, ctx) => {
       if (event.source === "extension" || event.streamingBehavior || !ctx.isIdle()) {
@@ -414,9 +419,9 @@ export function createAwayExtension(dependencies: AwayExtensionDependencies) {
       );
     });
 
-    pi.on("session_shutdown", () => {
+    pi.on("session_shutdown", (_event, ctx) => {
       pending = undefined;
-      deactivate(pi);
+      if (ctx.hasUI) ctx.ui.setStatus(STATUS_KEY, undefined);
     });
   };
 }
