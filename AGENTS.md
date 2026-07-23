@@ -257,5 +257,6 @@ detached worktree. Exact trusted idle `/supervise --away [objective]` input invo
 directly and does not require the optional advisory supervisor. The host then performs exact-path commit, exact-OID verification, dedicated-branch
 push, and one draft PR. This root is deliberately trusted and is not bubblewrap-confined; ADR-014
 continues to govern the strict verifier and legacy confined APIs. The continuous user service polls
-with a repository lease and bounded backoff. Merge, default-ref mutation, force push, file deletion,
-and automatic cleanup remain forbidden.
+with a repository lease and bounded backoff. Unattended maintenance treats `.opencode/**` as a
+legacy read-only development surface and selects work only under `.pi/**` or ordinary project source.
+Merge, default-ref mutation, force push, file deletion, and automatic cleanup remain forbidden.

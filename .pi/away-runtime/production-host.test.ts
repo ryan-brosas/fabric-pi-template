@@ -204,7 +204,6 @@ describe("direct senior candidate policy", () => {
     for (const path of [
       ".pi/away-runtime/supervise-away.ts",
       ".pi/extensions/away/index.ts",
-      ".pi/prompts/workflow.md",
       ".pi/artifacts/pi-template/PLAN.md",
       "src/tokenizer.ts",
       "docs/token-budget.md",
@@ -221,6 +220,9 @@ describe("direct senior candidate policy", () => {
       ".pi/memory.md",
       ".pi/npm/cache.json",
       ".pi/fabric/mesh/state.json",
+      ".pi/prompts/workflow.md",
+      ".opencode/command/ship.md",
+      ".opencode/artifacts/MEMORY.md",
       ".env",
       "config/credentials.json",
       "keys/private.pem",
@@ -231,16 +233,16 @@ describe("direct senior candidate policy", () => {
 describe("root RPC project command provenance", () => {
   it("accepts actual Pi 0.81 project metadata and rejects scope/path decoys", () => {
     const modern = {
-      name: "workflow",
+      name: "create",
       source: "prompt",
-      sourceInfo: { scope: "project", path: "/repo/.pi/prompts/workflow.md" },
+      sourceInfo: { scope: "project", path: "/repo/.pi/prompts/create.md" },
     };
-    assert.equal(isExpectedProjectPromptCommand(modern, "workflow", "/repo"), true);
-    assert.equal(isExpectedProjectPromptCommand({ ...modern, sourceInfo: { scope: "user", path: "/repo/.pi/prompts/workflow.md" } }, "workflow", "/repo"), false);
-    assert.equal(isExpectedProjectPromptCommand({ ...modern, sourceInfo: { scope: "project", path: "/tmp/decoy/workflow.md" } }, "workflow", "/repo"), false);
-    assert.equal(isExpectedProjectPromptCommand({ ...modern, location: "project", sourceInfo: { scope: "project", path: "/tmp/decoy/workflow.md" } }, "workflow", "/repo"), false);
-    assert.equal(isExpectedProjectPromptCommand({ ...modern, source: "skill" }, "workflow", "/repo"), false);
-    assert.equal(isExpectedProjectPromptCommand({ name: "workflow", source: "prompt", location: "project" }, "workflow", "/repo"), true);
+    assert.equal(isExpectedProjectPromptCommand(modern, "create", "/repo"), true);
+    assert.equal(isExpectedProjectPromptCommand({ ...modern, sourceInfo: { scope: "user", path: "/repo/.pi/prompts/create.md" } }, "create", "/repo"), false);
+    assert.equal(isExpectedProjectPromptCommand({ ...modern, sourceInfo: { scope: "project", path: "/tmp/decoy/create.md" } }, "create", "/repo"), false);
+    assert.equal(isExpectedProjectPromptCommand({ ...modern, location: "project", sourceInfo: { scope: "project", path: "/tmp/decoy/create.md" } }, "create", "/repo"), false);
+    assert.equal(isExpectedProjectPromptCommand({ ...modern, source: "skill" }, "create", "/repo"), false);
+    assert.equal(isExpectedProjectPromptCommand({ name: "create", source: "prompt", location: "project" }, "create", "/repo"), true);
   });
 });
 
@@ -289,6 +291,7 @@ describe("maintenance selection protocol", () => {
       'MAINTENANCE_SELECTION: {"schema":"maintenance-selection/1","kind":"selected","objective":"short","acceptance":"also short"}',
       `MAINTENANCE_SELECTION: {"schema":"maintenance-selection/1","kind":"selected","objective":"${"x".repeat(1801)}","acceptance":"A concrete acceptance check exists"}`,
       'MAINTENANCE_SELECTION: {"schema":"maintenance-selection/1","kind":"selected","objective":"A sufficiently bounded maintenance objective","acceptance":"A concrete acceptance check exists","command":"rm"}',
+      'MAINTENANCE_SELECTION: {"schema":"maintenance-selection/1","kind":"selected","objective":"Reduce .opencode/command/ship.md to its old line limit","acceptance":"The legacy structural checker exits zero"}',
       'MAINTENANCE_SELECTION: {"schema":"maintenance-selection/1","kind":"no-change","reason":"contains\u0000nul"}',
       'MAINTENANCE_SELECTION: {"schema":"maintenance-selection/1","kind":"no-change","reason":"First adequate no-change rationale"}\nMAINTENANCE_SELECTION: {"schema":"maintenance-selection/1","kind":"no-change","reason":"Second adequate no-change rationale"}',
     ]) {
@@ -395,7 +398,7 @@ describe("retained maintenance policy", () => {
   it("persists NO_CHANGE once and idles replay without launching another root", async () => {
     const stateRoot = mkdtempSync(join(tmpdir(), "away-maintenance-policy-"));
     const sessionFile = join(stateRoot, "sessions", "policy.jsonl");
-    const trustedPi = join(stateRoot, "cli.js");
+    const trustedPi = join(stateRoot, "pi");
     writeFileSync(trustedPi, "#!/usr/bin/env node\n");
     chmodSync(trustedPi, 0o700);
     const assistantText =
@@ -417,7 +420,7 @@ describe("retained maintenance policy", () => {
         launches += 1;
         assert.equal(workflow.launch.argv[0], trustedPi);
         assert.equal(workflow.commands.length, 1);
-        assert.match(workflow.commands[0], /^\/workflow .* --objective /);
+        assert.match(workflow.commands[0], /^DIRECT AWAY WORKFLOW POLICY/);
         writeFileSync(sessionFile, "session\n");
         await workflow.validateSettlement?.(workflow.commands[0], assistantText, 1);
         await workflow.checkpoint(1, sessionFile);
@@ -453,8 +456,9 @@ describe("senior-engineer root workflow", () => {
     });
     assert.equal(workflow.kind, "ready");
     assert.equal(workflow.requiresOperator, false);
-    assert.deepEqual(workflow.commands, [
-      "/workflow retained-host --from .pi/ROADMAP.md#RM-007",
+    assert.match(workflow.commands[0], /^DIRECT AWAY WORKFLOW POLICY/);
+    assert.match(workflow.commands[0], /\.pi\/ROADMAP\.md#RM-007/);
+    assert.deepEqual(workflow.commands.slice(1), [
       "/gc",
       "/create retained-host --from .pi/ROADMAP.md#RM-007",
       "/research retained-host \"Research implementation risks and established project patterns for RM-007: Ship the retained host\" --thorough",
@@ -463,7 +467,8 @@ describe("senior-engineer root workflow", () => {
       "/audit TODO|FIXME",
       "/verify retained-host all --full",
     ]);
-    assert.ok(workflow.commands.every((command) => command.startsWith("/")));
+    assert.ok(workflow.commands.slice(1).every((command) => command.startsWith("/")));
+    assert.ok(workflow.commands.every((command) => !command.startsWith("/workflow")));
   });
 
   it("builds a roadmap-independent lifecycle for a maintenance objective", () => {
@@ -475,8 +480,10 @@ describe("senior-engineer root workflow", () => {
       runGc: true,
     });
     assert.equal(workflow.kind, "ready");
-    assert.deepEqual(workflow.commands, [
-      "/workflow maintenance-a1b2c3d4e5f6 --objective \"Continuously improve agent routing and code quality\"",
+    assert.match(workflow.commands[0], /^DIRECT AWAY WORKFLOW POLICY/);
+    assert.match(workflow.commands[0], /MAINTENANCE_SELECTION/);
+    assert.match(workflow.commands[0], /Never select, plan, or edit `.opencode\/\*\*`/);
+    assert.deepEqual(workflow.commands.slice(1), [
       "/gc",
       "/create maintenance-a1b2c3d4e5f6 \"Continuously improve agent routing and code quality\"",
       "/research maintenance-a1b2c3d4e5f6 \"Research implementation risks and established project patterns for MT-a1b2c3d4e5f6: Continuously improve agent routing and code quality\" --thorough",
@@ -485,6 +492,7 @@ describe("senior-engineer root workflow", () => {
       "/verify maintenance-a1b2c3d4e5f6 all --full",
     ]);
     assert.ok(workflow.commands.every((command) => !command.includes("ROADMAP.md")));
+    assert.ok(workflow.commands.every((command) => !command.startsWith("/workflow")));
   });
 
   it("submits only real init when the packet is not ready and pauses for its operator gate", () => {
@@ -548,7 +556,7 @@ describe("senior-engineer root workflow", () => {
               emit({ type: "extension_ui_request", id: "status-1", method: "setStatus", statusKey: "away-run" });
               emit({ type: "extension_ui_request", id: "status-2", method: "setStatus", statusKey: "xai-usage" });
               emit({ type: "response", id: command.id, command: "get_commands", success: true, data: {
-                commands: ["workflow", "create", "research", "plan", "ship", "verify"].map((name) => ({
+                commands: ["create", "research", "plan", "ship", "verify"].map((name) => ({
                   name,
                   source: "prompt",
                   sourceInfo: {
@@ -578,7 +586,7 @@ describe("senior-engineer root workflow", () => {
       stderr: stream("stderr"),
       kill() { return true; },
     };
-    const commands = ["/workflow retained-host", "/create retained-host", "/verify retained-host all --full"];
+    const commands = ["DIRECT AWAY WORKFLOW POLICY", "/create retained-host", "/verify retained-host all --full"];
     const result = await runRootPiWorkflow({
       launch: { cwd: "/repo", argv: ["pi", "--mode", "rpc"] },
       commands,
@@ -595,7 +603,7 @@ describe("senior-engineer root workflow", () => {
   it("persists a phase cursor and resumes without replaying settled top-level prompts", async () => {
     const calls: string[] = [];
     const checkpoints: number[] = [];
-    const commands = ["/workflow retained-host", "/create retained-host", "/ship retained-host"];
+    const commands = ["DIRECT AWAY WORKFLOW POLICY", "/create retained-host", "/ship retained-host"];
     const first = await runTopLevelWorkflow({
       commands,
       startIndex: 0,
@@ -712,6 +720,8 @@ describe("roadmap-independent maintenance selection", () => {
     assert.match(selected?.cardId ?? "", /^MT-[0-9a-f]{12}$/);
     assert.match(selected?.slug ?? "", /^maintenance-[0-9a-f]{12}$/);
     assert.match(selected?.objective ?? "", /maintain|improve/i);
+    assert.match(selected?.objective ?? "", /\.pi\/\*\*/);
+    assert.match(selected?.objective ?? "", /\.opencode\/\*\*.*out of scope/i);
   });
 });
 
@@ -740,7 +750,13 @@ describe("continuous senior service", () => {
 
   it("bounds maintenance mini-agent discovery before a live cycle", () => {
     const fabric = JSON.parse(readFileSync(join(REPO, ".pi", "fabric.json"), "utf8"));
-    const workflow = readFileSync(join(REPO, ".pi", "prompts", "workflow.md"), "utf8");
+    const workflow = buildWorkflowCommands({
+      packetReady: true,
+      slug: "maintenance-a1b2c3d4e5f6",
+      workId: "MT-a1b2c3d4e5f6",
+      outcome: "Maintain the Pi-native runtime",
+    }).commands[0];
+    const manifest = readFileSync(join(REPO, ".pi", "away-sandbox.json"), "utf8");
     const service = readFileSync(join(REPO, ".pi", "away-runtime", "pi-away-senior@.service"), "utf8");
     assert.match(service, /^Environment=PI_AWAY_PI_BINARY=\/home\/ryan\/\.local\/bin\/pi$/m);
     assert.equal(fabric.subagents.maxConcurrent, 8);
@@ -751,7 +767,9 @@ describe("continuous senior service", () => {
     assert.match(workflow, /tokenBudget:\s*8_000/);
     assert.match(workflow, /thinking:\s*"high"/);
     assert.match(workflow, /Do not retry a timed-out or budget-exhausted explorer/);
+    assert.match(workflow, /Never select, plan, or edit `.opencode\/\*\*`/);
     assert.doesNotMatch(workflow, /1[–-]3 bounded `gpt-5\.4-mini`/);
+    assert.doesNotMatch(manifest, /\.pi\/prompts\/workflow\.md/);
   });
 });
 
