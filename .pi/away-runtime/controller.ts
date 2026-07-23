@@ -1211,10 +1211,17 @@ export async function driveReservedLifecycle(
   const cardId = reservation.card.id;
   const objective = boundedObjective(options.supplementalObjective);
   const initialNamespace = await host.namespaceState(slug);
-  if (initialNamespace !== "absent") {
-    throw block("namespace", `expected absent namespace for ${slug}, found ${initialNamespace}`);
+  if (initialNamespace === "partial") {
+    throw block("namespace", `partial namespace for ${slug}`);
+  }
+  if (initialNamespace !== "absent" && initialNamespace !== "established") {
+    throw block("namespace", `unexpected namespace state for ${slug}: ${initialNamespace}`);
   }
 
+  // The production host treats an established namespace as replay evidence:
+  // invoke(create) must return the exact durable create receipt without
+  // launching another lane. An established namespace without that receipt
+  // therefore blocks in the host instead of being silently adopted.
   const createCommand = `/create ${slug} --from .pi/ROADMAP.md#${cardId}`;
   const create = await host.invoke({
     phase: "create",

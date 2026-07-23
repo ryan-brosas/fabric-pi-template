@@ -1186,7 +1186,7 @@ describe("A3 lifecycle controller", () => {
     );
   });
 
-  it("blocks namespace drift, ship completion claims, dirty candidates, and stale verify evidence", async () => {
+  it("resumes an established namespace and blocks bad ship, candidate, or verify evidence", async () => {
     const reservation = await reservedFixture();
     const baseHost = {
       async namespaceState() { return "absent" as const; },
@@ -1200,10 +1200,24 @@ describe("A3 lifecycle controller", () => {
         };
       },
     };
-    await assert.rejects(
-      driveReservedLifecycle(reservation, {}, { ...baseHost, async namespaceState() { return "established" as const; } }),
-      /namespace.*absent/i,
-    );
+    const replayCalls: string[] = [];
+    const resumed = await driveReservedLifecycle(reservation, {}, {
+      ...baseHost,
+      async namespaceState() { return "established" as const; },
+      async invoke(request) {
+        replayCalls.push(request.phase);
+        if (request.phase === "verify") {
+          return {
+            phase: "verify", command: request.command, status: "completed",
+            terminalClaim: "verified", verifiedOid: "b".repeat(40),
+            fingerprint: "c".repeat(64), repositoryWritesAfterFingerprint: 0,
+          } as const;
+        }
+        return baseHost.invoke(request);
+      },
+    });
+    assert.equal(resumed.kind, "completed");
+    assert.deepEqual(replayCalls, ["create", "ship", "verify"]);
 
     let checks = 0;
     await assert.rejects(
