@@ -6,7 +6,7 @@ contract for the `.pi/` runtime. Trade-offs are in `DECISIONS.md`.
 
 ## Goal
 
-A thin, portable Pi-native coding template powered by `pi-fabric` 0.23.0: GPT-5.6-sol Main
+A thin, portable Pi-native coding template powered by `pi-fabric` 0.24.3: GPT-5.6-sol Main
 as sole scheduler/integrator/commit authority, a per-session advisory supervisor, one Makora
 worker per session, and a Markdown lifecycle — adoptable by copying `.pi/`.
 
@@ -30,7 +30,7 @@ worker per session, and a Markdown lifecycle — adoptable by copying `.pi/`.
   "defaultProvider": "openai-codex",
   "defaultModel": "gpt-5.6-sol",
   "defaultThinkingLevel": "max",
-  "packages": ["npm:pi-fabric@0.23.0"]
+  "packages": ["npm:pi-fabric@0.24.3"]
 }
 ```
 
@@ -317,7 +317,7 @@ closer + sole terminal-verified authority per ADR-006). No mid-writable-run inje
 handshake fires between phases only.
 
 **Main-mediated read-only research (two-round, `proactive-supervisor/v1`).** The supervisor
-is `extensions:false` and cannot spawn (`pi-fabric 0.23.0 docs/agents.md:214`). Round 1: Main
+is `extensions:false`; Fabric launches it with `--no-extensions`, so it cannot spawn (`pi-fabric 0.24.3 dist/worker.js:209-214`). Round 1: Main
 resolves the session-local `supervisor` actor by exact `id` (never by canonical name over mesh)
 and sends `agents.ask({id, message, data})` with `kind:"phase-complete"`, a unique `requestId`,
 the `<slug>`, completed phase, namespace-state-derived candidates, and a non-secret path
@@ -397,7 +397,7 @@ ADR-014 adds a host-pinned bubblewrap confinement runtime under `.pi/away-runtim
 `node-process` Fabric guests and candidate verification. `node-process` is explicitly not a security
 sandbox (`docs/configuration.md:10-12`), so the boundary is strict bubblewrap, not the executor.
 
-**The writable-`process.execPath` seam.** Fabric 0.23.0's `NodeProcessRuntime` unconditionally spawns
+**The writable-`process.execPath` seam.** Fabric 0.24.3's `NodeProcessRuntime` unconditionally spawns
 `spawn(process.execPath, [...])` (`node-process-runtime.js:29`); there is no config field to pin a
 wrapper — the runtime class is a hard dependency. The launcher reassigns the writable+configurable
 `process.execPath` to a trusted outer wrapper (`executor-wrapper.mjs`) before Fabric boots. The
@@ -405,7 +405,7 @@ wrapper validates the exact Fabric argv and the child-source value digest (sha25
 `ee0bb190d5af47ff6ee99a0dd5874889b44b0857db23b897b4c57c88956793fb` — the imported VALUE, not the
 `.js` file), then launches the untrusted inner guest (`inner-guest.mjs`) inside strict bubblewrap.
 The reassignment is host-owned, runs before untrusted code, and the model cannot influence it. This is
-version-coupled to pi-fabric 0.23.0; a Fabric upgrade re-proves the seam and re-cuts the digest.
+version-coupled to pi-fabric 0.24.3; a Fabric upgrade re-proves the seam and re-cuts the digest.
 
 **Confinement.** `--unshare-user` STRICT (never the fail-open `--unshare-user-try`); PID/mount/IPC/UTS/net
 namespaces; minimal binding (node + ldd-resolved libs + ld-linux + inner-guest.mjs + `/proc` + `/dev` +
