@@ -279,6 +279,28 @@ async function serialized<T>(key: string, operation: () => Promise<T>): Promise<
   }
 }
 
+export type DraftPullObservation =
+  | { kind: "absent" }
+  | { kind: "match"; pullRequestId: number; requestId: string };
+
+/** Query-only draft observation for the replay reducer's observe-before-mutate step. */
+export async function observeDraftPullRequest(
+  request: DraftPullRequestRequest,
+  dependencies: GitHubBrokerDependencies = defaultDependencies,
+): Promise<DraftPullObservation> {
+  validateRequest(request);
+  return serialized(`${request.hostname}/${request.repository}`, async () => {
+    const observed = await listExact(request, dependencies);
+    if (!observed.pull) return { kind: "absent" };
+    const result = resultFromPull("observed", observed.pull, observed.response);
+    return {
+      kind: "match",
+      pullRequestId: result.pullRequestId,
+      requestId: result.requestId,
+    };
+  });
+}
+
 export async function createOrGetDraftPullRequest(
   request: DraftPullRequestRequest,
   dependencies: GitHubBrokerDependencies = defaultDependencies,

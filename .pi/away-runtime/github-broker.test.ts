@@ -3,6 +3,7 @@ import { describe, it } from "node:test";
 
 import {
   createOrGetDraftPullRequest,
+  observeDraftPullRequest,
   type GhCallResult,
   type GitHubBrokerDependencies,
 } from "./github-broker.ts";
@@ -63,6 +64,21 @@ function scripted(results: GhCallResult[]): {
 }
 
 describe("A5 host GitHub draft-PR broker", () => {
+  it("observes absence or one exact draft without POST", async () => {
+    const absent = scripted([response(200, [])]);
+    assert.deepEqual(await observeDraftPullRequest(request(), absent.dependencies), { kind: "absent" });
+    assert.equal(absent.calls.length, 1);
+    assert.ok(absent.calls[0].includes("GET"));
+    assert.ok(!absent.calls[0].includes("POST"));
+
+    const existing = scripted([response(200, [pull(40)], { "X-GitHub-Request-Id": "list-40" })]);
+    assert.deepEqual(await observeDraftPullRequest(request(), existing.dependencies), {
+      kind: "match", pullRequestId: 40, requestId: "list-40",
+    });
+    assert.equal(existing.calls.length, 1);
+    assert.ok(!existing.calls[0].includes("POST"));
+  });
+
   it("returns an exact existing draft without POST", async () => {
     const s = scripted([response(200, [pull(41)], { "X-GitHub-Request-Id": "list-41" })]);
     const result = await createOrGetDraftPullRequest(request(), s.dependencies);
