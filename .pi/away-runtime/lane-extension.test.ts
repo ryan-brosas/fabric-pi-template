@@ -161,6 +161,19 @@ describe("C2 — per-lane registration + firewall", () => {
     }
   });
 
+  it("external scout filesystem exposes no repository read/list/search bridge", async () => {
+    const state = createLaneExtension(ctxFor(fx, "external-scout"));
+    assert.equal(state.lane.network, true, "external research retains network");
+    assert.equal(state.lane.filesystem, false, "external scout has no direct filesystem");
+    for (const ref of ["away_read", "away_list", "away_search"]) {
+      assert.ok(!state.allowlist.has(ref), `external scout exposed repository ref: ${ref}`);
+    }
+    await rejects(
+      callTool(state, "away_read", { path: "src/hello.txt" }),
+      /tool not registered: away_read/,
+    );
+  });
+
   it("rejects an unknown lane", () => {
     assert.throws(() => createLaneExtension(ctxFor(fx, "evil")), /unknown lane: evil/);
   });

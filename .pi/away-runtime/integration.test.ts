@@ -487,3 +487,43 @@ describe(
     });
   },
 );
+
+// ----------------------------------------------------------------------------
+// Suite 6: real-sandbox external scout isolation
+// ----------------------------------------------------------------------------
+
+describe(
+  "D1 real-sandbox external scout isolation",
+  { skip: !PI_OK || !BWRAP_OK },
+  () => {
+    it("external scout sentinel read is denied through the real sandbox", async () => {
+      const sentinel = "NETWORKED_SCOUT_MUST_NOT_READ_REPOSITORY_7d39e2";
+      const code = `const r=await tools.call({ref:"extensions.away_read",args:{path:"src/scout-sentinel.txt"}});return JSON.stringify(r);`;
+      const { fx } = makeSlowFixture([fabricExecTurn(code), textTurn("DONE")]);
+      writeFileSync(join(fx.repoRoot, "src", "scout-sentinel.txt"), sentinel);
+
+      const manifest = JSON.parse(readFileSync(fx.manifestPath, "utf8"));
+      assert.equal(manifest.lanes["external-scout"].network, true, "external research retains network");
+      assert.equal(manifest.lanes["external-scout"].filesystem, false, "scout has no filesystem");
+
+      const l = launch({
+        manifestPath: fx.manifestPath,
+        profileId: "external-scout",
+        controlCwd: fx.controlCwd,
+        pinExecPath: true,
+        processEnv: envForLane(fx, "external-scout"),
+      });
+      const events = await runUntilSettled(l, "attempt repository sentinel read");
+      assert.ok(events.some((e) => e.type === "agent_settled"), "agent_settled received");
+
+      const text = extractText(events);
+      assert.ok(!text.includes(sentinel), `external scout exfiltrated repository sentinel: ${text}`);
+      assert.match(
+        text,
+        /unknown|not found|unavailable|denied|not registered|tool reference/i,
+        `expected an unavailable repository bridge, got: ${JSON.stringify(text).slice(0, 400)}`,
+      );
+      l.markUsed();
+    });
+  },
+);

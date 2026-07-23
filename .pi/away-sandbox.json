@@ -132,7 +132,7 @@
       "filesystem": false,
       "writable": false,
       "tools": ["fabric_exec"],
-      "host_call_refs": ["away_search", "away_read"],
+      "host_call_refs": [],
       "approvals": {
         "read": "allow",
         "write": "deny",
