@@ -83,12 +83,12 @@ status: active
 - **Verify:** `printf '%s\n' '{"type":"get_commands","id":"away-project"}' | timeout 20s pi --approve --mode rpc --no-session | rg '"id":"away-project".*"success":true'`
 
 #### C2 [acceptance] Prove the hermetic production path and crash replay
-- [ ] RED: production full-loop test replaces the test-local host and initially fails.
-- [ ] Prove no-work produces no workspace/ref/remote/PR effect.
-- [ ] Prove eligible create→ship→candidate→verify→branch→draft-PR terminal flow.
-- [ ] Add every lifecycle/effect crash cut and negative drift/confinement cases.
-- [ ] GREEN: production entry converges with exactly one branch publication and one draft PR.
-- [ ] Run all away runtime and extension tests with no required skip/TODO.
+- [x] RED: production full-loop test replaces the test-local host and initially fails.
+- [x] Prove no-work produces no workspace/ref/remote/PR effect.
+- [x] Prove eligible create→ship→candidate→verify→branch→draft-PR terminal flow.
+- [x] Add every lifecycle/effect crash cut and negative drift/confinement cases.
+- [x] GREEN: production entry converges with exactly one branch publication and one draft PR.
+- [x] Run all away runtime and extension tests with no required skip/TODO.
 - **depends_on:** `[C1]`
 - **parallel:** `false`
 - **conflicts_with:** `[B2, C1, C3]`
@@ -97,10 +97,10 @@ status: active
 - **Verify:** `node --experimental-strip-types --test .pi/away-runtime/*.test.ts .pi/extensions/away/index.test.ts`
 
 #### C3 [docs] Synchronize canonical production authority
-- [ ] RED: canonical authority grep identifies missing connected-path concepts.
-- [ ] Document one production root, session-v3 health evidence, retained resume, host candidate commit, and terminal reconciliation.
-- [ ] Preserve ADR-014/ADR-015 safety boundaries and make no live-smoke claim.
-- [ ] Run full deterministic regression and diff hygiene.
+- [x] RED: canonical authority grep identifies missing connected-path concepts.
+- [x] Document one production root, session-v3 health evidence, retained resume, host candidate commit, and terminal reconciliation.
+- [x] Preserve ADR-014/ADR-015 safety boundaries and make no live-smoke claim.
+- [x] Run full deterministic regression and diff hygiene.
 - **depends_on:** `[C2]`
 - **parallel:** `false`
 - **conflicts_with:** `[C2]`

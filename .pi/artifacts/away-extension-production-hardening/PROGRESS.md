@@ -73,3 +73,21 @@ status: done | updated: 2026-07-23
 - Binding/supervise target: 10/10 pass. Full extension plus production-host suite: 35/35 pass.
 - Real Pi RPC passed for both explicit `--no-extensions -e .pi/extensions/away/index.ts` and normal trusted-project loading: correlated `get_commands`/`get_state`, exactly one prompt-sourced `supervise`, no extension command named `supervise`, and no active READY tool before a request.
 - No push performed.
+
+### 2026-07-23 - C2 shipped confined acceptance
+status: done | updated: 2026-07-23
+
+- Acceptance commit `bb1dd78`: the real confined writer/staging/settlement, host candidate commit, exact-OID verifier, local bare branch publication, protocol GitHub draft, and injected push/PR crash replay now enter through `runProductionAwayController` rather than calling the reducer directly.
+- Targeted production full confined loop: 1/1 pass; one push and one draft POST across retries; local and remote `main` plus protected manifest remain unchanged.
+- Full away runtime plus extension suite: 308/308 pass, 0 skipped, including every reducer crash cut, stale/divergent/ambiguous negatives, real strict bwrap/cgroup verifier, wrapper/staging confinement, default no-work purity, and structural supervisor evidence.
+- Reported supervisor handoff failure fixed in `3bd2946`: prompt now calls `extensions.away_supervisor_ready({ token: "<exact expanded nonce>" })` and explicitly forbids a `nonce` property. Regression plus full extension suite pass (22/22).
+- No push performed.
+
+### 2026-07-23 - C3 canonical authority and deterministic close
+status: done | updated: 2026-07-23
+
+- RED authority grep returned no matches for the connected-path concept set.
+- Commit `5040999`: canonical PLAN now names the one production composition root, bounded session-v3 gate, exact unfinished reservation replay, host-owned candidate commit, exact-OID manifest freshness, terminal reducer mapping, and hermetic-only evidence. ADR-017 records the accepted decision while preserving ADR-014/ADR-015 and human-only merge/default-ref protections.
+- Authority grep passes in both canonical files for `production composition root|session-v3|unfinished reservation|host-owned candidate commit`.
+- Final deterministic regression after docs and READY payload repair: 309/309 pass, 74 suites, 0 failures, 0 skipped, 0 TODO, 0 cancellations; `git diff --check` pass.
+- No live remote smoke was run or claimed. No push performed.
