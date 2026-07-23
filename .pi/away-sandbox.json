@@ -74,7 +74,8 @@
     "PI_AWAY_STAGING_ROOT",
     "PI_AWAY_ATTEST_DIR",
     "PI_AWAY_REPO_ROOT",
-    "PI_AWAY_INNER_GUEST"
+    "PI_AWAY_INNER_GUEST",
+    "PI_AWAY_NODE_BINARY"
   ],
   "env_deny_prefixes": ["PI_FABRIC_", "PI_TRUST", "PI_APPROVE", "PI_PROJECT"],
 
@@ -238,6 +239,9 @@
     ".pi/away-runtime/dispatch.ts",
     ".pi/away-runtime/staging.ts",
     ".pi/away-runtime/launcher.ts",
+    ".pi/away-runtime/controller.ts",
+    ".pi/away-runtime/production-host.ts",
+    ".pi/away-runtime/supervise-away.ts",
     ".pi/away-runtime/rpc.ts",
     ".pi/away-runtime/lane-extension.ts",
     ".pi/away-runtime/attestation.ts",

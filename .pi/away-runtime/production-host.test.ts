@@ -82,6 +82,18 @@ describe("production host construction", () => {
     assert.deepEqual(calls, []);
   });
 
+  it("rejects symlinked or non-file namespace sentinels", () => {
+    for (const sentinelKind of ["symlink", "directory"] as const) {
+      const host = createProductionHost(identity(), {
+        pathKind(path: string) {
+          if (path.endsWith("/PLAN.md") || path.endsWith("/TODO.md")) return sentinelKind;
+          return "missing";
+        },
+      });
+      assert.throws(() => host.namespaceState("retained-host"), /namespace.*sentinel/i);
+    }
+  });
+
   it("derives canonical repository/run paths and rejects path-bearing identities", () => {
     assert.deepEqual(deriveRetainedPaths("/state", REPOSITORY_ID, RUN_ID), {
       repositoryRoot: "/state/repositories/" + REPOSITORY_ID,
@@ -105,12 +117,12 @@ describe("retained workspace", () => {
       pathKind: () => kind,
       realpath: (path) => path,
       mkdir: () => {},
+      symbolicHead: () => null,
       git(cwd, args) {
         calls.push({ cwd, args });
         if (args[0] === "worktree") return "";
         if (args[0] === "rev-parse" && args[1] === "--show-toplevel") return cwd;
         if (args[0] === "rev-parse" && args[1] === "HEAD") return head;
-        if (args[0] === "symbolic-ref") throw new Error("detached");
         if (args[0] === "status") return "";
         throw new Error("unexpected git command");
       },
@@ -140,19 +152,17 @@ describe("retained workspace", () => {
     assert.throws(() => ensureRetainedWorkspace(identity(), paths, workspaceDeps("directory", CANDIDATE_OID).deps), /base.*mismatch/i);
 
     const attached = workspaceDeps("directory");
-    attached.deps.git = (cwd, args) => {
-      if (args[0] === "rev-parse" && args[1] === "--show-toplevel") return cwd;
-      if (args[0] === "rev-parse") return BASE_OID;
-      if (args[0] === "symbolic-ref") return "main";
-      return "";
-    };
+    attached.deps.symbolicHead = () => "main";
     assert.throws(() => ensureRetainedWorkspace(identity(), paths, attached.deps), /detached/i);
+
+    const brokenProbe = workspaceDeps("directory");
+    brokenProbe.deps.symbolicHead = () => { throw new Error("symbolic-ref I/O failure"); };
+    assert.throws(() => ensureRetainedWorkspace(identity(), paths, brokenProbe.deps), /I\/O failure/i);
 
     const dirty = workspaceDeps("directory");
     dirty.deps.git = (cwd, args) => {
       if (args[0] === "rev-parse" && args[1] === "--show-toplevel") return cwd;
       if (args[0] === "rev-parse") return BASE_OID;
-      if (args[0] === "symbolic-ref") throw new Error("detached");
       if (args[0] === "status") return "M changed.ts";
       return "";
     };
@@ -190,27 +200,33 @@ describe("production host phase adapters", () => {
     let namespaceEstablished = false;
     let settledPhase: "create" | "ship" | undefined;
     let currentPhase: "create" | "ship" | "verify" = "create";
+    const dirtyPaths = new Set<string>();
     const written: PhaseEvidence[] = [];
     const promptProfiles: string[] = [];
     const proposals = {
       create: [{ path: ".pi/artifacts/retained-host/PLAN.md", hash: HASH }, { path: ".pi/artifacts/retained-host/TODO.md", hash: HASH }],
       ship: [{ path: "src/change.ts", hash: HASH }],
     };
+    const answerPolicy = (question: string) => {
+      if (question === "discovery-level") return "deep" as const;
+      if (question === "clean-isolated-workspace") return "proceed" as const;
+      return "deny" as const;
+    };
 
     const host = createProductionHost(identity(), {
       pathKind(path: string) {
         if (path.endsWith("/workspace")) return workspaceCreated ? "directory" : "missing";
-        if (path.endsWith("/PLAN.md") || path.endsWith("/TODO.md")) return namespaceEstablished ? "other" : "missing";
+        if (path.endsWith("/PLAN.md") || path.endsWith("/TODO.md")) return namespaceEstablished ? "file" : "missing";
         return "missing";
       },
       realpath: (path: string) => path,
       mkdir: () => {},
+      symbolicHead: () => null,
       git(cwd: string, args: string[]) {
         if (args[0] === "worktree") { workspaceCreated = true; return ""; }
         if (args[0] === "rev-parse" && args[1] === "--show-toplevel") return cwd;
         if (args[0] === "rev-parse" && args[1] === "HEAD") return BASE_OID;
-        if (args[0] === "symbolic-ref") throw new Error("detached");
-        if (args[0] === "status") return "";
+        if (args[0] === "status") return [...dirtyPaths].sort().map((path) => "?? " + path + "\0").join("");
         throw new Error("unexpected git");
       },
       readFile(path: string) {
@@ -236,6 +252,7 @@ describe("production host phase adapters", () => {
             }
             if (command.id === "settle-" + currentPhase) {
               settledPhase = currentPhase as "create" | "ship";
+              for (const candidate of proposals[currentPhase as "create" | "ship"]) dirtyPaths.add(candidate.path);
               if (currentPhase === "create") namespaceEstablished = true;
               return { type: "response", id: command.id, command: "prompt", success: true };
             }
@@ -258,7 +275,11 @@ describe("production host phase adapters", () => {
       },
       writeReceipt(_path: string, evidence: PhaseEvidence) { written.push(evidence); },
       createCandidate(request) {
-        assert.deepEqual(request.paths, ["src/change.ts"]);
+        assert.deepEqual(request.paths, [
+          ".pi/artifacts/retained-host/PLAN.md",
+          ".pi/artifacts/retained-host/TODO.md",
+          "src/change.ts",
+        ]);
         return { oid: CANDIDATE_OID };
       },
       verifyCandidate(oid: string) {
@@ -272,21 +293,25 @@ describe("production host phase adapters", () => {
 
     assert.equal(await host.namespaceState("retained-host"), "absent");
     const createCommand = "/create retained-host --from .pi/ROADMAP.md#RM-007";
-    const created = await host.invoke({ phase: "create", command: createCommand, slug: "retained-host", answerPolicy: () => "deny" });
+    const created = await host.invoke({ phase: "create", command: createCommand, slug: "retained-host", answerPolicy });
     assert.equal(created.status, "completed");
     assert.equal(await host.namespaceState("retained-host"), "established");
 
     currentPhase = "ship";
     settledPhase = undefined;
-    const shipped = await host.invoke({ phase: "ship", command: "/ship retained-host", slug: "retained-host", answerPolicy: () => "deny" });
+    const shipped = await host.invoke({ phase: "ship", command: "/ship retained-host", slug: "retained-host", answerPolicy });
     assert.equal(shipped.terminalClaim, "none");
     const candidate = await host.createOrObserveCandidate({ runId: RUN_ID, cardId: "RM-007", slug: "retained-host", baseOid: BASE_OID });
     assert.equal(candidate.oid, CANDIDATE_OID);
-    assert.deepEqual(candidate.paths, ["src/change.ts"]);
+    assert.deepEqual(candidate.paths, [
+      ".pi/artifacts/retained-host/PLAN.md",
+      ".pi/artifacts/retained-host/TODO.md",
+      "src/change.ts",
+    ]);
 
     currentPhase = "verify";
     settledPhase = undefined;
-    const verified = await host.invoke({ phase: "verify", command: "/verify retained-host", slug: "retained-host", expectedOid: CANDIDATE_OID, answerPolicy: () => "deny" });
+    const verified = await host.invoke({ phase: "verify", command: "/verify retained-host", slug: "retained-host", expectedOid: CANDIDATE_OID, answerPolicy });
     assert.equal(verified.terminalClaim, "verified");
     assert.equal(verified.verifiedOid, CANDIDATE_OID);
     assert.equal(verified.repositoryWritesAfterFingerprint, 0);
@@ -308,6 +333,7 @@ describe("phase evidence", () => {
     assert.equal(built.profileId, "writer");
     assert.match(built.prompt, /Create: retained-host --from/);
     assert.match(built.prompt, /\"repositoryId\":\"repo-a+/);
+    assert.match(built.prompt, /\"terminalResponse\":\{\"onlyJson\":true/);
     assert.match(built.digest, /^[0-9a-f]{64}$/);
 
     const evidence: PhaseEvidence = {
