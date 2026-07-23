@@ -27,6 +27,8 @@ function harness(options: {
 } = {}) {
   let input: InputHandler | undefined;
   let settled: EventHandler | undefined;
+  let sessionStart: EventHandler | undefined;
+  let runtimeBound = false;
   const commands = new Set<string>();
   const tools = new Map<string, ToolDefinition>();
   const activeTools = new Set<string>(["fabric_exec"]);
@@ -36,15 +38,28 @@ function harness(options: {
     on(event: string, handler: EventHandler) {
       if (event === "input") input = handler as InputHandler;
       if (event === "agent_settled") settled = handler;
+      if (event === "session_start") sessionStart = handler;
     },
     registerCommand(name: string) { commands.add(name); },
     registerTool(definition: ToolDefinition & { name: string }) { tools.set(definition.name, definition); },
-    getActiveTools() { return [...activeTools]; },
+    getActiveTools() {
+      if (!runtimeBound) throw new Error("Extension runtime not initialized. Action methods cannot be called during extension loading.");
+      return [...activeTools];
+    },
     setActiveTools(names: string[]) {
+      if (!runtimeBound) throw new Error("Extension runtime not initialized. Action methods cannot be called during extension loading.");
       activeTools.clear();
       for (const name of names) activeTools.add(name);
     },
     appendEntry(kind: string, data: unknown) { entries.push({ kind, data }); },
+  };
+  const ctx = {
+    cwd: "/repo",
+    isIdle: () => options.idle ?? true,
+    isProjectTrusted: () => true,
+    sessionManager: { getBranch: () => [], getSessionId: () => "session-1" },
+    hasUI: false,
+    ui: { notify() {}, setStatus() {} },
   };
   createAwayExtension({
     makeToken: () => "nonce-1",
@@ -60,20 +75,20 @@ function harness(options: {
       };
     },
   })(api as never);
-  const ctx = {
-    cwd: "/repo",
-    isIdle: () => options.idle ?? true,
-    isProjectTrusted: () => true,
-    sessionManager: { getBranch: () => [], getSessionId: () => "session-1" },
-    hasUI: false,
-    ui: { notify() {}, setStatus() {} },
-  };
+  runtimeBound = true;
+  sessionStart?.({}, ctx);
   return {
     get input() { return input; },
     get settled() { return settled; },
     commands, tools, activeTools, entries, calls, ctx,
   };
 }
+
+describe("extension loading lifecycle", () => {
+  it("factory does not call bound actions before session_start", () => {
+    assert.doesNotThrow(() => harness());
+  });
+});
 
 describe("/supervise --away input hook", () => {
   it("matches only the exact grammar and treats flags as supplemental objective text", () => {
