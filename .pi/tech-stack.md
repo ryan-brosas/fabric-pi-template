@@ -16,7 +16,7 @@ and a Fabric supervisor/worker topology that other repositories can adopt.
   `.pi/settings.json` `npm:pi-fabric@0.24.3`)
   - Requires Node `>=24` and Pi `>=0.80.6` (peer deps satisfied)
   - Provides: one-shot agents, persistent actors, steering, mesh, worktree isolation, budgets
-  - Compaction is deterministic and LLM-free (`compaction.engine: "pi"`) — no model tier
+  - Compaction is deterministic and LLM-free (`compaction.engine: "fabric"`) — no model tier
 - **Node:** v24.16.0 (verified `node --version`)
 - **Remote:** `https://github.com/ryan-brosas/fabric-pi-template.git`
 
@@ -31,7 +31,7 @@ site.
 |---|---|---|---|---|
 | Control plane / Main | sole scheduler, integrator, commit authority | `openai-codex/gpt-5.6-sol` | max | n/a (Main) |
 | Read-only GPT | `plan`, `review`, `debug` | `openai-codex/gpt-5.6-sol` | max | `false` |
-| Read-only gatherers | `explore`, `scout` | `openai-codex/gpt-5.4-mini` | max | `false` |
+| Read-only gatherers | `explore`, `scout` | `openai-codex/gpt-5.4-mini` | high | `false` |
 | Writable pool (1 per session) | `implement` / general edits | `makora/zai-org/GLM-5.2-NVFP4` | max | **`true`** |
 | Advisory supervisor | ambient supervisor; read-only | `openai-codex/gpt-5.6-sol` | max | `false` |
 
@@ -45,11 +45,14 @@ read-only children use `extensions:false`; Makora implementation workers MUST us
 trajectories to the Makora executor via `agents.handoff()`). See `AGENTS.md` Worker
 topology and ADR-009/ADR-010 for the full contract.
 
-**Live-config note:** `.pi/fabric.json` pins
-`makora/zai-org/GLM-5.2-NVFP4` while keeping project defaults read-only:
-`subagents.extensions:false`, `read/grep/find/ls`, write/execute denied, Fabric memory
-indexing disabled, and automatic prewalk unset (`prewalk:{}`). Makora writable
-dispatches override `extensions:true` plus the exact writable allowlist per call.
+**Live-config note:** `.pi/fabric.json` keeps project child defaults read-only on
+`openai-codex/gpt-5.6-sol`: `subagents.extensions:false`, `read/grep/find/ls`,
+write/execute denied, at most 8 concurrent children, a 5-minute default wall-clock
+limit, a 30,000-token per-child ceiling, and Fabric memory indexing disabled.
+Maintenance selection narrows further to one explicit `gpt-5.4-mini` explorer with
+an 8,000-token execution budget. Makora writable dispatches override
+`extensions:true`, `timeoutMs`, and the exact writable allowlist per call; the configured
+prewalk model does not arm automatic prewalk by itself.
 
 One Makora GLM worker per session; the host runs 4-5 concurrent sessions, so total
 GLM concurrency is bounded by session count, not a per-session pool. The advisory

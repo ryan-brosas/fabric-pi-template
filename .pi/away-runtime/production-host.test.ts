@@ -729,6 +729,20 @@ describe("continuous senior service", () => {
     assert.deepEqual(reported, ["blocked", "blocked", "completed"]);
     assert.deepEqual(delays, [10, 15]);
   });
+
+  it("bounds maintenance mini-agent discovery before a live cycle", () => {
+    const fabric = JSON.parse(readFileSync(join(REPO, ".pi", "fabric.json"), "utf8"));
+    const workflow = readFileSync(join(REPO, ".pi", "prompts", "workflow.md"), "utf8");
+    assert.equal(fabric.subagents.maxConcurrent, 8);
+    assert.equal(fabric.subagents.timeoutMs, 300_000);
+    assert.equal(fabric.subagents.maxTokensPerChild, 30_000);
+    assert.match(workflow, /at most one bounded `gpt-5\.4-mini` read-only explorer/);
+    assert.match(workflow, /agentBudget:\s*1/);
+    assert.match(workflow, /tokenBudget:\s*8_000/);
+    assert.match(workflow, /thinking:\s*"high"/);
+    assert.match(workflow, /Do not retry a timed-out or budget-exhausted explorer/);
+    assert.doesNotMatch(workflow, /1[–-]3 bounded `gpt-5\.4-mini`/);
+  });
 });
 
 describe("lifecycle RPC", () => {

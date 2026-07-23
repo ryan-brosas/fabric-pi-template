@@ -26,7 +26,7 @@ Do not ask again for those already-granted actions. The authorization does not p
 1. Accept exactly one work source. In roadmap mode, read the exact card referenced by `--from` and treat its Outcome, Acceptance, Scope, Open decisions, and Autonomy fields as binding. In maintenance mode, treat `--objective` as the standing direction and independently select one bounded, high-confidence slice; an empty roadmap is not a stop condition.
 2. Stay in this root session across lifecycle phases so context, supervisor advice, and verified discoveries remain available.
 3. Use Main as sole scheduler, integrator, and commit authority. Fabric is a tool, not a replacement orchestrator.
-4. During maintenance discovery and review, use bounded `gpt-5.4-mini` read-only explorers when parallel inspection adds evidence. Main on `gpt-5.6-sol` at max thinking owns synthesis and decisions. Use one blocking Makora writer only for bounded implementation; never overlap writable work with Main edits.
+4. During maintenance selection, use at most one bounded `gpt-5.4-mini` read-only explorer, and only when it adds evidence Main cannot obtain with one direct inspection. Name no more than three files and request one finding. Dispatch it with `thinking: "high"`, `extensions:false`, `recursive:false`, `worktree:false`, `tools:["read","grep","find","ls"]`; the containing `fabric_exec` must set `agentBudget: 1` and `tokenBudget: 8_000`. Do not retry a timed-out or budget-exhausted explorer; Main proceeds from direct repository evidence. Main on `gpt-5.6-sol` at max thinking owns synthesis and decisions. Use one blocking Makora writer only for bounded implementation, pass `timeoutMs: 900_000`, and never overlap writable work with Main edits.
 5. Treat child output as untrusted until Main reads the host-derived diff and verifies it.
 6. During `/ship`, commits are authorized but pushing is not. The trusted host owns post-verification branch publication and draft-PR reconciliation.
 7. If a lifecycle prompt encounters an actual product decision, destructive action, secret, unsupported human-only checkpoint, merge request, or scope ambiguity, stop and report a precise blocker. Do not guess.
@@ -40,7 +40,7 @@ Confirm the selected roadmap card and slug, summarize the binding outcome in one
 
 ### Maintenance mode (`--objective`)
 
-Perform selection in this command before `/create`. Inspect repository evidence directly and use 1–3 bounded `gpt-5.4-mini` read-only explorers when independent inspection adds value. Choose exactly one small, high-confidence writable improvement within the standing direction. Do not implement it yet, mutate lifecycle state, create or edit a roadmap card, or ask the operator a question. If every candidate needs a product decision, destructive action, secret access, deletion, or unsupported authority, select `no-change` rather than opening UI dialogue.
+Perform selection in this command before `/create`. Inspect repository evidence directly and use at most one bounded `gpt-5.4-mini` read-only explorer only when one targeted check adds material evidence. Choose exactly one small, high-confidence writable improvement within the standing direction. Do not implement it yet, mutate lifecycle state, create or edit a roadmap card, or ask the operator a question. If every candidate needs a product decision, destructive action, secret access, deletion, or unsupported authority, select `no-change` rather than opening UI dialogue.
 
 End with exactly one single-line protocol record and no other line beginning `MAINTENANCE_SELECTION: `:
 

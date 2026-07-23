@@ -18,9 +18,9 @@
     "runner": "pi",
     "extensions": false,
     "maxDepth": 1,
-    "maxConcurrent": 32,
+    "maxConcurrent": 8,
     "maxPerExecution": 16,
-    "timeoutMs": 3600000,
+    "timeoutMs": 300000,
     "defaultTools": [
       "read",
       "grep",
@@ -28,7 +28,7 @@
       "ls"
     ],
     "budgetUsd": 0,
-    "maxTokensPerChild": 0,
+    "maxTokensPerChild": 30000,
     "model": "openai-codex/gpt-5.6-sol",
     "thinking": "max",
     "claude": {
