@@ -71,10 +71,10 @@ status: active
 ## Child Plan C — Default Binding, Full Process Proof, and Authority
 
 #### C1 [integration] Wire the default extension to the production root
-- [ ] RED: default-binding and real command-discovery process tests reach the disconnected path.
-- [ ] GREEN: extension default imports only `runProductionAwayController`; retain focused injection seam.
-- [ ] Cover normal/malformed/injected/non-idle input and exact transformed continuation in real RPC.
-- [ ] Run full extension plus production-host tests.
+- [x] RED: default-binding and real command-discovery process tests reach the disconnected path.
+- [x] GREEN: extension default imports only `runProductionAwayController`; retain focused injection seam.
+- [x] Cover normal/malformed/injected/non-idle input and exact transformed continuation in real RPC.
+- [x] Run full extension plus production-host tests.
 - **depends_on:** `[B2]`
 - **parallel:** `false`
 - **conflicts_with:** `[A1, A2, B1, B2, C2]`

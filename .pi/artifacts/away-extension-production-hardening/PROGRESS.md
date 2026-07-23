@@ -65,3 +65,11 @@ status: done | updated: 2026-07-23
 - Targeted restart/terminal checks: 9/9 pass. Controller/ledger/replay/Git/GitHub/production suite: 70/70 pass. Syntax and diff hygiene pass.
 - The shipped default path fully resolves live no-work. Eligible production fixtures supply the real low-level verifier/effect configuration; C2 proves those existing brokers through the same public entry.
 - No push performed.
+
+### 2026-07-23 - C1 shipped extension binding
+status: done | updated: 2026-07-23
+
+- RED/Green commit `9c4b4a9`: removed `runAwayController` from the shipped extension graph and bound only `runProductionAwayController`; focused `createAwayExtension` injection remains for state-machine tests.
+- Binding/supervise target: 10/10 pass. Full extension plus production-host suite: 35/35 pass.
+- Real Pi RPC passed for both explicit `--no-extensions -e .pi/extensions/away/index.ts` and normal trusted-project loading: correlated `get_commands`/`get_state`, exactly one prompt-sourced `supervise`, no extension command named `supervise`, and no active READY tool before a request.
+- No push performed.
