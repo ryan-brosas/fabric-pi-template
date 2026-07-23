@@ -184,6 +184,117 @@ describe("lifecycle RPC", () => {
   });
 });
 
+describe("production host phase adapters", () => {
+  it("runs fixed create/ship/verify phases from receipts and host observations", async () => {
+    let workspaceCreated = false;
+    let namespaceEstablished = false;
+    let settledPhase: "create" | "ship" | undefined;
+    let currentPhase: "create" | "ship" | "verify" = "create";
+    const written: PhaseEvidence[] = [];
+    const promptProfiles: string[] = [];
+    const proposals = {
+      create: [{ path: ".pi/artifacts/retained-host/PLAN.md", hash: HASH }, { path: ".pi/artifacts/retained-host/TODO.md", hash: HASH }],
+      ship: [{ path: "src/change.ts", hash: HASH }],
+    };
+
+    const host = createProductionHost(identity(), {
+      pathKind(path: string) {
+        if (path.endsWith("/workspace")) return workspaceCreated ? "directory" : "missing";
+        if (path.endsWith("/PLAN.md") || path.endsWith("/TODO.md")) return namespaceEstablished ? "other" : "missing";
+        return "missing";
+      },
+      realpath: (path: string) => path,
+      mkdir: () => {},
+      git(cwd: string, args: string[]) {
+        if (args[0] === "worktree") { workspaceCreated = true; return ""; }
+        if (args[0] === "rev-parse" && args[1] === "--show-toplevel") return cwd;
+        if (args[0] === "rev-parse" && args[1] === "HEAD") return BASE_OID;
+        if (args[0] === "symbolic-ref") throw new Error("detached");
+        if (args[0] === "status") return "";
+        throw new Error("unexpected git");
+      },
+      readFile(path: string) {
+        if (path.includes("/.pi/prompts/")) return Buffer.from("# Phase $ARGUMENTS\n");
+        if (path.includes("extension-receipt")) return Buffer.from(JSON.stringify({
+          schema: "away-extension-receipt/1", profileId: "writer", laneId: "writer",
+          manifestHash: HASH, closureHash: HASH, childSourceDigest: HASH, limits: {},
+          outcome: "completed", wrapperReceiptPath: "/wrapper.json", wrapperFsynced: true, timestamp: 1,
+        }));
+        throw new Error("unexpected read: " + path);
+      },
+      listReceipts() {
+        return settledPhase ? ["/state/extension-receipt-" + settledPhase + ".json"] : [];
+      },
+      launch(options) {
+        promptProfiles.push(options.profileId);
+        let consumed = false;
+        return {
+          closureHash: HASH,
+          async request(command) {
+            if (command.id === "phase-" + currentPhase) {
+              return { type: "response", id: command.id, command: "prompt", success: true };
+            }
+            if (command.id === "settle-" + currentPhase) {
+              settledPhase = currentPhase as "create" | "ship";
+              if (currentPhase === "create") namespaceEstablished = true;
+              return { type: "response", id: command.id, command: "prompt", success: true };
+            }
+            throw new Error("wrong request id");
+          },
+          send() {},
+          events() {
+            return {
+              async *[Symbol.asyncIterator]() {
+                if (consumed) return;
+                consumed = true;
+                const candidates = currentPhase === "verify" ? [] : proposals[currentPhase];
+                yield { type: "message_end", message: { role: "assistant", content: [{ type: "text", text: JSON.stringify({ schema: "away-phase-proposal/1", phase: currentPhase, candidates }) }] } };
+                yield { type: "agent_settled" };
+              },
+            };
+          },
+          async run(callback) { await callback(() => {}); },
+        };
+      },
+      writeReceipt(_path: string, evidence: PhaseEvidence) { written.push(evidence); },
+      createCandidate(request) {
+        assert.deepEqual(request.paths, ["src/change.ts"]);
+        return { oid: CANDIDATE_OID };
+      },
+      verifyCandidate(oid: string) {
+        assert.equal(oid, CANDIDATE_OID);
+        return {
+          receiptPath: "/state/verifier.json",
+          receiptBytes: Buffer.from(JSON.stringify({ oid, outcome: "completed", manifestMatch: true, exitStatus: 0 })),
+        };
+      },
+    } as never);
+
+    assert.equal(await host.namespaceState("retained-host"), "absent");
+    const createCommand = "/create retained-host --from .pi/ROADMAP.md#RM-007";
+    const created = await host.invoke({ phase: "create", command: createCommand, slug: "retained-host", answerPolicy: () => "deny" });
+    assert.equal(created.status, "completed");
+    assert.equal(await host.namespaceState("retained-host"), "established");
+
+    currentPhase = "ship";
+    settledPhase = undefined;
+    const shipped = await host.invoke({ phase: "ship", command: "/ship retained-host", slug: "retained-host", answerPolicy: () => "deny" });
+    assert.equal(shipped.terminalClaim, "none");
+    const candidate = await host.createOrObserveCandidate({ runId: RUN_ID, cardId: "RM-007", slug: "retained-host", baseOid: BASE_OID });
+    assert.equal(candidate.oid, CANDIDATE_OID);
+    assert.deepEqual(candidate.paths, ["src/change.ts"]);
+
+    currentPhase = "verify";
+    settledPhase = undefined;
+    const verified = await host.invoke({ phase: "verify", command: "/verify retained-host", slug: "retained-host", expectedOid: CANDIDATE_OID, answerPolicy: () => "deny" });
+    assert.equal(verified.terminalClaim, "verified");
+    assert.equal(verified.verifiedOid, CANDIDATE_OID);
+    assert.equal(verified.repositoryWritesAfterFingerprint, 0);
+    assert.deepEqual(promptProfiles, ["writer", "writer", "verifier"]);
+    assert.equal(written.length, 3);
+  });
+});
+
 describe("phase evidence", () => {
   const template = Buffer.from("# Create: $ARGUMENTS\nBody\n", "utf8");
 
