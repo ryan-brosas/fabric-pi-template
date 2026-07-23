@@ -63,7 +63,15 @@ describe("loadManifest", () => {
     assert.equal(sha(canonical), hash, "hash is over canonical bytes");
     // pinned versions are the real installed versions
     assert.equal(manifest.pinned_versions.node, process.version.replace("v", ""));
-    assert.equal(manifest.pinned_versions.pi_fabric, "0.23.0");
+    const installedFabricVersion = JSON.parse(
+      readFileSync(resolve(REPO_ROOT, ".pi/npm/node_modules/pi-fabric/package.json"), "utf8"),
+    ).version;
+    const lockedFabricVersion = JSON.parse(
+      readFileSync(resolve(REPO_ROOT, ".pi/npm/package-lock.json"), "utf8"),
+    ).packages["node_modules/pi-fabric"].version;
+    assert.equal(manifest.pinned_versions.pi_fabric, "0.24.3");
+    assert.equal(manifest.pinned_versions.pi_fabric, installedFabricVersion);
+    assert.equal(manifest.pinned_versions.pi_fabric, lockedFabricVersion);
     assert.equal(manifest.pinned_versions.bwrap, "0.9.0");
     assert.equal(manifest.pinned_versions.makora_provider, "1.12.1");
   });

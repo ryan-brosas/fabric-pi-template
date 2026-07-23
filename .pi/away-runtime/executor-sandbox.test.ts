@@ -3,7 +3,7 @@
 // Three harnesses:
 //   1. Pure-function unit tests (resolveEffectiveRef, validateFabricArgv,
 //      validateChildSourceDigest, buildBwrapArgs, lddResolve) — fast, deterministic.
-//   2. Real-runtime integration: drives the real Fabric 0.23.0 NodeProcessRuntime
+//   2. Real-runtime integration: drives the real Fabric 0.24.3 NodeProcessRuntime
 //      with process.execPath pinned to the wrapper (the seam A2 must prove).
 //   3. Direct-bwrap confinement: runs the wrapper's exact buildBwrapArgs with a
 //      malicious guest (vm-escape + direct fs/net/env/proc/spawn) to prove the

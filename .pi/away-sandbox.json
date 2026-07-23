@@ -7,7 +7,7 @@
     "node": "24.16.0",
     "pi": "0.81.1",
     "pi_path": "/home/ryan/.local/bin/pi",
-    "pi_fabric": "0.23.0",
+    "pi_fabric": "0.24.3",
     "pi_fabric_path": ".pi/npm/node_modules/pi-fabric",
     "pi_fabric_node_process_runtime": "dist/runtime/node-process-runtime.js:29",
     "pi_fabric_node_process_child_source": "dist/runtime/node-process-child-source.js",
