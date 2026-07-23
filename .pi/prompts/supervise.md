@@ -22,8 +22,10 @@ never bypasses the canonical controller's roadmap reservation.
 `--away-controller` is extension-only. For that mode, run the same canonical actor
 reconciliation below in one serial `fabric_exec` call with `resultFormat: "json"`.
 Wait for that tool result. Only when the returned object itself has `outcome: "READY"`
-and a valid `health-acknowledged` trace, call `away_supervisor_ready` with the exact
-internal nonce on a later model turn. Never call it after `BLOCKED`, a tool error, an
+and a valid `health-acknowledged` trace, call
+`extensions.away_supervisor_ready({ token: "<exact expanded nonce>" })` on a later model
+turn. The property name is exactly `token`, never `nonce`. Never call it after `BLOCKED`,
+a tool error, an
 invalid health acknowledgement, or from assistant prose. The nonce-gated extension tool
 independently rechecks the host `fabric_exec` result, the session-local actor registry's
 exact canonical read-only fields, and the nonce-bound actor transcript before starting the
@@ -480,8 +482,9 @@ try {
 Report the returned object. `READY` requires a persistent actor with canonical immutable
 fields and a valid `health-ack`; creation alone is not success. In the internal
 `--away-controller` mode only, wait until this JSON result is present in session history,
-then call `away_supervisor_ready` once with the exact expanded nonce above. Do not call
-that tool in ordinary mode or before the result is known. Fabric resolves
+then call `extensions.away_supervisor_ready({ token: "<exact expanded nonce>" })` once,
+substituting the exact expanded nonce above as the `token` value. Do not use a `nonce`
+property. Do not call that tool in ordinary mode or before the result is known. Fabric resolves
 `agents.ask()` before its drain-finalization step publishes `idle`, so `settling: true`
 immediately after a valid acknowledgement is normal and must not be reported as lost or
 non-persistent. On a later process restart, reopen the exact session with

@@ -100,6 +100,12 @@ describe("extension loading lifecycle", () => {
     assert.doesNotMatch(source, /runController: runAwayController/);
   });
 
+  it("spells the READY tool payload with the registered token field", () => {
+    const prompt = readFileSync(join(import.meta.dirname, "..", "..", "prompts", "supervise.md"), "utf8");
+    assert.match(prompt, /away_supervisor_ready\(\{ token: "<exact expanded nonce>" \}\)/);
+    assert.doesNotMatch(prompt, /away_supervisor_ready\(\{ nonce:/);
+  });
+
   it("factory does not call bound actions before session_start", () => {
     assert.doesNotThrow(() => harness());
   });
