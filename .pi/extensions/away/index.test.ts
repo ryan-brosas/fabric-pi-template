@@ -1,6 +1,6 @@
 import { describe, it } from "node:test";
 import { strict as assert } from "node:assert";
-import { mkdtempSync, mkdirSync, writeFileSync } from "node:fs";
+import { mkdtempSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -93,6 +93,13 @@ function harness(options: {
 }
 
 describe("extension loading lifecycle", () => {
+  it("the shipped default binds only the production controller root", () => {
+    const source = readFileSync(new URL("./index.ts", import.meta.url), "utf8");
+    assert.match(source, /import \{ runProductionAwayController \} from "\.\.\/\.\.\/away-runtime\/production-host\.ts"/);
+    assert.match(source, /export default createAwayExtension\(\{ runController: runProductionAwayController \}\)/);
+    assert.doesNotMatch(source, /runController: runAwayController/);
+  });
+
   it("factory does not call bound actions before session_start", () => {
     assert.doesNotThrow(() => harness());
   });

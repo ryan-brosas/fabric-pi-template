@@ -7,11 +7,11 @@ import { lstatSync, readFileSync, realpathSync } from "node:fs";
 import { join, sep } from "node:path";
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 
-import {
-  runAwayController,
-  type AwayControllerRequest,
-  type AwayControllerResult,
+import type {
+  AwayControllerRequest,
+  AwayControllerResult,
 } from "../../away-runtime/controller.ts";
+import { runProductionAwayController } from "../../away-runtime/production-host.ts";
 
 const READY_TOOL = "away_supervisor_ready";
 const ENTRY_KIND = "away-run";
@@ -576,4 +576,4 @@ export function createAwayExtension(dependencies: AwayExtensionDependencies) {
   };
 }
 
-export default createAwayExtension({ runController: runAwayController });
+export default createAwayExtension({ runController: runProductionAwayController });
