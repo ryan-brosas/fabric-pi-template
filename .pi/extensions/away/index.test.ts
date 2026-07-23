@@ -319,9 +319,18 @@ describe("supervisor-ready evidence", () => {
     const token = "nonce-1";
     const ready = {
       outcome: "READY",
+      sessionId: "session-1",
       actor: { id: "actor-1" },
       actions: ["instructions-reapplied", "health-acknowledged"],
-      health: { action: "silent", kind: "health-ack", requestId: "health-1" },
+      health: {
+        action: "silent",
+        kind: "health-ack",
+        protocol: "proactive-supervisor/v1",
+        requestId: "health-1",
+        sessionId: "session-1",
+        actorId: "actor-1",
+        queueItemId: "queue-1",
+      },
     };
     const user = {
       type: "message",
@@ -394,12 +403,12 @@ describe("supervisor-ready evidence", () => {
     );
     const registryPath = join(registryDir, "actors.json");
     writeFileSync(registryPath, JSON.stringify({ format: 1, actors: [actor] }));
-    assert.equal(hasCanonicalSupervisorRegistry(root, sessionId, actorId, "health-1"), true);
+    assert.equal(hasCanonicalSupervisorRegistry(root, sessionId, actorId, "health-1", "queue-1"), false);
     writeFileSync(
       registryPath,
       JSON.stringify({ format: 1, actors: [{ ...actor, tools: [...actor.tools, "edit"] }] }),
     );
-    assert.equal(hasCanonicalSupervisorRegistry(root, sessionId, actorId, "health-1"), false);
+    assert.equal(hasCanonicalSupervisorRegistry(root, sessionId, actorId, "health-1", "queue-1"), false);
   });
 
   it("rejects role-only session-v3 decoy correlation records", () => {
@@ -445,6 +454,120 @@ describe("supervisor-ready evidence", () => {
         sessionFile,
       }],
     }));
-    assert.equal(hasCanonicalSupervisorRegistry(root, sessionId, actorId, requestId), false);
+    assert.equal(hasCanonicalSupervisorRegistry(root, sessionId, actorId, requestId, "queue-1"), false);
+  });
+
+  it("validates one exact session-v3 direct health correlation and rejects structural decoys", () => {
+    const sessionId = "session-1";
+    const actorId = "actor-1";
+    const requestId = "health-1";
+    const queueItemId = "queue-1";
+    const instructions = "canonical supervisor instructions";
+    const requestText = JSON.stringify({
+      source: "direct",
+      payload: {
+        message: "Acknowledge persistent supervisor liveness without inspecting the repository.",
+        data: {
+          protocol: "proactive-supervisor/v1",
+          kind: "health-check",
+          requestId,
+          sessionId,
+          actorId,
+        },
+      },
+      id: queueItemId,
+    }, null, 2);
+    const directText = `Fabric actor message from direct:\n\n${requestText}`;
+    const ack = {
+      action: "silent",
+      data: {
+        protocol: "proactive-supervisor/v1",
+        kind: "health-ack",
+        requestId,
+        sessionId,
+        actorId,
+        queueItemId,
+      },
+    };
+    const records = () => [
+      { type: "session", version: 3, id: "actor-session-1", timestamp: "2026-07-23T00:00:00.000Z", cwd: "/repo" },
+      { type: "message", id: "request-entry", parentId: null, timestamp: "2026-07-23T00:00:01.000Z", message: { role: "user", content: directText } },
+      {
+        type: "message",
+        id: "ack-entry",
+        parentId: "request-entry",
+        timestamp: "2026-07-23T00:00:02.000Z",
+        message: {
+          role: "assistant",
+          content: [{ type: "text", text: JSON.stringify(ack) }],
+          provider: "openai-codex",
+          model: "gpt-5.6-sol",
+          usage: {},
+          stopReason: "stop",
+        },
+      },
+    ];
+    const check = (sessionRecords: unknown[] | string, ids = { sessionId, actorId, requestId, queueItemId }): boolean => {
+      const root = mkdtempSync(join(tmpdir(), "away-supervisor-v3-"));
+      const registryDir = join(root, ".pi", "fabric", "mesh", "actors", sessionId);
+      const actorDir = join(registryDir, actorId);
+      mkdirSync(join(root, ".pi", "prompts"), { recursive: true });
+      mkdirSync(actorDir, { recursive: true });
+      writeFileSync(
+        join(root, ".pi", "prompts", "supervise.md"),
+        `## Supervisor Instructions (custom — embed verbatim)\n\n\`\`\`\n${instructions}\n\`\`\`\n`,
+      );
+      const sessionFile = join(actorDir, "session.jsonl");
+      const transcript = typeof sessionRecords === "string"
+        ? sessionRecords
+        : sessionRecords.map((record) => JSON.stringify(record)).join("\n") + "\n";
+      writeFileSync(sessionFile, transcript);
+      writeFileSync(join(registryDir, "actors.json"), JSON.stringify({
+        format: 1,
+        actors: [{
+          id: actorId,
+          name: "supervisor",
+          instructions,
+          status: "idle",
+          events: ["agent_settled", "tool_error"],
+          topics: [],
+          delivery: "steer",
+          responseMode: "directive",
+          triggerTurn: true,
+          coalesce: true,
+          runner: "pi",
+          model: "openai-codex/gpt-5.6-sol",
+          thinking: "max",
+          tools: ["read", "grep", "find", "ls"],
+          extensions: false,
+          sessionFile,
+        }],
+      }));
+      return hasCanonicalSupervisorRegistry(root, ids.sessionId, ids.actorId, ids.requestId, ids.queueItemId);
+    };
+
+    assert.equal(check(records()), true, "exact direct request and descendant silent ack");
+
+    const cases: Array<[string, () => unknown[] | string]> = [
+      ["malformed line", () => records().map((record) => JSON.stringify(record)).join("\n") + "\n{"],
+      ["duplicate ids", () => { const value = records(); (value[2] as any).id = "request-entry"; return value; }],
+      ["missing parent", () => { const value = records(); (value[2] as any).parentId = "missing"; return value; }],
+      ["cycle or forward parent", () => { const value = records(); (value[1] as any).parentId = "ack-entry"; return value; }],
+      ["disconnected second root", () => { const value = records(); (value[2] as any).parentId = null; return value; }],
+      ["ack before request", () => { const value = records(); return [value[0], value[2], value[1]]; }],
+      ["wrong user role", () => { const value = records(); (value[1] as any).message.role = "assistant"; return value; }],
+      ["wrong direct source", () => { const value = records(); (value[1] as any).message.content = directText.replace('"source": "direct"', '"source": "host:input"'); return value; }],
+      ["wrong session", () => { const value = records(); const parsed = JSON.parse((value[2] as any).message.content[0].text); parsed.data.sessionId = "session-2"; (value[2] as any).message.content[0].text = JSON.stringify(parsed); return value; }],
+      ["wrong request", () => { const value = records(); const parsed = JSON.parse((value[2] as any).message.content[0].text); parsed.data.requestId = "health-2"; (value[2] as any).message.content[0].text = JSON.stringify(parsed); return value; }],
+      ["wrong actor", () => { const value = records(); const parsed = JSON.parse((value[2] as any).message.content[0].text); parsed.data.actorId = "actor-2"; (value[2] as any).message.content[0].text = JSON.stringify(parsed); return value; }],
+      ["wrong queue item", () => { const value = records(); const parsed = JSON.parse((value[2] as any).message.content[0].text); parsed.data.queueItemId = "queue-2"; (value[2] as any).message.content[0].text = JSON.stringify(parsed); return value; }],
+      ["assistant prose", () => { const value = records(); (value[2] as any).message.content[0].text += " extra"; return value; }],
+      ["duplicate ack", () => { const value = records(); value.push({ ...(structuredClone(value[2]) as any), id: "ack-entry-2" }); return value; }],
+      ["duplicate request", () => { const value = records(); value.push({ ...(structuredClone(value[1]) as any), id: "request-entry-2", parentId: "ack-entry" }); return value; }],
+      ["tool-result substring decoy", () => { const value = records(); (value[2] as any).message.role = "toolResult"; (value[2] as any).message.toolName = "fabric_exec"; return value; }],
+      ["oversized transcript", () => "x".repeat((1 << 20) + 1)],
+    ];
+    for (const [name, make] of cases) assert.equal(check(make()), false, name);
+    assert.equal(check(records(), { sessionId, actorId, requestId: "health-stale", queueItemId }), false, "stale request nonce");
   });
 });

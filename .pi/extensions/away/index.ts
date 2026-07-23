@@ -18,6 +18,9 @@ const ENTRY_KIND = "away-run";
 const STATUS_KEY = "away-run";
 const INTERNAL_PREFIX = "/supervise --away-controller ";
 const TOKEN = /^[A-Za-z0-9_-]{1,128}$/;
+const SUPERVISOR_PROTOCOL = "proactive-supervisor/v1";
+const LIVENESS_MESSAGE = "Acknowledge persistent supervisor liveness without inspecting the repository.";
+const TRANSCRIPT_LIMIT = 1 << 20;
 
 export interface ParsedSuperviseAway {
   objective: string | undefined;
@@ -82,36 +85,63 @@ function toolResultText(message: unknown): string | undefined {
   return text || undefined;
 }
 
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+  return Boolean(value && typeof value === "object" && !Array.isArray(value));
+}
+
+function sameKeySet(value: Record<string, unknown>, keys: string[]): boolean {
+  return (
+    Object.keys(value).length === keys.length &&
+    keys.every((key) => Object.prototype.hasOwnProperty.call(value, key))
+  );
+}
+
+function hasKeys(value: Record<string, unknown>, keys: string[]): boolean {
+  return keys.every((key) => Object.prototype.hasOwnProperty.call(value, key));
+}
+
 interface SupervisorReadyEvidence {
   actorId: string;
   requestId: string;
+  sessionId: string;
+  queueItemId: string;
 }
 
 function readyValue(value: unknown): SupervisorReadyEvidence | undefined {
-  if (!value || typeof value !== "object" || Array.isArray(value)) return undefined;
-  const record = value as Record<string, unknown>;
+  if (!isPlainObject(value)) return undefined;
+  const record = value;
   const actor = record.actor;
   const health = record.health;
   if (
     record.outcome !== "READY" ||
-    !actor ||
-    typeof actor !== "object" ||
-    typeof (actor as { id?: unknown }).id !== "string" ||
-    !TOKEN.test((actor as { id: string }).id) ||
+    !isPlainObject(actor) ||
+    typeof actor.id !== "string" ||
+    !TOKEN.test(actor.id) ||
     !Array.isArray(record.actions) ||
     !record.actions.includes("health-acknowledged") ||
-    !health ||
-    typeof health !== "object" ||
-    (health as { action?: unknown }).action !== "silent" ||
-    (health as { kind?: unknown }).kind !== "health-ack" ||
-    typeof (health as { requestId?: unknown }).requestId !== "string" ||
-    !TOKEN.test((health as { requestId: string }).requestId)
+    !isPlainObject(health) ||
+    !sameKeySet(health, ["action", "kind", "protocol", "requestId", "sessionId", "actorId", "queueItemId"]) ||
+    health.action !== "silent" ||
+    health.kind !== "health-ack" ||
+    health.protocol !== SUPERVISOR_PROTOCOL ||
+    typeof health.requestId !== "string" ||
+    !TOKEN.test(health.requestId) ||
+    typeof health.sessionId !== "string" ||
+    !TOKEN.test(health.sessionId) ||
+    record.sessionId !== health.sessionId ||
+    typeof health.actorId !== "string" ||
+    !TOKEN.test(health.actorId) ||
+    health.actorId !== actor.id ||
+    typeof health.queueItemId !== "string" ||
+    !TOKEN.test(health.queueItemId)
   ) {
     return undefined;
   }
   return {
-    actorId: (actor as { id: string }).id,
-    requestId: (health as { requestId: string }).requestId,
+    actorId: actor.id,
+    requestId: health.requestId,
+    sessionId: health.sessionId,
+    queueItemId: health.queueItemId,
   };
 }
 
@@ -184,14 +214,137 @@ function canonicalInstructions(repoRoot: string): string | undefined {
   return prompt.slice(start + 3, end).trim();
 }
 
+function directEnvelopeText(requestId: string, sessionId: string, actorId: string, queueItemId: string): string {
+  const data = { protocol: SUPERVISOR_PROTOCOL, kind: "health-check", requestId, sessionId, actorId };
+  const envelope = { source: "direct", payload: { message: LIVENESS_MESSAGE, data }, id: queueItemId };
+  return `Fabric actor message from direct:\n\n${JSON.stringify(envelope, null, 2)}`;
+}
+
+function parseHealthAck(
+  text: string,
+  requestId: string,
+  sessionId: string,
+  actorId: string,
+  queueItemId: string,
+): boolean {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(text);
+  } catch {
+    return false;
+  }
+  if (!isPlainObject(parsed) || !sameKeySet(parsed, ["action", "data"]) || parsed.action !== "silent") {
+    return false;
+  }
+  const data = parsed.data;
+  if (
+    !isPlainObject(data) ||
+    !sameKeySet(data, ["protocol", "kind", "requestId", "sessionId", "actorId", "queueItemId"])
+  ) {
+    return false;
+  }
+  return (
+    data.protocol === SUPERVISOR_PROTOCOL &&
+    data.kind === "health-ack" &&
+    data.requestId === requestId &&
+    data.sessionId === sessionId &&
+    data.actorId === actorId &&
+    data.queueItemId === queueItemId
+  );
+}
+
+interface TranscriptEntry {
+  id: string;
+  parentId: string | undefined;
+  role: string | undefined;
+  content: string | undefined;
+}
+
+/** Bounded structural validation of the nonce-bound actor session-v3 transcript. */
+function validateSupervisorTranscript(
+  transcript: string,
+  sessionId: string,
+  actorId: string,
+  requestId: string,
+  queueItemId: string,
+): boolean {
+  if (![sessionId, actorId, requestId, queueItemId].every((value) => TOKEN.test(value))) return false;
+  const body = transcript.endsWith("\n") ? transcript.slice(0, -1) : transcript;
+  if (body.length === 0) return false;
+  const lines = body.split("\n");
+  if (lines.some((line) => line.length === 0)) return false;
+  const entries: TranscriptEntry[] = [];
+  const indexById = new Map<string, number>();
+  for (let index = 0; index < lines.length; index += 1) {
+    let entry: unknown;
+    try {
+      entry = JSON.parse(lines[index]);
+    } catch {
+      return false;
+    }
+    if (!isPlainObject(entry)) return false;
+    if (index === 0) {
+      if (!sameKeySet(entry, ["type", "version", "id", "timestamp", "cwd"])) return false;
+      if (entry.type !== "session" || entry.version !== 3) return false;
+      if (typeof entry.id !== "string" || entry.id.length === 0) return false;
+      if (typeof entry.timestamp !== "string" || entry.timestamp.length === 0) return false;
+      if (typeof entry.cwd !== "string" || entry.cwd.length === 0) return false;
+      continue;
+    }
+    if (!hasKeys(entry, ["type", "id", "parentId", "timestamp"])) return false;
+    if (typeof entry.type !== "string" || entry.type.length === 0) return false;
+    if (typeof entry.id !== "string" || entry.id.length === 0) return false;
+    if (typeof entry.timestamp !== "string" || entry.timestamp.length === 0) return false;
+    if (indexById.has(entry.id)) return false;
+    const parentId = entry.parentId;
+    if (entries.length === 0) {
+      if (parentId !== null) return false;
+    } else {
+      if (typeof parentId !== "string" || parentId.length === 0) return false;
+      if (indexById.get(parentId) === undefined) return false;
+    }
+    indexById.set(entry.id, entries.length);
+    let role: string | undefined;
+    let content: string | undefined;
+    if (Object.prototype.hasOwnProperty.call(entry, "message")) {
+      if (entry.type !== "message") return false;
+      const message = entry.message;
+      if (!isPlainObject(message) || typeof message.role !== "string") return false;
+      role = message.role;
+      content = userText(message);
+    }
+    entries.push({ id: entry.id, parentId: typeof parentId === "string" ? parentId : undefined, role, content });
+  }
+  const expectedRequest = directEnvelopeText(requestId, sessionId, actorId, queueItemId);
+  const requests = entries.filter((entry) => entry.role === "user" && entry.content === expectedRequest);
+  if (requests.length !== 1) return false;
+  const request = requests[0];
+  let acks = 0;
+  for (const entry of entries) {
+    if (entry.role !== "assistant" || entry.content === undefined) continue;
+    let current: TranscriptEntry = entry;
+    while (current.parentId !== undefined) {
+      if (current.parentId === request.id) {
+        if (parseHealthAck(entry.content, requestId, sessionId, actorId, queueItemId)) acks += 1;
+        break;
+      }
+      const parentIndex = indexById.get(current.parentId);
+      if (parentIndex === undefined) break;
+      current = entries[parentIndex];
+    }
+  }
+  return acks === 1;
+}
+
 /** Verify the host-managed actor record and nonce-bound actor transcript. */
 export function hasCanonicalSupervisorRegistry(
   repoRoot: string,
   sessionId: string,
   actorId: string,
   requestId: string,
+  queueItemId: string,
 ): boolean {
-  if (![sessionId, actorId, requestId].every((value) => TOKEN.test(value))) return false;
+  if (![sessionId, actorId, requestId, queueItemId].every((value) => TOKEN.test(value))) return false;
   const actorsRoot = join(repoRoot, ".pi", "fabric", "mesh", "actors");
   const registryPath = join(actorsRoot, sessionId, "actors.json");
   const raw = readBoundedRegular(registryPath, repoRoot, 16 << 20);
@@ -203,8 +356,8 @@ export function hasCanonicalSupervisorRegistry(
   } catch {
     return false;
   }
-  if (!registry || typeof registry !== "object" || Array.isArray(registry)) return false;
-  const actors = (registry as { actors?: unknown }).actors;
+  if (!isPlainObject(registry)) return false;
+  const actors = registry.actors;
   if (!Array.isArray(actors)) return false;
   const matches = actors.filter((value) =>
     Boolean(value && typeof value === "object" && (value as { id?: unknown }).id === actorId),
@@ -233,13 +386,8 @@ export function hasCanonicalSupervisorRegistry(
   }
   const expectedSessionFile = join(actorsRoot, sessionId, actorId, "session.jsonl");
   if (actor.sessionFile !== expectedSessionFile) return false;
-  const transcript = readBoundedRegular(expectedSessionFile, repoRoot, 16 << 20);
-  return Boolean(
-    transcript &&
-    transcript.includes("health-check") &&
-    transcript.includes("health-ack") &&
-    transcript.includes(requestId),
-  );
+  const transcript = readBoundedRegular(expectedSessionFile, repoRoot, TRANSCRIPT_LIMIT);
+  return Boolean(transcript && validateSupervisorTranscript(transcript, sessionId, actorId, requestId, queueItemId));
 }
 
 function isRootProcess(): boolean {
@@ -307,11 +455,13 @@ export function createAwayExtension(dependencies: AwayExtensionDependencies) {
     ((branch: unknown[], token: string, context: ExtensionContext) => {
       const evidence = supervisorReadyEvidence(branch, token);
       if (!evidence) return false;
+      if (evidence.sessionId !== context.sessionManager.getSessionId()) return false;
       return hasCanonicalSupervisorRegistry(
         context.cwd,
-        context.sessionManager.getSessionId(),
+        evidence.sessionId,
         evidence.actorId,
         evidence.requestId,
+        evidence.queueItemId,
       );
     });
   const makeToken = dependencies.makeToken ?? (() => randomBytes(24).toString("base64url"));

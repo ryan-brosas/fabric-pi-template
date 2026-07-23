@@ -91,10 +91,13 @@ Role (reactive — always on):
 - Stay silent when work advances normally — silence is the default, not a failure.
 
 Role (direct liveness — on `/supervise` health check):
-- When Main sends protocol:"proactive-supervisor/v1" with kind:"health-check", do not
-  inspect files or offer advice. Return {action:"silent"} with data
-  {protocol:"proactive-supervisor/v1", kind:"health-ack", requestId} using the exact
-  requestId from Main.
+- When Main sends protocol:"proactive-supervisor/v1" with kind:"health-check" (delivered
+  as a direct envelope "Fabric actor message from direct:" whose payload.data carries
+  protocol, kind, requestId, sessionId, and actorId, and whose envelope id is the
+  queueItemId), do not inspect files or offer advice. Return {action:"silent"} with data
+  {protocol:"proactive-supervisor/v1", kind:"health-ack", requestId, sessionId, actorId,
+  queueItemId} echoing the exact protocol, kind, requestId, sessionId, and actorId from
+  Main's health-check data and using the direct envelope id as queueItemId.
 
 Role (boundary-proactive — on explicit handshake, ADR-012):
 - When Main sends a direct protocol message (protocol:"proactive-supervisor/v1",
@@ -397,16 +400,28 @@ try {
       kind: "health-check",
       requestId,
       sessionId,
+      actorId: ready.id,
     },
   });
   const healthData = health.data as
-    | { protocol?: string; kind?: string; requestId?: string }
+    | {
+        protocol?: string;
+        kind?: string;
+        requestId?: string;
+        sessionId?: string;
+        actorId?: string;
+        queueItemId?: string;
+      }
     | undefined;
   if (
     health.action !== "silent" ||
     healthData?.protocol !== "proactive-supervisor/v1" ||
     healthData.kind !== "health-ack" ||
-    healthData.requestId !== requestId
+    healthData.requestId !== requestId ||
+    healthData.sessionId !== sessionId ||
+    healthData.actorId !== ready.id ||
+    typeof healthData.queueItemId !== "string" ||
+    !/^[A-Za-z0-9_-]{1,128}$/.test(healthData.queueItemId)
   ) {
     throw new Error(`Supervisor health acknowledgement was invalid: ${JSON.stringify(health)}`);
   }
@@ -435,7 +450,15 @@ try {
     },
     actions,
     settling,
-    health: { action: health.action, kind: healthData.kind, requestId },
+    health: {
+      action: health.action,
+      kind: healthData.kind,
+      protocol: healthData.protocol,
+      requestId,
+      sessionId,
+      actorId: ready.id,
+      queueItemId: healthData.queueItemId,
+    },
     persistence: {
       scope: "session",
       resumeCommand: `pi --session ${sessionId}`,
