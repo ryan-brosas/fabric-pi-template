@@ -12,8 +12,8 @@ and a Fabric supervisor/worker topology that other repositories can adopt.
 
 - **Pi coding agent:** `@earendil-works/pi-coding-agent` 0.81.1
   (installed host; `~/.local/lib/node_modules/@earendil-works/pi-coding-agent`)
-- **Fabric:** `pi-fabric` 0.23.0 (`.pi/npm/package.json` `^0.23.0`;
-  `.pi/settings.json` `npm:pi-fabric@0.23.0`)
+- **Fabric:** `pi-fabric` 0.24.3 (`.pi/npm/package.json` `^0.24.3`;
+  `.pi/settings.json` `npm:pi-fabric@0.24.3`)
   - Requires Node `>=24` and Pi `>=0.80.6` (peer deps satisfied)
   - Provides: one-shot agents, persistent actors, steering, mesh, worktree isolation, budgets
   - Compaction is deterministic and LLM-free (`compaction.engine: "pi"`) — no model tier
@@ -22,7 +22,7 @@ and a Fabric supervisor/worker topology that other repositories can adopt.
 
 ## Model Tiers
 
-There is **no `.pi/config.json`** — neither Pi 0.81.1 nor Fabric 0.23.0 reads it. Main
+There is **no `.pi/config.json`** — neither Pi 0.81.1 nor Fabric 0.24.3 reads it. Main
 defaults live in `.pi/settings.json`; child defaults in `.pi/fabric.json`; every
 dispatch passes exact `runner`/`model`/`thinking`/`tools`/`extensions` at the call
 site.
@@ -45,10 +45,11 @@ read-only children use `extensions:false`; Makora implementation workers MUST us
 trajectories to the Makora executor via `agents.handoff()`). See `AGENTS.md` Worker
 topology and ADR-009/ADR-010 for the full contract.
 
-**Drift note:** Live `.pi/fabric.json` `subagents.model` currently shows
-`makora/zai-org/GLM-5.2-FP8`; `AGENTS.md` authority and the active runtime confirm
-`makora/zai-org/GLM-5.2-NVFP4`. Operator authority outranks config drift; reconcile
-with the operator before changing either source.
+**Live-config note:** `.pi/fabric.json` pins
+`makora/zai-org/GLM-5.2-NVFP4` while keeping project defaults read-only:
+`subagents.extensions:false`, `read/grep/find/ls`, write/execute denied, Fabric memory
+indexing disabled, and automatic prewalk unset (`prewalk:{}`). Makora writable
+dispatches override `extensions:true` plus the exact writable allowlist per call.
 
 One Makora GLM worker per session; the host runs 4-5 concurrent sessions, so total
 GLM concurrency is bounded by session count, not a per-session pool. The advisory
@@ -75,6 +76,7 @@ AGENTS.md                 # authority + safety constitution (root, managed boile
   state.md                # initialization state (partial|ready) + boilerplate hash
   user.md                 # operator-approved preferences (tracked, no secrets)
   memory.md               # durable cross-slug knowledge + Initialization Intent
+  extensions/auto-prewalk/ # present but disabled; explicit handoff remains canonical
   away-runtime/           # bubblewrap confinement runtime (ADR-014)
   fabric/mesh/            # Fabric mesh runtime state (gitignored)
 .opencode/                # inherited OpenCode dev workspace; command bodies ported to .pi/prompts/
@@ -89,10 +91,11 @@ Template-level validation (no application build/test/lint):
 | Command | Evidence | Status |
 |---|---|---|
 | `node --version` | `v24.16.0` (verified `node --version`) | verified |
-| `pi --approve --list-models` | resolves `openai-codex/gpt-5.6-sol`, `openai-codex/gpt-5.4-mini`, `makora/zai-org/GLM-5.2-NVFP4` | documented |
-| `pi-fabric 0.23.0` | `.pi/npm/package.json` `^0.23.0`; `.pi/settings.json` `npm:pi-fabric@0.23.0` | verified |
+| `pi --approve --list-models` | resolves `openai-codex/gpt-5.6-sol`, `openai-codex/gpt-5.4-mini`, `makora/zai-org/GLM-5.2-NVFP4` | verified |
+| `pi-fabric 0.24.3` | `.pi/npm/package.json` `^0.24.3`; `.pi/settings.json` `npm:pi-fabric@0.24.3` | verified |
 | `pi-coding-agent 0.81.1` | installed `~/.local/lib/node_modules/@earendil-works/pi-coding-agent` | verified |
-| Structural checks | `.opencode/tool/structural-check.sh` (offline-safe) | documented |
+| Packet structural checks | six files, schema v1, roadmap grammar, and three-way boilerplate identity | verified |
+| Full structural checks | `.opencode/tool/structural-check.sh` exits 1 on the known non-packet `.opencode/command/ship.md` 502-line limit | failed (non-packet) |
 
 Bootstrap: `/trust` the project root, then restart Pi (untrusted projects ignore
 `.pi/settings.json`, packages, prompts, and `.pi/fabric.json`).

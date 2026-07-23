@@ -604,7 +604,7 @@ describe(
         providerExtPath: providerPath,
         limits: { executor_timeout_ms: 30_000 },
       });
-      const github = createProtocolGitHubService("fixture/repo");
+      const github = createProtocolGitHubService("fixture/repo", () => commitOid!);
       const ledger = openLedger(join(dir, "ledger"));
       const runId = "run-a7-01234567";
       const branch = deriveAwayBranch("RM-003", runId);
@@ -744,7 +744,7 @@ describe(
           }
         },
         async observePullRequest(): Promise<AwayPullObservation> {
-          return github.observe(branch, "main");
+          return github.observe(branch, "main", commitOid!);
         },
         async createOrGetDraftPullRequest(requestId): Promise<AwayPullObservation> {
           const pull = await createOrGetDraftPullRequest({
@@ -752,6 +752,7 @@ describe(
             hostname: "github.com",
             base: "main",
             head: branch,
+            expectedHeadOid: commitOid!,
             title: "RM-003 autonomous fixture",
             body: "Hermetic A7 evidence",
             requestId,

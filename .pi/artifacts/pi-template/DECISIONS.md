@@ -840,3 +840,109 @@ as uncorrelated and replay-unsafe. (c) Re-run `/create` into an established name
 non-idempotent adoption/overwrite. (d) Let a verifier model inspect the retained dirty workspace then
 verify another OID — rejected as split-brain evidence. (e) Add a second status reducer or daemon —
 rejected; the existing append-only ledger and replay reducer remain authoritative.
+
+## ADR-018: Persistent direct-root senior workflow for unattended away work
+
+**Status:** accepted · **Date:** 2026-07-24
+
+**Context:** ADR-014/015/017 optimized the unattended path around a generated one-shot writer lane,
+fixed create/ship/verify host phases, and a nonce-gated advisory supervisor. That path had strong
+confinement but did not behave like an ordinary senior Pi session: it could not use the shipped
+lifecycle prompts as real slash commands, retain one root conversation across phases, or use Fabric
+selectively for research, review, and one serial Makora implementer. It also made recurring operation
+out of scope. The operator explicitly chose the higher-authority direct-root model, accepted its
+larger trusted surface, limited publication to draft pull requests, and kept merge human-only.
+
+**Decision:** Supersede the ADR-015/017 production composition root with
+`.pi/away-runtime/supervise-away.ts#runSeniorAwayController`. For each eligible Ready card
+(`Autonomy: away-ok`, `Open decisions: none`), the host creates or resumes one deterministic retained
+detached worktree and one persistent ordinary root Pi RPC session. The host discovers project prompt
+templates and submits the actual `/workflow`, `/gc`, `/create`, `/research`, `/plan`, `/ship`,
+`/audit` when evidence selects it, and `/verify <slug> all --full` commands sequentially. `/init
+--deep` runs alone and then pauses when the six-file packet is not ready. The exact trusted, idle
+`/supervise --away [objective]` input is handled directly by the project extension and invokes this
+controller without a Main model turn, supervisor reconciliation, nonce, or continuation tool. The
+advisory actor is not an away-controller prerequisite.
+
+The `/workflow` prompt carries the operator's bounded unattended authority: Main is sole scheduler,
+integrator, and commit authority; read-only GPT children are optional; at most one blocking Makora
+writer runs at once with `extensions:true`; pushes are denied inside `/ship`; merge, force push,
+deleting files, secrets access, and publication beyond one dedicated draft PR remain forbidden.
+
+Each settled top-level command records an fsynced append-only cursor bound to the card and a regular
+session file inside the retained session directory. Restart scans backward past a torn final cursor,
+resumes the exact Pi session, and never replays a settled command. Card/slug/outcome reservation,
+base OID, path kinds, namespace sentinels, workflow readiness, transcript `VERIFIED`, candidate
+paths/hashes, and terminal completion evidence are host-validated. Malformed or symlinked retained
+state blocks.
+
+After transcript verification, the trusted host creates or observes one exact-path candidate commit
+from the selected base, reruns the strict exact-OID verifier, observes before pushing only the
+deterministic `pi-away/*` branch, creates or observes one exact draft PR, then fsyncs
+`senior-away-completion/1`. A completed card is skipped only when that evidence validates and still
+matches the card slug and outcome. The tracked `pi-away-senior@.service` provides continuous polling
+with bounded blocker backoff and a repository flock; it is installed per trusted clone and never
+merges.
+
+**Consequences:** The unattended worker now has the same lifecycle, Fabric, and model-routing
+capabilities as a direct senior root session, persistent context across phases, resumable phase
+cursors, and 24/7 operation. The trade-off is material: unlike ADR-014's generated lane, the root Pi
+inherits normal project extensions, credentials, network, shell, and repository authority. Prompt
+policy and host postconditions reduce mistakes but are not a security sandbox. Exact-OID verification
+and broker-owned Git/GitHub arguments still protect accepted/public effects, while malicious or
+compromised root-session behavior before host intake is inside the trusted computing base. The
+session-scoped advisory supervisor is optional and may be stopped; the continuous service does not
+depend on it.
+
+**Supersedes:** ADR-015's one-shot entry, generated-lane implementation path, and recurring-scheduling
+non-goal; ADR-017's `runProductionAwayController` extension binding and mandatory supervisor-gated
+production composition. ADR-014 remains available as the confined guest/verifier substrate and as a
+separate legacy API, but no longer defines the default away implementation authority. Human-only
+merge, no default-ref mutation, no force push, no cleanup/deletion, and retained evidence remain.
+
+**Alternatives:** (a) Keep adding capabilities to the confined writer lane — rejected because it
+recreates a second orchestration system and still lacks a normal root lifecycle conversation. (b)
+Run a fresh `pi -p` for every phase — rejected because context, supervisor advice, and crash resume
+fragment across processes. (c) Let the model push or open PRs directly — rejected; broker-owned refs,
+coordinates, and observe-before-mutate reconciliation remain mandatory. (d) Fully autonomous merge —
+rejected; the terminal boundary is a draft PR for human review. (e) Keep the persistent advisory
+supervisor mandatory — rejected; it is useful but not required for correctness and can be disabled by
+operator action.
+
+## ADR-019: Roadmap-independent standing maintenance cycles
+
+**Status:** accepted · **Date:** 2026-07-23
+
+**Context:** ADR-018 made the service persistent but incorrectly kept useful work contingent on an
+eligible roadmap card. That turns roadmap completion into supervisor termination in practice and
+treats explicit `/supervise --away <objective>` text as non-selecting metadata. The operator
+explicitly rejected that coupling: the service is responsible for ongoing senior-engineering
+maintenance, while the roadmap is only one possible source of bounded work.
+
+**Decision:** Preserve eligible `away-ok` roadmap cards as the first source when no explicit objective
+is supplied. Explicit objective text selects a roadmap-independent maintenance cycle. If neither is
+available, use a default standing maintenance objective that asks the Sol Max root to choose one
+bounded, high-confidence improvement grounded in repository evidence. A maintenance policy turn must
+return one strict `maintenance-selection/1` record containing a bounded objective plus acceptance
+evidence or `no-change`; the host validates and fsyncs it before resuming the same session at raw
+`/create`. Maintenance never creates or mutates roadmap cards and receives deterministic `MT-<12 hex>`
+work identities plus `maintenance-<12 hex>` slugs derived from objective and `HEAD`. Valid completion
+or idle evidence suppresses duplicate work until `HEAD` changes while systemd continues polling.
+Bounded GPT-5.4-mini read-only explorers may gather independent evidence, Sol Max retains synthesis
+and decision authority, and the existing single serial Makora writer and exact-OID/draft-PR boundaries
+remain unchanged. The RPC host ignores only Pi-documented fire-and-forget UI methods and fails closed
+on dialogs or unknown methods. Because direct-root output is draft-only and human-merged, its candidate
+policy permits changes to away implementation/prompt/test/docs while still host-protecting operator
+intent, authority/configuration, runtime state, and secret-shaped paths; ADR-014 confined lanes retain
+manifest protection unchanged.
+
+**Consequences:** Finishing the roadmap no longer stops useful unattended operation, and operator
+objectives no longer need synthetic roadmap cards. Objective-plus-HEAD identity prevents duplicate PR
+churn on an unchanged base. The service still cannot merge; after publishing a verified maintenance
+draft it idles that cycle until `HEAD` advances, then may derive a fresh bounded cycle. Broad standing
+direction grants task selection within maintenance quality scope, not authority for product decisions,
+destructive actions, secrets access, force pushes, default-ref mutation, deletion, or merge.
+
+**Supersedes:** ADR-018 only where it made eligible Ready cards the sole work source and treated
+following objective text as supplemental. All retained-session, verification, publication, replay,
+and human-only merge boundaries remain accepted.

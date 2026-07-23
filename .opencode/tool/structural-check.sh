@@ -39,7 +39,7 @@ rg_neg() {
 }
 
 # --- 1. Plugin isolation: no cross-plugin imports ---
-echo "[Check 1/11] Plugin isolation — no cross-plugin imports..."
+echo "[Check 1/12] Plugin isolation — no cross-plugin imports..."
 
 PLUGIN_DIR="$ROOT/.opencode/plugin"
 PLUGINS=()
@@ -60,7 +60,7 @@ done
 pass "No cross-plugin imports detected"
 
 # --- 2. SDK boundary: SDK doesn't import from plugin/ ---
-echo "[Check 2/11] SDK boundary — SDK has no plugin dependencies..."
+echo "[Check 2/12] SDK boundary — SDK has no plugin dependencies..."
 
 if [ -d "$PLUGIN_DIR/sdk" ]; then
 	SDK_FILES=$(find "$PLUGIN_DIR/sdk" -name "*.ts" 2>/dev/null)
@@ -75,7 +75,7 @@ fi
 pass "SDK boundary intact"
 
 # --- 3. File size limits ---
-echo "[Check 3/11] File size limits..."
+echo "[Check 3/12] File size limits..."
 
 check_size() {
 	local path="$1"
@@ -111,7 +111,7 @@ done
 pass "All files within size limits"
 
 # --- 4. No TODO/FIXME without owner ---
-echo "[Check 4/11] TODO/FIXME hygiene..."
+echo "[Check 4/12] TODO/FIXME hygiene..."
 
 BAD_TODO=$(grep -rn "TODO\|FIXME" "$ROOT/.opencode/plugin/"*.ts 2>/dev/null | grep -v "//.*owner:" || true)
 if [ -n "$BAD_TODO" ]; then
@@ -121,7 +121,7 @@ fi
 pass "TODO hygiene acceptable"
 
 # --- 5. Consistent naming: kebab-case filenames (basename only) ---
-echo "[Check 5/11] Filename convention..."
+echo "[Check 5/12] Filename convention..."
 
 BAD_NAMES=$(find "$ROOT/.opencode/plugin" "$ROOT/.opencode/tool" -name "*.ts" -o -name "*.sh" 2>/dev/null | grep -v node_modules | while IFS= read -r f; do
 	bn=$(basename "$f")
@@ -135,7 +135,7 @@ fi
 pass "Filename convention OK"
 
 # --- 6. Remediator: if this check fails, instructions are below ---
-echo "[Check 6/11] Remediation readiness..."
+echo "[Check 6/12] Remediation readiness..."
 
 # Ensure fallow is available (offline: probe an installed binary only; never
 # install, cache, or contact a registry from this checker).
@@ -146,7 +146,7 @@ else
 fi
 
 # --- 7. /create contract (Pi-native init: both modes + packet gate) ---
-echo "[Check 7/11] /create contract — both modes, packet gate, source bounds, provenance..."
+echo "[Check 7/12] /create contract — both modes, packet gate, source bounds, provenance..."
 
 CREATE="$ROOT/.pi/prompts/create.md"
 
@@ -223,7 +223,7 @@ else
 fi
 
 # --- 8. /init contract (Pi-native init: compiler, refresh, six-file packet, boilerplate, crash-safe) ---
-echo "[Check 8/11] /init contract — compiler, refresh, packet, boilerplate, crash-safe..."
+echo "[Check 8/12] /init contract — compiler, refresh, packet, boilerplate, crash-safe..."
 
 INIT="$ROOT/.pi/prompts/init.md"
 
@@ -359,8 +359,65 @@ if(i<0||j<0){console.log("ERROR")}else{const nonBp=s.slice(0,i)+s.slice(j+b.leng
 	fi
 fi
 
-# --- 9. Lifecycle consumer contract (Pi-native init: packet gate + .pi/memory.md) ---
-echo "[Check 9/11] Lifecycle consumer contract — packet gate, .pi/memory.md, old paths absent..."
+# --- 9. /supervise contract (persistent actor, exact-session identity, liveness probe) ---
+echo "[Check 9/12] /supervise contract — persistent actor, session identity, health probe..."
+
+SUPERVISE="$ROOT/.pi/prompts/supervise.md"
+if [ ! -f "$SUPERVISE" ]; then
+	fail "supervise.md missing"
+else
+	SUPERVISE_PROGRAM=$(node - "$SUPERVISE" <<'NODE'
+const fs = require("node:fs");
+const source = fs.readFileSync(process.argv[2], "utf8");
+const heading = "## Executable Reconcile Program";
+const start = source.indexOf(heading);
+if (start < 0) {
+	console.log("MISSING_HEADING");
+	process.exit(0);
+}
+const tail = source.slice(start + heading.length);
+const nextHeading = tail.search(/\n## /);
+const program = nextHeading < 0 ? tail : tail.slice(0, nextHeading);
+const required = [
+	"const self = await agents.self()",
+	"const existing = await agents.actors()",
+	"await agents.create(",
+	"await agents.ask(",
+	"health-check",
+	"settling",
+	"sessionId",
+];
+const missing = required.filter((token) => !program.includes(token));
+if (missing.length > 0) {
+	console.log(`MISSING:${missing.join(",")}`);
+} else if (/agents\.(run|spawn)\s*\(/.test(program)) {
+	console.log("ONE_SHOT_SUBSTITUTION");
+} else {
+	console.log("OK");
+}
+NODE
+)
+	if [ "$SUPERVISE_PROGRAM" = "OK" ]; then
+		pass "supervise.md: executable setup uses awaited persistent-actor APIs only"
+	else
+		fail "supervise.md: executable reconcile contract failed ($SUPERVISE_PROGRAM)"
+	fi
+
+	if rg -q 'pi-fabric 0\.24\.3' "$SUPERVISE" && rg -q 'pi --session <sessionId>' "$SUPERVISE"; then
+		pass "supervise.md: current Fabric version and exact-session resume semantics present"
+	else
+		fail "supervise.md: missing 0.24.3/exact-session persistence guidance"
+	fi
+
+	if rg -q 'health-check' "$SUPERVISE" && rg -q 'health-ack' "$SUPERVISE"; then
+		pass "supervise.md: immediate actor liveness handshake present"
+	else
+		fail "supervise.md: missing health-check/health-ack liveness handshake"
+	fi
+fi
+
+# --- 10. Lifecycle consumer contract (Pi-native init: packet gate + .pi/memory.md) ---
+echo "[Check 10/12] Lifecycle consumer contract — packet gate, .pi/memory.md, old paths absent..."
 
 # Slugged commands: plan, research, ship, verify
 # Each must gate on a ready packet after slug validation, use .pi/memory.md, and drop old .opencode paths.
@@ -451,7 +508,7 @@ if [ -f "$DECISIONS" ]; then
 	fi
 fi
 
-echo "[Check 10/11] Runtime skills portability — no .opencode deps, no verify.log, /init first..."
+echo "[Check 11/12] Runtime skills portability — no .opencode deps, no verify.log, /init first..."
 SKILLS_DIR="$ROOT/.pi/skills"
 
 # RED: no .opencode/ runtime dependencies in any shipped skill
@@ -472,8 +529,8 @@ else
 	fail "development-lifecycle/SKILL.md missing"
 fi
 
-# --- 11. Final packet structure (Pi-native init: six-file packet, schema v1, boilerplate identity) ---
-echo "[Check 11/11] Final packet structure — six files, schema v1, three-way boilerplate identity..."
+# --- 12. Final packet structure (Pi-native init: six-file packet, schema v1, boilerplate identity) ---
+echo "[Check 12/12] Final packet structure — six files, schema v1, three-way boilerplate identity..."
 
 STATE="$ROOT/.pi/state.md"
 AGENTS="$ROOT/AGENTS.md"

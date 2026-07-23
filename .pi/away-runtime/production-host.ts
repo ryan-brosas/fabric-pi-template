@@ -40,10 +40,17 @@ import {
 } from "./controller.ts";
 import { openLedger, type Ledger, type LedgerRecord } from "./ledger.ts";
 import { listExtensionReceipts } from "./attestation.ts";
-import { createOrObserveCandidateCommit, deriveAwayBranch } from "./git-broker.ts";
+import { loadManifest } from "./bootstrap.ts";
+import {
+  createOrObserveCandidateCommit,
+  deriveAwayBranch,
+  observeRemoteBranch,
+  publishDedicatedBranch,
+} from "./git-broker.ts";
+import { createOrGetDraftPullRequest, observeDraftPullRequest } from "./github-broker.ts";
 import { launch as launchLane } from "./launcher.ts";
-import type { RpcEvent, RpcRecord } from "./rpc.ts";
-import { assertVerifierReceiptSafe, type VerifierReceipt } from "./verifier.ts";
+import { isBlockingRpcUiRequest, type RpcEvent, type RpcRecord } from "./rpc.ts";
+import { assertVerifierReceiptSafe, verify, type VerifierReceipt } from "./verifier.ts";
 
 const REPOSITORY_ID = /^repo-[0-9a-f]{64}$/;
 const RUN_ID = /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/;
@@ -351,7 +358,7 @@ export async function runLifecycleRpc(options: LifecycleRpcOptions): Promise<Lif
         const event = next.value;
         events += 1;
         if (events > MAX_EVENTS) throw new Error("production host: lifecycle event limit exceeded");
-        if (event.type === "extension_ui_request" || event.type === "ui_request") {
+        if (isBlockingRpcUiRequest(event)) {
           throw new Error("production host: unsupported UI dialogue");
         }
         assistantText += eventText(event);
@@ -1098,24 +1105,258 @@ async function defaultSelect(request: AwayControllerRequest): Promise<Production
   return { kind: "reserved", reservation: reserved, ledger: openLedger(ledgerRoot) };
 }
 
+const PRODUCTION_CHECK_SCRIPT = String.raw`
+const { spawnSync } = require("node:child_process");
+const { lstatSync, readdirSync } = require("node:fs");
+const { join } = require("node:path");
+const files = [];
+const walk = (directory) => {
+  for (const name of readdirSync(directory).sort()) {
+    const path = join(directory, name);
+    const stat = lstatSync(path);
+    if (stat.isSymbolicLink()) continue;
+    if (stat.isDirectory()) walk(path);
+    else if (/\.(?:[cm]?js|[cm]?ts)$/.test(name)) files.push(path);
+  }
+};
+walk("/src");
+if (files.length === 0) process.exit(1);
+for (const file of files) {
+  const checked = spawnSync(process.execPath, ["--experimental-strip-types", "--check", "--", file], {
+    encoding: "utf8",
+    maxBuffer: 1024 * 1024,
+  });
+  if (checked.status !== 0) {
+    process.stderr.write((checked.stderr || checked.stdout || "syntax check failed") + "\n");
+    process.exit(1);
+  }
+}
+`;
+
+function productionIdentity(
+  request: AwayControllerRequest,
+  selection: Extract<ProductionSelection, { kind: "reserved" }>,
+): ProductionHostIdentity {
+  const record = selection.reservation.record;
+  return {
+    repoRoot: requireAbsolute(request.repoRoot, "repo root"),
+    stateRoot: defaultStateRoot(),
+    manifestPath: join(requireAbsolute(request.repoRoot, "repo root"), ".pi", "away-sandbox.json"),
+    repositoryId: record.repositoryId,
+    runId: record.runId,
+    cardId: record.cardId,
+    slug: selection.reservation.card.candidateSlug,
+    baseOid: record.baseOid,
+  };
+}
+
+function storedPhaseEvidence(
+  identity: ProductionHostIdentity,
+  paths: RetainedPaths,
+  phase: AwayLifecyclePhase,
+): PhaseEvidence {
+  const stored = parseStoredPhaseEvidence(readFileSync(join(paths.receipts, phase + ".json")));
+  const command = canonicalPhaseCommand(phase, identity);
+  const built = buildLifecyclePrompt({
+    phase,
+    command,
+    canonicalTemplate: readFileSync(join(identity.repoRoot, ".pi", "prompts", phase + ".md")),
+    identity,
+    expectedOid: phase === "verify" ? stored.verifiedOid : undefined,
+  });
+  validatePhaseEvidence(stored, {
+    phase,
+    command,
+    promptDigest: built.digest,
+    identity,
+    expectedOid: phase === "verify" ? stored.verifiedOid : undefined,
+  });
+  const receiptPath = resolve(stored.settlementReceipt.path);
+  if (receiptPath !== paths.runRoot && !receiptPath.startsWith(paths.runRoot + sep)) {
+    throw new Error("production host: settlement receipt escaped retained run root");
+  }
+  revalidateStoredSettlement(phase, stored, (path) => readFileSync(path));
+  return stored;
+}
+
+function storedCandidates(identity: ProductionHostIdentity, paths: RetainedPaths): PhaseCandidate[] {
+  const candidates = new Map<string, PhaseCandidate>();
+  for (const phase of ["create", "ship"] as const) {
+    for (const candidate of storedPhaseEvidence(identity, paths, phase).candidates ?? []) {
+      const existing = candidates.get(candidate.path);
+      if (existing && existing.hash !== candidate.hash) {
+        throw new Error("production host: candidate hash drift across stored phases");
+      }
+      candidates.set(candidate.path, candidate);
+    }
+  }
+  return [...candidates.values()].sort((a, b) => a.path.localeCompare(b.path));
+}
+
+export function githubRepository(repoRoot: string): string {
+  const raw = defaultGit(repoRoot, ["config", "--get", "remote.origin.url"]);
+  let repository: string | undefined;
+  if (raw.startsWith("https://")) {
+    const url = new URL(raw);
+    if (
+      url.protocol === "https:" && url.hostname === "github.com" &&
+      url.username === "" && url.password === "" && url.search === "" && url.hash === ""
+    ) repository = url.pathname.replace(/^\//, "").replace(/\.git$/, "");
+  } else {
+    const match = /^git@github\.com:([^/]+\/[^/]+?)(?:\.git)?$/.exec(raw);
+    repository = match?.[1];
+  }
+  if (!repository || !/^[A-Za-z0-9_.-]{1,100}\/[A-Za-z0-9_.-]{1,100}$/.test(repository)) {
+    throw new Error("production host: origin is not an allowlisted GitHub repository");
+  }
+  return repository;
+}
+
+export function verifyProductionCommit(options: {
+  oid: string;
+  repoPath: string;
+  runRoot: string;
+  manifestPath: string;
+}): { receiptPath: string; receiptBytes: Buffer } {
+  const { manifest } = loadManifest(options.manifestPath);
+  const commandBinary = process.execPath;
+  const result = verify({
+    oid: options.oid,
+    repoPath: options.repoPath,
+    commandId: "production-syntax",
+    catalog: {
+      "production-syntax": {
+        id: "production-syntax",
+        binary: commandBinary,
+        argv: ["--eval", PRODUCTION_CHECK_SCRIPT],
+        cwd: "/scratch",
+      },
+    },
+    limits: manifest.limits,
+    workRoot: join(options.runRoot, "verification", options.oid),
+    commandBinary,
+    bwrapPath: manifest.pinned_versions.bwrap_path,
+    attestDir: join(options.runRoot, "verification-attestations"),
+  });
+  if (result.receipt.outcome !== "completed") {
+    throw new Error("production host: exact-OID verifier did not complete successfully");
+  }
+  return { receiptPath: result.receiptPath, receiptBytes: readFileSync(result.receiptPath) };
+}
+
+function verifyProductionCandidate(identity: ProductionHostIdentity, paths: RetainedPaths, oid: string): {
+  receiptPath: string;
+  receiptBytes: Buffer;
+} {
+  return verifyProductionCommit({
+    oid,
+    repoPath: paths.workspace,
+    runRoot: paths.runRoot,
+    manifestPath: identity.manifestPath,
+  });
+}
+
+function createProductionEffectHost(
+  identity: ProductionHostIdentity,
+  lifecycle: AwayLifecycleCompleted,
+): AwayEffectHost {
+  const paths = deriveRetainedPaths(identity.stateRoot, identity.repositoryId, identity.runId);
+  const candidates = storedCandidates(identity, paths);
+  const hashes = Object.fromEntries(candidates.map((candidate) => [candidate.path, candidate.hash]));
+  const branch = deriveAwayBranch(identity.cardId, identity.runId);
+  const repository = githubRepository(paths.workspace);
+  const pullRequest = {
+    repository,
+    hostname: "github.com",
+    base: "main",
+    head: branch,
+    expectedHeadOid: lifecycle.candidateOid,
+    title: identity.cardId + " away candidate",
+    body: "Automated away candidate for " + identity.cardId + ".\n\nRun: " + identity.runId,
+  };
+  const observeCandidate = (): { oid: string } => {
+    observeRetainedWorkspace(identity, paths, DEFAULT_WORKSPACE_DEPS, candidates);
+    const commit = createOrObserveCandidateCommit({
+      repoRoot: paths.workspace,
+      baseOid: identity.baseOid,
+      branch,
+      runId: identity.runId,
+      cardId: identity.cardId,
+      paths: candidates.map((candidate) => candidate.path),
+      hashes,
+    });
+    if (commit.oid !== lifecycle.candidateOid) {
+      throw new Error("production host: stored candidate commit drift");
+    }
+    return { oid: commit.oid };
+  };
+  const verification = (oid: string) => {
+    if (oid !== lifecycle.candidateOid) throw new Error("production host: effect verifier OID mismatch");
+    const stored = storedPhaseEvidence(identity, paths, "verify");
+    if (stored.verifiedOid !== oid || stored.fingerprint !== lifecycle.fingerprint) {
+      throw new Error("production host: effect verifier evidence drift");
+    }
+    return {
+      oid,
+      receiptHash: stored.settlementReceipt.hash,
+      fingerprint: stored.fingerprint,
+      fresh: true,
+    };
+  };
+  return {
+    async ensureWorkspace() {
+      observeRetainedWorkspace(identity, paths, DEFAULT_WORKSPACE_DEPS, candidates);
+    },
+    async ensureCandidate() {
+      return observeCandidate();
+    },
+    async ensureCommit(candidateOid) {
+      if (candidateOid !== lifecycle.candidateOid) {
+        throw new Error("production host: effect candidate OID mismatch");
+      }
+      return observeCandidate();
+    },
+    async ensureVerification(commitOid) {
+      return verification(commitOid);
+    },
+    async observeRemote(commitOid) {
+      const observed = observeRemoteBranch({
+        repoRoot: paths.workspace,
+        remote: "origin",
+        branch,
+        expectedOid: commitOid,
+      });
+      return observed.kind === "absent"
+        ? { kind: "absent" }
+        : observed.kind === "match"
+          ? { kind: "match", oid: observed.oid }
+          : { kind: "divergent", oid: observed.oid };
+    },
+    async publish(commitOid) {
+      publishDedicatedBranch({ repoRoot: paths.workspace, remote: "origin", branch, oid: commitOid });
+    },
+    async observePullRequest() {
+      return observeDraftPullRequest({ ...pullRequest, requestId: identity.runId + ":observe" });
+    },
+    async createOrGetDraftPullRequest(requestId) {
+      const pull = await createOrGetDraftPullRequest({ ...pullRequest, requestId });
+      return { kind: "match", pullRequestId: pull.pullRequestId, requestId: pull.requestId };
+    },
+  };
+}
+
 function defaultProductionDependencies(request: AwayControllerRequest): ProductionControllerDependencies {
   return {
     select: defaultSelect,
     hostFactory(selection) {
-      const record = selection.reservation.record;
-      return createProductionHost({
-        repoRoot: request.repoRoot,
-        stateRoot: defaultStateRoot(),
-        manifestPath: join(request.repoRoot, ".pi", "away-sandbox.json"),
-        repositoryId: record.repositoryId,
-        runId: record.runId,
-        cardId: record.cardId,
-        slug: selection.reservation.card.candidateSlug,
-        baseOid: record.baseOid,
+      const identity = productionIdentity(request, selection);
+      const paths = deriveRetainedPaths(identity.stateRoot, identity.repositoryId, identity.runId);
+      return createProductionHost(identity, {
+        verifyCandidate: (oid) => verifyProductionCandidate(identity, paths, oid),
       });
     },
-    effectHostFactory() {
-      throw new Error("production host: external effect host is not configured");
+    effectHostFactory(selection, lifecycle) {
+      return createProductionEffectHost(productionIdentity(request, selection), lifecycle);
     },
     now: Date.now,
   };

@@ -25,6 +25,21 @@ export interface RpcEvent {
   [key: string]: unknown;
 }
 
+const FIRE_AND_FORGET_UI_METHODS = new Set([
+  "notify",
+  "setStatus",
+  "setWidget",
+  "setTitle",
+  "set_editor_text",
+]);
+
+/** Fail closed on dialog/unknown UI requests; ignore documented fire-and-forget RPC UI events. */
+export function isBlockingRpcUiRequest(event: RpcEvent): boolean {
+  if (event.type === "ui_request") return true;
+  if (event.type !== "extension_ui_request") return false;
+  return typeof event.method !== "string" || !FIRE_AND_FORGET_UI_METHODS.has(event.method);
+}
+
 export interface RpcFramedReaderOptions {
   /** Max bytes per record before an "oversized" error is emitted. */
   maxRecordBytes?: number;
@@ -99,7 +114,7 @@ export class RpcFramedReader {
     this.ended = true;
     // StringDecoder.end() returns any final partial UTF-8 bytes.
     const tail = this.decoder.end();
-    if (tail.length) this.buffer += tail.toString("utf8");
+    if (tail.length) this.buffer += tail;
     if (this.buffer.length > 0) {
       let line = this.buffer;
       if (line.endsWith("\r")) line = line.slice(0, -1);

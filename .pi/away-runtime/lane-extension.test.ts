@@ -17,6 +17,7 @@ import {
   existsSync,
   readdirSync,
   rmSync,
+  symlinkSync,
 } from "node:fs";
 import { join } from "node:path";
 import * as os from "node:os";
@@ -24,7 +25,7 @@ import * as os from "node:os";
 import { loadManifest } from "./bootstrap.ts";
 import { resolveClosure } from "./closure.ts";
 import { writeAttestation } from "./executor-wrapper.mjs";
-import { createLaneExtension, type LaneExtensionContext } from "./lane-extension.ts";
+import registerAwayLane, { createLaneExtension, type LaneExtensionContext } from "./lane-extension.ts";
 
 const REAL_MANIFEST = join(import.meta.dirname, "..", "away-sandbox.json");
 const LANE_IDS = ["local-explorer", "external-scout", "writer", "reviewer", "verifier"] as const;
@@ -309,6 +310,138 @@ describe("C2 — commit/discard settlement gate", () => {
       callTool(state, "away_commit_staged", { path: "src/never.txt" }),
       /nothing staged/,
     );
+  });
+
+  it("prevalidates the exact host candidate set before committing and attests once", async () => {
+    const suffix = Math.random().toString(36).slice(2, 8);
+    const attestDir = join(fx.repoRoot, `settle-attest-${suffix}`);
+    mkdirSync(attestDir, { recursive: true });
+    const state = createLaneExtension({ ...ctxFor(fx, "writer"), attestDir });
+    const firstPath = `src/settle-a-${suffix}.txt`;
+    const secondPath = `src/settle-b-${suffix}.txt`;
+    const first = await callTool(state, "away_stage_write", { path: firstPath, content: "a\n" });
+    const second = await callTool(state, "away_stage_write", { path: secondPath, content: "b\n" });
+    const firstHash = (first.details as { stagedHash: string }).stagedHash;
+    const secondHash = (second.details as { stagedHash: string }).stagedHash;
+    seedWrapperReceipt(attestDir, "writer");
+    state.release();
+
+    await rejects(
+      state.settle([{ path: firstPath, hash: firstHash }]),
+      /exact candidate set/,
+    );
+    assert.equal(existsSync(join(fx.repoRoot, firstPath)), false);
+    assert.equal(existsSync(join(fx.repoRoot, secondPath)), false);
+
+    const result = await state.settle([
+      { path: firstPath, hash: firstHash },
+      { path: secondPath, hash: secondHash },
+    ]);
+    assert.deepEqual(result.changedPaths, [firstPath, secondPath]);
+    assert.equal(readFileSync(join(fx.repoRoot, firstPath), "utf8"), "a\n");
+    assert.equal(readFileSync(join(fx.repoRoot, secondPath), "utf8"), "b\n");
+    assert.equal(state.isAttested(), true);
+  });
+
+  it("rejects a symlinked commit destination before any repository write", async () => {
+    const suffix = Math.random().toString(36).slice(2, 8);
+    const linkName = `escape-${suffix}`;
+    const outsideName = `away-must-not-exist-${suffix}.txt`;
+    symlinkSync(os.tmpdir(), join(fx.repoRoot, linkName));
+    const state = createLaneExtension(ctxFor(fx, "writer"));
+    const path = `${linkName}/${outsideName}`;
+    const staged = await callTool(state, "away_stage_write", { path, content: "blocked\n" });
+    seedWrapperReceipt(fx.attestDir, "writer");
+    state.release();
+    await rejects(
+      state.settle([
+        {
+          path,
+          hash: (staged.details as { stagedHash: string }).stagedHash,
+        },
+      ]),
+      /symlink|escape/,
+    );
+    assert.equal(existsSync(join(os.tmpdir(), outsideName)), false);
+  });
+});
+
+describe("C2 — real Pi lifecycle wiring", () => {
+  it("uses the host Node binary for the immutable closure", () => {
+    const nodeBinary = join(fx.repoRoot, "host-node");
+    writeFileSync(nodeBinary, "host node placeholder\n");
+    const state = createLaneExtension({ ...ctxFor(fx, "writer"), nodeBinary });
+    const expected = resolveClosure(fx.manifestPath, "writer", { nodeBinary }).hash;
+    assert.equal(state.closureHash, expected);
+  });
+
+  it("releases the writer token only when the lane turn settles", async () => {
+    const envNames = [
+      "PI_AWAY_LANE",
+      "PI_AWAY_MANIFEST",
+      "PI_AWAY_STAGING_ROOT",
+      "PI_AWAY_ATTEST_DIR",
+      "PI_AWAY_REPO_ROOT",
+      "PI_AWAY_NODE_BINARY",
+    ] as const;
+    const previous = Object.fromEntries(envNames.map((name) => [name, process.env[name]]));
+    let settled: (() => void | Promise<void>) | undefined;
+    let settlementCommand: ((args: string) => Promise<void>) | undefined;
+
+    Object.assign(process.env, {
+      PI_AWAY_LANE: "writer",
+      PI_AWAY_MANIFEST: fx.manifestPath,
+      PI_AWAY_STAGING_ROOT: fx.stagingRoot,
+      PI_AWAY_ATTEST_DIR: fx.attestDir,
+      PI_AWAY_REPO_ROOT: fx.repoRoot,
+      PI_AWAY_NODE_BINARY: process.execPath,
+    });
+
+    try {
+      const state = registerAwayLane({
+        registerTool() {},
+        registerCommand(name, options) {
+          if (name === "away-settle") settlementCommand = options.handler;
+        },
+        on(event, handler) {
+          if (event === "agent_settled") settled = handler;
+        },
+      });
+      const target = "src/settled-release.txt";
+      const staged = await callTool(state, "away_stage_write", {
+        path: target,
+        content: "settled\n",
+      });
+
+      assert.equal(state.token.released, false);
+      assert.ok(settled, "the extension must register an agent_settled handler");
+      await settled();
+      assert.equal(state.token.released, true);
+      assert.ok(settlementCommand, "the extension must register its internal settlement command");
+
+      seedWrapperReceipt(fx.attestDir, "writer");
+      const payload = Buffer.from(
+        JSON.stringify({
+          schema: "away-settlement/1",
+          candidates: [
+            {
+              path: target,
+              hash: (staged.details as { stagedHash: string }).stagedHash,
+            },
+          ],
+        }),
+        "utf8",
+      ).toString("base64url");
+      await settlementCommand(payload);
+      assert.equal(readFileSync(join(fx.repoRoot, target), "utf8"), "settled\n");
+      assert.equal(state.isAttested(), true);
+    } finally {
+      for (const name of envNames) {
+        const value = previous[name];
+        if (value === undefined) delete process.env[name];
+        else process.env[name] = value;
+      }
+    }
   });
 });
 

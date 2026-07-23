@@ -232,7 +232,7 @@ interface ProtocolPull {
   number: number;
   draft: true;
   html_url: string;
-  head: { ref: string; label: string };
+  head: { ref: string; label: string; sha: string };
   base: { ref: string };
 }
 
@@ -243,6 +243,7 @@ export interface ProtocolGitHubService {
   observe(
     head: string,
     base: string,
+    expectedHeadOid: string,
   ):
     | { kind: "absent" }
     | { kind: "match"; pullRequestId: number; requestId: string };
@@ -253,7 +254,10 @@ export interface ProtocolGitHubService {
  * validates method, endpoint, pinned headers, and typed draft fields, then
  * returns real HTTP header/body frames with stable request evidence.
  */
-export function createProtocolGitHubService(repository: string): ProtocolGitHubService {
+export function createProtocolGitHubService(
+  repository: string,
+  expectedHeadOid: () => string,
+): ProtocolGitHubService {
   const owner = repository.split("/")[0];
   let pull: ProtocolPull | undefined;
   let createCalls = 0;
@@ -336,7 +340,7 @@ export function createProtocolGitHubService(repository: string): ProtocolGitHubS
           number: 17,
           draft: true,
           html_url: `https://github.com/${repository}/pull/17`,
-          head: { ref: head, label: `${owner}:${head}` },
+          head: { ref: head, label: `${owner}:${head}`, sha: expectedHeadOid() },
           base: { ref: "main" },
         };
         return response(201, pull);
@@ -355,9 +359,13 @@ export function createProtocolGitHubService(repository: string): ProtocolGitHubS
     get listCalls() {
       return listCalls;
     },
-    observe(head, base) {
+    observe(head, base, expectedOid) {
       if (!pull) return { kind: "absent" };
-      if (pull.head.ref !== head || pull.base.ref !== base) return { kind: "absent" };
+      if (
+        pull.head.ref !== head ||
+        pull.head.sha !== expectedOid ||
+        pull.base.ref !== base
+      ) return { kind: "absent" };
       return {
         kind: "match",
         pullRequestId: pull.id,

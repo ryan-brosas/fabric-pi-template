@@ -88,3 +88,23 @@ status: pending
 status: pending
 - [ ] Model resolution, Main native tools, review-child edit rejection, freshness
       invalidation, prompt discovery, slug validation.
+
+### 2026-07-23 - Repair `/supervise` persistence and liveness
+status: done
+- [x] Add a failing structural contract for awaited persistent-actor setup, exact-session
+      identity, and an immediate health acknowledgement.
+- [x] Replace the stale 0.22.4 reconcile sketch with an executable 0.24.3 program that
+      cannot substitute `agents.run` or `agents.spawn` for `agents.create`.
+- [x] Runtime-smoke creation, health response, same-session ID reuse, and exact-session
+      restart restoration.
+
+### 2026-07-24 - Roadmap-independent unattended away maintenance
+status: active
+- [x] Distinguish RPC fire-and-forget UI events from blocking/unknown dialogs.
+- [x] Accept actual Pi 0.81.1 nested project prompt provenance and reject decoy paths.
+- [x] Add strict Sol Max bounded-task/acceptance or `NO_CHANGE` selection before `/create`.
+- [x] Persist selection/idle evidence, preserve exact policy-session cursor, and enforce policy immutability.
+- [x] Bind MT identity to retained HEAD and objective; allow draft refinement of away implementation while protecting intent/authority/state/secrets.
+- [x] Focused direct-root tests pass (35/35); full suite passed before final hardening (314/314).
+- [ ] Run final full away/runtime suite after all hardening.
+- [ ] Obtain commit authorization, commit exact away-runtime paths, restart service, and observe a live bounded selection without warning spam.

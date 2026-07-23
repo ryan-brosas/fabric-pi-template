@@ -435,9 +435,53 @@ block execution — no weaker fallback wrapper, no fail-open userns variant, no 
 with a distinct profile (exact remote OID checkout, read-only source+deps, no net, no creds,
 broker-controlled argv from command IDs) and a stale PASS is invalidated by any change. This is an
 opt-in away lane; normal interactive sessions are unaffected. ADR-015 adds the tested autonomous
-ledger/Git/GitHub crash-replay loop while preserving every ADR-014 confinement boundary.
+ledger/Git/GitHub crash-replay loop while preserving every ADR-014 confinement boundary. ADR-018
+supersedes that generated-lane composition for the default away path; ADR-014 remains available to
+the strict verifier and legacy confined APIs.
 
-## Autonomous away loop (ADR-015)
+## Persistent direct-root away loop (ADR-018)
+
+The current production root is `.pi/away-runtime/supervise-away.ts#runSeniorAwayController`.
+The trusted project extension handles exact idle `/supervise --away [objective]` input directly; it
+does not require the optional advisory supervisor, a Main model turn, a nonce, or a continuation tool.
+Eligible Ready cards with explicit away authority remain one work source, not the liveness condition.
+Explicit text after `/supervise --away` selects a roadmap-independent maintenance objective; when no
+objective is supplied and no eligible card remains, the controller uses its default standing
+senior-engineering maintenance objective. Each maintenance cycle receives a deterministic `MT-<hash>`
+identity and `maintenance-<hash>` slug derived from objective plus `HEAD`. Before `/create`, the Sol
+Max root runs one policy turn and returns exactly one host-validated `maintenance-selection/1` record:
+a bounded objective plus observable acceptance evidence, or `no-change`. The host fsyncs that decision
+outside the repository, resumes the same session at `/create` with the bounded task, or writes validated
+idle evidence. Completed/idle cycles do not republish until `HEAD` changes while polling continues.
+Maintenance uses raw `/create <slug> "<bounded-objective>"` mode and never creates or mutates a roadmap
+card.
+
+For either work source the controller creates or resumes a deterministic retained detached worktree
+and launches one ordinary root Pi RPC session with project prompts and Fabric enabled. In that same
+persistent conversation the host submits the real `/workflow`, `/gc`, `/create`, `/research`,
+`/plan`, `/ship`, evidence-selected `/audit`, and `/verify <slug> all --full` commands sequentially.
+The Sol Max root owns synthesis and decisions; bounded GPT-5.4-mini read-only explorers support
+maintenance discovery/review, and at most one serial Makora writer implements. Pi RPC
+fire-and-forget UI events (`notify`, `setStatus`, `setWidget`, `setTitle`, `set_editor_text`) are ignored
+by the headless host; dialog methods and unknown UI requests still fail closed. Project prompt discovery
+accepts Pi 0.81.1 `sourceInfo.scope/path` only when the path equals the expected retained-workspace
+`.pi/prompts/<name>.md` (plus the documented legacy flat project marker); source/path decoys fail. An unready six-file
+packet runs only `/init --deep` and pauses for its human preview gate. Direct-root draft intake allows
+away runtime/extension/prompt/test/documentation refinement while host-blocking `AGENTS.md`, roadmap,
+settings/Fabric/manifest/init-context files, runtime-state prefixes, and secret-shaped paths; the
+legacy confined lane retains the manifest's stricter protected-path policy.
+
+Settled phase cursors, reservation identity, selected base, session path, namespace sentinels,
+candidate paths/hashes, and terminal completion are retained outside the repository and validated
+before replay. Transcript `VERIFIED` is necessary but not sufficient: the trusted host creates or
+observes an exact-path candidate commit, runs the strict exact-OID verifier, publishes only the
+deterministic `pi-away/*` branch, creates or observes one draft PR, and fsyncs terminal evidence.
+The path-instanced user service polls continuously with bounded backoff and a repository flock.
+Merge, default-ref mutation, force push, secrets access, file deletion, and automatic cleanup remain
+forbidden. The direct root is deliberately inside the trusted computing base and has ordinary
+project/network/credential authority; it is not the ADR-014 generated-lane sandbox.
+
+### Historical ADR-015/017 design (superseded; retained for rationale)
 
 `/supervise --away [objective]` is the explicit one-shot entry. The trusted host, never the generated
 lane, validates the ready packet and closure, locks one repository, selects one eligible stable roadmap

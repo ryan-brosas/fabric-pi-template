@@ -12,11 +12,11 @@ import {
 } from "node:fs";
 import { dirname, isAbsolute, join, resolve } from "node:path";
 
-const CARD_ID = /^RM-\d{3,}$/;
+const CARD_ID = /^(?:RM-\d{3,}|MT-[0-9a-f]{12})$/;
 const OID = /^[0-9a-f]{40}$|^[0-9a-f]{64}$/;
 const HASH = /^[0-9a-f]{64}$/;
 const REMOTE = /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/;
-const DEDICATED_BRANCH = /^pi-away\/rm-\d{3,}-[0-9a-f]{8}$/;
+const DEDICATED_BRANCH = /^pi-away\/(?:rm-\d{3,}|mt-[0-9a-f]{12})-[0-9a-f]{8}$/;
 const RUN_ID = /^[A-Za-z0-9][A-Za-z0-9._:-]{7,127}$/;
 
 interface GitResult {

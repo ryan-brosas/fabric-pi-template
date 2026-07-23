@@ -14,8 +14,8 @@
 //
 // Run: node --experimental-strip-types --test .pi/away-runtime/lane-extension.test.ts
 
-import { readFileSync, readdirSync, statSync } from "node:fs";
-import { join } from "node:path";
+import { existsSync, lstatSync, readFileSync, readdirSync, statSync } from "node:fs";
+import { join, sep } from "node:path";
 import { createHash } from "node:crypto";
 
 import { loadManifest, type Manifest, type LaneProfile } from "./bootstrap.ts";
@@ -46,6 +46,8 @@ export interface LaneExtensionContext {
   attestDir: string;
   /** Repository root for the read-only source view + commit destinations. */
   repoRoot: string;
+  /** Real host Node binary, captured before the launcher pins process.execPath. */
+  nodeBinary?: string;
   /** Optional command catalog for away_run_verify (C3 forward ref). */
   commandCatalog?: ReadonlySet<string>;
 }
@@ -68,6 +70,16 @@ export interface RegisteredTool {
   ) => Promise<ToolResult>;
 }
 
+export interface SettlementCandidate {
+  path: string;
+  hash: string;
+}
+
+export interface SettlementResult {
+  changedPaths: string[];
+  receiptPath: string;
+}
+
 export interface ExtensionState {
   tools: RegisteredTool[];
   token: WriterToken;
@@ -79,11 +91,16 @@ export interface ExtensionState {
   reservations: Map<string, Reservation>;
   /** Release the writer token (controller, post-settlement). */
   release(): void;
+  /** Commit exactly the host-validated candidate set and fsync terminal evidence. */
+  settle(candidates: readonly SettlementCandidate[]): Promise<SettlementResult>;
   /** Whether the lane has produced its terminal attestation. */
   isAttested(): boolean;
 }
 
 const OUTCOMES: ReadonlySet<LaneOutcome> = new Set(["completed", "failed", "aborted"]);
+const SETTLEMENT_COMMAND = "away-settle";
+export const AWAY_SETTLEMENT_SCHEMA = "away-settlement/1";
+const MAX_SETTLEMENT_PAYLOAD_CHARS = 4 * 1024 * 1024;
 
 function requireString(params: Record<string, unknown>, key: string): string {
   const v = params[key];
@@ -262,7 +279,7 @@ function makeAwayStageWrite(
     },
     async execute(_toolCallId, params) {
       validateParams(params, new Set(["path", "content"]));
-      const rel = requireString(params, "path");
+      const rel = normalizeRelative(requireString(params, "path"));
       const content = requireString(params, "content");
       rejectIfProtected(rel, manifest);
       token.beginWrite();
@@ -300,12 +317,13 @@ function makeAwayCommitStaged(
     },
     async execute(_toolCallId, params) {
       validateParams(params, new Set(["path"]));
-      const rel = requireString(params, "path");
+      const rel = normalizeRelative(requireString(params, "path"));
       rejectIfProtected(rel, manifest);
       const reservation = reservations.get(rel);
       if (!reservation) throw new Error(`away-extension: nothing staged for: ${rel}`);
       const destAbs = join(ctx.repoRoot, rel);
       commitStaged(token, reservation, destAbs);
+      reservations.delete(rel);
       return {
         content: [{ type: "text", text: `committed: ${rel}` }],
         details: { path: rel, destHash: sha256File(destAbs) },
@@ -329,7 +347,7 @@ function makeAwayDiscardStaged(
     },
     async execute(_toolCallId, params) {
       validateParams(params, new Set(["path"]));
-      const rel = requireString(params, "path");
+      const rel = normalizeRelative(requireString(params, "path"));
       const reservation = reservations.get(rel);
       if (!reservation) throw new Error(`away-extension: nothing staged for: ${rel}`);
       discardStaged(token, reservation);
@@ -417,7 +435,7 @@ function makeAwayAttest(
         manifestHash,
         closureHash,
         childSourceDigest: PINNED_CHILD_SOURCE_DIGEST,
-        limits: manifest.limits as Record<string, number>,
+        limits: manifest.limits as unknown as Record<string, number>,
         outcome,
         wrapperReceiptPath: wrapper.path,
         wrapperFsynced: wrapper.receipt.fsynced === true,
@@ -442,7 +460,10 @@ export function createLaneExtension(ctx: LaneExtensionContext): ExtensionState {
   const token = new WriterToken();
   const reservations = new Map<string, Reservation>();
   const attestedRef = { value: false };
-  const closureHash = resolveClosure(ctx.manifestPath, ctx.laneId, { requireAll: false }).hash;
+  const closureHash = resolveClosure(ctx.manifestPath, ctx.laneId, {
+    requireAll: false,
+    nodeBinary: ctx.nodeBinary,
+  }).hash;
 
   const tools: RegisteredTool[] = [];
   if (allowlist.has("away_read")) tools.push(makeAwayRead(ctx, manifest));
@@ -457,6 +478,111 @@ export function createLaneExtension(ctx: LaneExtensionContext): ExtensionState {
   if (allowlist.has("away_attest"))
     tools.push(makeAwayAttest(ctx, manifest, manifestHash, closureHash, token, attestedRef));
 
+  async function settle(
+    candidates: readonly SettlementCandidate[],
+  ): Promise<SettlementResult> {
+    if (!allowlist.has("away_commit_staged") || !allowlist.has("away_attest")) {
+      throw new Error("away-extension: settlement is unavailable for this lane");
+    }
+    if (!token.released) throw new Error("away-extension: settlement blocked: writer token held");
+    if (token.inFlight > 0) {
+      throw new Error("away-extension: settlement blocked: bridge work in flight");
+    }
+    if (attestedRef.value) {
+      throw new Error("away-extension: settlement blocked: already attested");
+    }
+    if (candidates.length > manifest.limits.max_file_count) {
+      throw new Error("away-extension: settlement candidate count exceeds the limit");
+    }
+
+    const expectedPaths = [...reservations.keys()].sort();
+    const actualPaths = candidates
+      .map((candidate) =>
+        typeof candidate === "object" && candidate !== null
+          ? String((candidate as SettlementCandidate).path)
+          : "",
+      )
+      .sort();
+    if (
+      expectedPaths.length !== actualPaths.length ||
+      expectedPaths.some((path, index) => path !== actualPaths[index])
+    ) {
+      throw new Error("away-extension: settlement requires the exact candidate set");
+    }
+    if (!readWrapperReceipt(ctx.attestDir, ctx.laneId)) {
+      throw new Error("away-extension: settlement blocked: wrapper has not fsynced");
+    }
+
+    const validated: Array<{
+      path: string;
+      hash: string;
+      reservation: Reservation;
+      destination: string;
+    }> = [];
+    for (const candidate of candidates) {
+      if (!candidate || typeof candidate !== "object") {
+        throw new Error("away-extension: malformed settlement candidate");
+      }
+      const keys = Object.keys(candidate).sort();
+      if (keys.length !== 2 || keys[0] !== "hash" || keys[1] !== "path") {
+        throw new Error("away-extension: malformed settlement candidate keys");
+      }
+      if (typeof candidate.path !== "string" || typeof candidate.hash !== "string") {
+        throw new Error("away-extension: malformed settlement candidate fields");
+      }
+      const path = normalizeRelative(candidate.path);
+      if (path !== candidate.path || path.includes("\0") || /[\r\n]/.test(path)) {
+        throw new Error("away-extension: invalid settlement path");
+      }
+      if (!/^[0-9a-f]{64}$/.test(candidate.hash)) {
+        throw new Error(`away-extension: invalid candidate hash: ${path}`);
+      }
+      rejectIfProtected(path, manifest);
+      const reservation = reservations.get(path);
+      if (!reservation) throw new Error(`away-extension: nothing staged for: ${path}`);
+      const staged = lstatSync(reservation.reservedAbs);
+      if (staged.isSymbolicLink() || !staged.isFile()) {
+        throw new Error(`away-extension: staged candidate is not a regular file: ${path}`);
+      }
+      if (sha256File(reservation.reservedAbs) !== candidate.hash) {
+        throw new Error(`away-extension: candidate hash mismatch: ${path}`);
+      }
+      const destination = resolveSourceView(
+        ctx.repoRoot,
+        path,
+        manifest.protected_paths,
+        manifest.runtime_protected_paths,
+      );
+      if (destination.rel.split(sep).join("/") !== path) {
+        throw new Error(`away-extension: symlinked destination rejected: ${path}`);
+      }
+      if (existsSync(destination.abs)) {
+        const existing = lstatSync(destination.abs);
+        if (existing.isSymbolicLink() || !existing.isFile()) {
+          throw new Error(`away-extension: non-regular destination rejected: ${path}`);
+        }
+      }
+      validated.push({ path, hash: candidate.hash, reservation, destination: destination.abs });
+    }
+
+    for (const candidate of validated) {
+      commitStaged(token, candidate.reservation, candidate.destination);
+      reservations.delete(candidate.path);
+      if (sha256File(candidate.destination) !== candidate.hash) {
+        throw new Error(`away-extension: committed hash mismatch: ${candidate.path}`);
+      }
+    }
+
+    const attest = tools.find((tool) => tool.name === "away_attest");
+    if (!attest) throw new Error("away-extension: settlement attestation tool is unavailable");
+    const attestation = await attest.execute("away-settle", { outcome: "completed" });
+    const receiptPath = attestation.details?.path;
+    if (typeof receiptPath !== "string") {
+      throw new Error("away-extension: settlement receipt path is missing");
+    }
+    return { changedPaths: validated.map((candidate) => candidate.path), receiptPath };
+  }
+
   return {
     tools,
     token,
@@ -467,11 +593,43 @@ export function createLaneExtension(ctx: LaneExtensionContext): ExtensionState {
     closureHash,
     reservations,
     release: () => token.release(),
+    settle,
     isAttested: () => attestedRef.value,
   };
 }
 
 // ---- pi extension entrypoint (loaded via `-e`; reads env context) --------------
+
+function decodeSettlementPayload(raw: string, maxCandidates: number): SettlementCandidate[] {
+  const encoded = raw.trim();
+  if (
+    encoded.length === 0 ||
+    encoded.length > MAX_SETTLEMENT_PAYLOAD_CHARS ||
+    !/^[A-Za-z0-9_-]+$/.test(encoded)
+  ) {
+    throw new Error("away-extension: invalid settlement payload encoding");
+  }
+  const bytes = Buffer.from(encoded, "base64url");
+  if (bytes.toString("base64url") !== encoded) {
+    throw new Error("away-extension: non-canonical settlement payload");
+  }
+  const value = JSON.parse(bytes.toString("utf8")) as unknown;
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    throw new Error("away-extension: settlement payload must be an object");
+  }
+  const record = value as Record<string, unknown>;
+  const keys = Object.keys(record).sort();
+  if (keys.length !== 2 || keys[0] !== "candidates" || keys[1] !== "schema") {
+    throw new Error("away-extension: unexpected settlement payload keys");
+  }
+  if (record.schema !== AWAY_SETTLEMENT_SCHEMA || !Array.isArray(record.candidates)) {
+    throw new Error("away-extension: invalid settlement payload schema");
+  }
+  if (record.candidates.length > maxCandidates) {
+    throw new Error("away-extension: settlement candidate count exceeds the limit");
+  }
+  return record.candidates as SettlementCandidate[];
+}
 
 function contextFromEnv(): LaneExtensionContext {
   const laneId = process.env.PI_AWAY_LANE;
@@ -479,12 +637,13 @@ function contextFromEnv(): LaneExtensionContext {
   const stagingRoot = process.env.PI_AWAY_STAGING_ROOT;
   const attestDir = process.env.PI_AWAY_ATTEST_DIR;
   const repoRoot = process.env.PI_AWAY_REPO_ROOT;
-  if (!laneId || !manifestPath || !stagingRoot || !attestDir || !repoRoot) {
+  const nodeBinary = process.env.PI_AWAY_NODE_BINARY;
+  if (!laneId || !manifestPath || !stagingRoot || !attestDir || !repoRoot || !nodeBinary) {
     throw new Error(
-      "away-extension: missing PI_AWAY_{LANE,MANIFEST,STAGING_ROOT,ATTEST_DIR,REPO_ROOT} env",
+      "away-extension: missing PI_AWAY_{LANE,MANIFEST,STAGING_ROOT,ATTEST_DIR,REPO_ROOT,NODE_BINARY} env",
     );
   }
-  return { laneId, manifestPath, stagingRoot, attestDir, repoRoot };
+  return { laneId, manifestPath, stagingRoot, attestDir, repoRoot, nodeBinary };
 }
 
 export default function registerAwayLane(pi: {
@@ -494,6 +653,14 @@ export default function registerAwayLane(pi: {
     parameters: object;
     execute: RegisteredTool["execute"];
   }) => void;
+  registerCommand?: (
+    name: string,
+    options: { description: string; handler: (args: string) => Promise<void> },
+  ) => void;
+  on: (
+    event: "agent_settled",
+    handler: () => void | Promise<void>,
+  ) => void;
 }): ExtensionState {
   const ctx = contextFromEnv();
   const state = createLaneExtension(ctx);
@@ -503,6 +670,28 @@ export default function registerAwayLane(pi: {
       description: tool.description,
       parameters: tool.parameters,
       execute: tool.execute,
+    });
+  }
+  pi.on("agent_settled", () => state.release());
+  if (
+    pi.registerCommand &&
+    state.allowlist.has("away_commit_staged") &&
+    state.allowlist.has("away_attest")
+  ) {
+    pi.registerCommand(SETTLEMENT_COMMAND, {
+      description: "Internal host-bound away settlement command",
+      handler: async (args) => {
+        try {
+          const candidates = decodeSettlementPayload(args, state.manifest.limits.max_file_count);
+          await state.settle(candidates);
+        } catch (error) {
+          if (!state.isAttested()) {
+            const attest = state.tools.find((tool) => tool.name === "away_attest");
+            await attest?.execute("away-settle-failed", { outcome: "failed" }).catch(() => {});
+          }
+          throw error;
+        }
+      },
     });
   }
   return state;

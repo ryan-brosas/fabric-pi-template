@@ -289,6 +289,8 @@ files: []
 - **Automatic prewalk frontier stage:** Main made this mutation without calling `agents.handoff()`; the armed `/fabric prewalk` path should take over at the Fabric boundary.
 - **Automatic prewalk executor stage:** Makora inherited the automatically claimed frontier and completed this follow-on edit.
 - **Automatic prewalk outer result:** Fabric reported `prewalk:true`, trigger `pi.edit`, and `handedOff:true`; the executor edit landed, but the run ended `completed:false`, `status:timed_out` after the 500,000-token child limit.
+- **Canonical prewalk retry frontier stage:** Main made one bounded evidence mutation before scheduling the explicit trajectory handoff.
+- **Canonical prewalk retry executor stage:** Makora inherited the finalized frontier and completed exactly one bounded follow-on edit.
 
 ### C2 — [verify] No-regression and model resolution
 **End state:** all success-criteria checks pass read-only: `fullCodeMode:true`, ADR-009

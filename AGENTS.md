@@ -250,3 +250,12 @@ execution — no weaker fallback. The verifier reuses the launcher with a distin
 OID checkout, read-only, no net, no creds). This is an opt-in away lane; normal interactive sessions
 are unaffected. ADR-015 (autonomous-away-loop) adds the ledger/Git/GitHub crash-replay full loop on top
 of this foundation.
+
+**Direct-root away runtime (ADR-018).** ADR-018 supersedes ADR-015/017 for the default away
+composition: one ordinary persistent root Pi runs the real lifecycle slash commands in a retained
+detached worktree. Exact trusted idle `/supervise --away [objective]` input invokes this controller
+directly and does not require the optional advisory supervisor. The host then performs exact-path commit, exact-OID verification, dedicated-branch
+push, and one draft PR. This root is deliberately trusted and is not bubblewrap-confined; ADR-014
+continues to govern the strict verifier and legacy confined APIs. The continuous user service polls
+with a repository lease and bounded backoff. Merge, default-ref mutation, force push, file deletion,
+and automatic cleanup remain forbidden.

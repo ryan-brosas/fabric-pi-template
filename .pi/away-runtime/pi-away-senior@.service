@@ -1,0 +1,24 @@
+[Unit]
+Description=Pi senior-engineer away controller for %f
+After=network-online.target
+Wants=network-online.target
+StartLimitIntervalSec=0
+
+[Service]
+Type=simple
+WorkingDirectory=%f
+Environment=PATH=/home/ryan/.nvm/versions/node/v24.16.0/bin:/usr/local/bin:/usr/bin:/bin
+ExecStart=/home/ryan/.nvm/versions/node/v24.16.0/bin/node --experimental-strip-types %f/.pi/away-runtime/supervise-away.ts %f
+Restart=always
+RestartSec=15s
+KillMode=control-group
+TimeoutStopSec=90s
+UMask=0077
+NoNewPrivileges=yes
+PrivateTmp=yes
+TasksMax=512
+MemoryMax=24G
+CPUWeight=50
+
+[Install]
+WantedBy=default.target

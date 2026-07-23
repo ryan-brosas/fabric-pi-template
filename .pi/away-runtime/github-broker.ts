@@ -8,7 +8,8 @@ import { spawnSync } from "node:child_process";
 const API_VERSION = "2022-11-28";
 const ACCEPT = "application/vnd.github+json";
 const REPOSITORY = /^[A-Za-z0-9_.-]{1,100}\/[A-Za-z0-9_.-]{1,100}$/;
-const DEDICATED_HEAD = /^pi-away\/rm-\d{3,}-[0-9a-f]{8}$/;
+const DEDICATED_HEAD = /^pi-away\/(?:rm-\d{3,}|mt-[0-9a-f]{12})-[0-9a-f]{8}$/;
+const OID = /^(?:[0-9a-f]{40}|[0-9a-f]{64})$/;
 const REQUEST_ID = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/;
 const MAX_OUTPUT = 1024 * 1024;
 const MAX_RETRY_MS = 60_000;
@@ -31,6 +32,7 @@ export interface DraftPullRequestRequest {
   hostname: string;
   base: string;
   head: string;
+  expectedHeadOid: string;
   title: string;
   body: string;
   requestId: string;
@@ -55,7 +57,7 @@ interface PullShape {
   number: number;
   draft: boolean;
   html_url: string;
-  head: { ref: string; label: string };
+  head: { ref: string; label: string; sha: string };
   base: { ref: string };
 }
 
@@ -88,6 +90,7 @@ function validateRequest(request: DraftPullRequestRequest): void {
   if (request.hostname !== "github.com") throw new Error("github-broker: hostname is not allowlisted");
   if (request.base !== "main") throw new Error("github-broker: base is not allowlisted");
   if (!DEDICATED_HEAD.test(request.head)) throw new Error("github-broker: invalid dedicated head");
+  if (!OID.test(request.expectedHeadOid)) throw new Error("github-broker: invalid expected head OID");
   if (!REQUEST_ID.test(request.requestId)) throw new Error("github-broker: invalid request id");
   if (
     typeof request.title !== "string" ||
@@ -210,6 +213,7 @@ function parsePull(value: unknown, request: DraftPullRequestRequest): PullShape 
     !pull.head ||
     pull.head.ref !== request.head ||
     pull.head.label !== `${owner}:${request.head}` ||
+    pull.head.sha !== request.expectedHeadOid ||
     !pull.base ||
     pull.base.ref !== request.base
   ) {

@@ -43,6 +43,10 @@ function sha256(path: string): string {
 describe("A4 host Git broker", () => {
   it("derives only a dedicated run branch", () => {
     assert.equal(deriveAwayBranch("RM-003", "run-0123456789abcdef"), "pi-away/rm-003-01234567");
+    assert.equal(
+      deriveAwayBranch("MT-a1b2c3d4e5f6", "run-0123456789abcdef"),
+      "pi-away/mt-a1b2c3d4e5f6-01234567",
+    );
     assert.throws(() => deriveAwayBranch("main", "run-0123456789abcdef"), /card id/);
     assert.throws(() => deriveAwayBranch("RM-003", "short"), /run id/);
   });

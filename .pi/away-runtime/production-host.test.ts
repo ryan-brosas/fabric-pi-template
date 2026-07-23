@@ -1,6 +1,9 @@
 import assert from "node:assert/strict";
+import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { dirname, resolve } from "node:path";
+import { existsSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, it } from "node:test";
 
@@ -18,12 +21,32 @@ import {
   type PhaseEvidence,
   type RetainedWorkspaceDependencies,
 } from "./production-host.ts";
+import {
+  buildWorkflowCommands,
+  createRootPiLaunchSpec,
+  deriveMaintenanceWorkIdentity,
+  executeSeniorWorkflowAway,
+  isDirectSeniorCandidateProtected,
+  isExpectedProjectPromptCommand,
+  parseMaintenanceSelection,
+  runAwayOnce,
+  runContinuousSeniorService,
+  runRootPiWorkflow,
+  runSeniorAwayController,
+  runTopLevelWorkflow,
+} from "./supervise-away.ts";
+import { isBlockingRpcUiRequest } from "./rpc.ts";
 
 const REPOSITORY_ID = "repo-" + "a".repeat(64);
 const RUN_ID = "run-0123456789abcdef";
 const BASE_OID = "b".repeat(40);
 const CANDIDATE_OID = "c".repeat(40);
 const HASH = "d".repeat(64);
+
+function currentMaintenanceIdentity(objective: string): { cardId: string; slug: string } {
+  const head = execFileSync("git", ["rev-parse", "HEAD"], { cwd: REPO, encoding: "utf8" }).trim();
+  return deriveMaintenanceWorkIdentity(head, objective);
+}
 
 function identity() {
   return {
@@ -173,6 +196,538 @@ describe("retained workspace", () => {
       return "";
     };
     assert.throws(() => ensureRetainedWorkspace(identity(), paths, dirty.deps), /clean/i);
+  });
+});
+
+describe("direct senior candidate policy", () => {
+  it("allows away implementation refinement but protects intent, authority, state, and secrets", () => {
+    for (const path of [
+      ".pi/away-runtime/supervise-away.ts",
+      ".pi/extensions/away/index.ts",
+      ".pi/prompts/workflow.md",
+      ".pi/artifacts/pi-template/PLAN.md",
+      "src/tokenizer.ts",
+      "docs/token-budget.md",
+      "README.md",
+    ]) assert.equal(isDirectSeniorCandidateProtected(path), false, path);
+    for (const path of [
+      "AGENTS.md",
+      ".pi/ROADMAP.md",
+      ".pi/settings.json",
+      ".pi/fabric.json",
+      ".pi/away-sandbox.json",
+      ".pi/state.md",
+      ".pi/user.md",
+      ".pi/memory.md",
+      ".pi/npm/cache.json",
+      ".pi/fabric/mesh/state.json",
+      ".env",
+      "config/credentials.json",
+      "keys/private.pem",
+    ]) assert.equal(isDirectSeniorCandidateProtected(path), true, path);
+  });
+});
+
+describe("root RPC project command provenance", () => {
+  it("accepts actual Pi 0.81 project metadata and rejects scope/path decoys", () => {
+    const modern = {
+      name: "workflow",
+      source: "prompt",
+      sourceInfo: { scope: "project", path: "/repo/.pi/prompts/workflow.md" },
+    };
+    assert.equal(isExpectedProjectPromptCommand(modern, "workflow", "/repo"), true);
+    assert.equal(isExpectedProjectPromptCommand({ ...modern, sourceInfo: { scope: "user", path: "/repo/.pi/prompts/workflow.md" } }, "workflow", "/repo"), false);
+    assert.equal(isExpectedProjectPromptCommand({ ...modern, sourceInfo: { scope: "project", path: "/tmp/decoy/workflow.md" } }, "workflow", "/repo"), false);
+    assert.equal(isExpectedProjectPromptCommand({ ...modern, location: "project", sourceInfo: { scope: "project", path: "/tmp/decoy/workflow.md" } }, "workflow", "/repo"), false);
+    assert.equal(isExpectedProjectPromptCommand({ ...modern, source: "skill" }, "workflow", "/repo"), false);
+    assert.equal(isExpectedProjectPromptCommand({ name: "workflow", source: "prompt", location: "project" }, "workflow", "/repo"), true);
+  });
+});
+
+describe("RPC extension UI policy", () => {
+  it("ignores only documented fire-and-forget methods and blocks dialogs or unknown requests", () => {
+    for (const method of ["notify", "setStatus", "setWidget", "setTitle", "set_editor_text"]) {
+      assert.equal(isBlockingRpcUiRequest({ type: "extension_ui_request", method }), false);
+    }
+    for (const method of ["select", "confirm", "input", "editor", "future-method"]) {
+      assert.equal(isBlockingRpcUiRequest({ type: "extension_ui_request", method }), true);
+    }
+    assert.equal(isBlockingRpcUiRequest({ type: "extension_ui_request" }), true);
+    assert.equal(isBlockingRpcUiRequest({ type: "ui_request" }), true);
+    assert.equal(isBlockingRpcUiRequest({ type: "agent_settled" }), false);
+  });
+});
+
+describe("maintenance selection protocol", () => {
+  it("accepts one bounded selected task or no-change result", () => {
+    assert.deepEqual(
+      parseMaintenanceSelection(
+        'MAINTENANCE_SELECTION: {"schema":"maintenance-selection/1","kind":"selected","objective":"Harden RPC fire-and-forget UI filtering","acceptance":"Status events are ignored while confirm events block"}',
+      ),
+      {
+        schema: "maintenance-selection/1",
+        kind: "selected",
+        objective: "Harden RPC fire-and-forget UI filtering",
+        acceptance: "Status events are ignored while confirm events block",
+      },
+    );
+    assert.deepEqual(
+      parseMaintenanceSelection(
+        'MAINTENANCE_SELECTION: {"schema":"maintenance-selection/1","kind":"no-change","reason":"No high-confidence writable improvement exists on this HEAD"}',
+      ),
+      {
+        schema: "maintenance-selection/1",
+        kind: "no-change",
+        reason: "No high-confidence writable improvement exists on this HEAD",
+      },
+    );
+  });
+
+  it("rejects malformed, duplicated, unbounded, or extra-key selections", () => {
+    for (const text of [
+      "Result: READY",
+      'MAINTENANCE_SELECTION: {"schema":"maintenance-selection/1","kind":"selected","objective":"short","acceptance":"also short"}',
+      `MAINTENANCE_SELECTION: {"schema":"maintenance-selection/1","kind":"selected","objective":"${"x".repeat(1801)}","acceptance":"A concrete acceptance check exists"}`,
+      'MAINTENANCE_SELECTION: {"schema":"maintenance-selection/1","kind":"selected","objective":"A sufficiently bounded maintenance objective","acceptance":"A concrete acceptance check exists","command":"rm"}',
+      'MAINTENANCE_SELECTION: {"schema":"maintenance-selection/1","kind":"no-change","reason":"contains\u0000nul"}',
+      'MAINTENANCE_SELECTION: {"schema":"maintenance-selection/1","kind":"no-change","reason":"First adequate no-change rationale"}\nMAINTENANCE_SELECTION: {"schema":"maintenance-selection/1","kind":"no-change","reason":"Second adequate no-change rationale"}',
+    ]) {
+      assert.throws(() => parseMaintenanceSelection(text), /maintenance selection/i);
+    }
+  });
+});
+
+describe("retained maintenance policy", () => {
+  it("blocks a maintenance identity derived from a different base before root launch", async () => {
+    const stateRoot = mkdtempSync(join(tmpdir(), "away-maintenance-base-drift-"));
+    let launches = 0;
+    const result = await executeSeniorWorkflowAway({
+      repoRoot: REPO,
+      objective: "Continuously improve repository reliability with bounded evidence-backed maintenance",
+      cardId: "MT-000000000000",
+      slug: "maintenance-000000000000",
+      dryRun: false,
+    }, {
+      stateRoot,
+      runId: "run-0011223344556677",
+      async runWorkflow() {
+        launches += 1;
+        return { kind: "blocked", nextIndex: 0, message: "root must not launch" };
+      },
+    });
+    assert.equal(result.kind, "blocked");
+    if (result.kind === "blocked") assert.match(result.message, /identity.*base|base.*identity/i);
+    assert.equal(launches, 0);
+  });
+
+  it("rejects repository mutation during the selection-only policy turn", async () => {
+    const stateRoot = mkdtempSync(join(tmpdir(), "away-maintenance-policy-mutation-"));
+    const sessionFile = join(stateRoot, "sessions", "policy.jsonl");
+    const assistantText =
+      'MAINTENANCE_SELECTION: {"schema":"maintenance-selection/1","kind":"no-change","reason":"No high-confidence writable improvement exists on this exact HEAD"}';
+    let launches = 0;
+    const standingObjective = "Continuously improve repository reliability with bounded evidence-backed maintenance";
+    const work = currentMaintenanceIdentity(standingObjective);
+    const result = await executeSeniorWorkflowAway({
+      repoRoot: REPO,
+      objective: standingObjective,
+      ...work,
+      dryRun: false,
+    }, {
+      stateRoot,
+      runId: "run-fedcba9876543210",
+      async runWorkflow(workflow) {
+        launches += 1;
+        if (launches > 1) return { kind: "blocked", nextIndex: 1, message: "unexpected continuation" };
+        writeFileSync(join(workflow.launch.cwd, "policy-mutation.txt"), "not allowed\n");
+        writeFileSync(sessionFile, "session\n");
+        await workflow.validateSettlement?.(workflow.commands[0], assistantText, 1);
+        await workflow.checkpoint(1, sessionFile);
+        return { kind: "completed", nextIndex: 1, assistantText, sessionFile };
+      },
+    });
+    assert.equal(result.kind, "blocked");
+    if (result.kind === "blocked") assert.match(result.message, /policy.*mutat/i);
+    assert.equal(launches, 1);
+    assert.equal(existsSync(join(stateRoot, "selection.json")), false);
+    assert.equal(existsSync(join(stateRoot, "idle.json")), false);
+  });
+
+  it("persists one selected task and resumes /create with its bounded acceptance", async () => {
+    const stateRoot = mkdtempSync(join(tmpdir(), "away-maintenance-selected-"));
+    const sessionFile = join(stateRoot, "sessions", "policy.jsonl");
+    const assistantText =
+      'MAINTENANCE_SELECTION: {"schema":"maintenance-selection/1","kind":"selected","objective":"Harden RPC status-event classification","acceptance":"All fire-and-forget events pass while dialogs remain blocked"}';
+    let launches = 0;
+    const standingObjective = "Continuously improve repository reliability with bounded evidence-backed maintenance";
+    const work = currentMaintenanceIdentity(standingObjective);
+    const result = await executeSeniorWorkflowAway({
+      repoRoot: REPO,
+      objective: standingObjective,
+      ...work,
+      dryRun: false,
+    }, {
+      stateRoot,
+      runId: "run-abcdef0123456789",
+      async runWorkflow(workflow) {
+        launches += 1;
+        if (launches === 1) {
+          writeFileSync(sessionFile, "session\n");
+          await workflow.validateSettlement?.(workflow.commands[0], assistantText, 1);
+          await workflow.checkpoint(1, sessionFile);
+          return { kind: "completed", nextIndex: 1, assistantText, sessionFile };
+        }
+        assert.equal(workflow.startIndex, 1);
+        assert.ok(workflow.launch.argv.includes(sessionFile));
+        assert.match(workflow.commands[2], /Harden RPC status-event classification/);
+        assert.match(workflow.commands[2], /Acceptance evidence: All fire-and-forget events pass/);
+        assert.doesNotMatch(workflow.commands[2], /Continuously improve repository reliability/);
+        return { kind: "blocked", nextIndex: 1, message: "bounded continuation observed" };
+      },
+    });
+    assert.equal(result.kind, "blocked");
+    assert.equal(launches, 2);
+    assert.equal(JSON.parse(readFileSync(join(stateRoot, "selection.json"), "utf8")).selection.kind, "selected");
+  });
+
+  it("persists NO_CHANGE once and idles replay without launching another root", async () => {
+    const stateRoot = mkdtempSync(join(tmpdir(), "away-maintenance-policy-"));
+    const sessionFile = join(stateRoot, "sessions", "policy.jsonl");
+    const assistantText =
+      'MAINTENANCE_SELECTION: {"schema":"maintenance-selection/1","kind":"no-change","reason":"No high-confidence writable improvement exists on this exact HEAD"}';
+    let launches = 0;
+    const standingObjective = "Continuously improve repository reliability with bounded evidence-backed maintenance";
+    const request = {
+      repoRoot: REPO,
+      objective: standingObjective,
+      ...currentMaintenanceIdentity(standingObjective),
+      dryRun: false,
+    };
+    const first = await executeSeniorWorkflowAway(request, {
+      stateRoot,
+      runId: "run-0123456789abcdef",
+      async runWorkflow(workflow) {
+        launches += 1;
+        assert.equal(workflow.commands.length, 1);
+        assert.match(workflow.commands[0], /^\/workflow .* --objective /);
+        writeFileSync(sessionFile, "session\n");
+        await workflow.validateSettlement?.(workflow.commands[0], assistantText, 1);
+        await workflow.checkpoint(1, sessionFile);
+        return { kind: "completed", nextIndex: 1, assistantText, sessionFile };
+      },
+    });
+    assert.equal(first.kind, "no-work");
+    assert.equal(launches, 1);
+    assert.equal(JSON.parse(readFileSync(join(stateRoot, "selection.json"), "utf8")).selection.kind, "no-change");
+    assert.equal(JSON.parse(readFileSync(join(stateRoot, "idle.json"), "utf8")).schema, "senior-away-idle/1");
+
+    const replay = await executeSeniorWorkflowAway(request, {
+      stateRoot,
+      runId: "run-0123456789abcdef",
+      async runWorkflow() {
+        throw new Error("idle replay must not launch root Pi");
+      },
+    });
+    assert.equal(replay.kind, "no-work");
+    assert.equal(launches, 1);
+  });
+});
+
+describe("senior-engineer root workflow", () => {
+  it("skips init for a ready project and submits the real prompt commands in order", () => {
+    const workflow = buildWorkflowCommands({
+      packetReady: true,
+      slug: "retained-host",
+      cardId: "RM-007",
+      outcome: "Ship the retained host",
+      runGc: true,
+      auditPatterns: ["TODO|FIXME"],
+    });
+    assert.equal(workflow.kind, "ready");
+    assert.equal(workflow.requiresOperator, false);
+    assert.deepEqual(workflow.commands, [
+      "/workflow retained-host --from .pi/ROADMAP.md#RM-007",
+      "/gc",
+      "/create retained-host --from .pi/ROADMAP.md#RM-007",
+      "/research retained-host \"Research implementation risks and established project patterns for RM-007: Ship the retained host\" --thorough",
+      "/plan retained-host",
+      "/ship retained-host",
+      "/audit TODO|FIXME",
+      "/verify retained-host all --full",
+    ]);
+    assert.ok(workflow.commands.every((command) => command.startsWith("/")));
+  });
+
+  it("builds a roadmap-independent lifecycle for a maintenance objective", () => {
+    const workflow = buildWorkflowCommands({
+      packetReady: true,
+      slug: "maintenance-a1b2c3d4e5f6",
+      workId: "MT-a1b2c3d4e5f6",
+      outcome: "Continuously improve agent routing and code quality",
+      runGc: true,
+    });
+    assert.equal(workflow.kind, "ready");
+    assert.deepEqual(workflow.commands, [
+      "/workflow maintenance-a1b2c3d4e5f6 --objective \"Continuously improve agent routing and code quality\"",
+      "/gc",
+      "/create maintenance-a1b2c3d4e5f6 \"Continuously improve agent routing and code quality\"",
+      "/research maintenance-a1b2c3d4e5f6 \"Research implementation risks and established project patterns for MT-a1b2c3d4e5f6: Continuously improve agent routing and code quality\" --thorough",
+      "/plan maintenance-a1b2c3d4e5f6",
+      "/ship maintenance-a1b2c3d4e5f6",
+      "/verify maintenance-a1b2c3d4e5f6 all --full",
+    ]);
+    assert.ok(workflow.commands.every((command) => !command.includes("ROADMAP.md")));
+  });
+
+  it("submits only real init when the packet is not ready and pauses for its operator gate", () => {
+    const workflow = buildWorkflowCommands({
+      packetReady: false,
+      slug: "retained-host",
+      cardId: "RM-007",
+      outcome: "Ship the retained host",
+    });
+    assert.deepEqual(workflow, {
+      kind: "needs-init",
+      commands: ["/init --deep"],
+      requiresOperator: true,
+    });
+  });
+
+  it("launches a persistent ordinary root Pi session with Fabric and prompt discovery enabled", () => {
+    const initial = createRootPiLaunchSpec({
+      repoRoot: "/repo/workspace",
+      sessionDir: "/state/sessions",
+      piPath: "/trusted/pi",
+    });
+    assert.equal(initial.cwd, "/repo/workspace");
+    assert.deepEqual(initial.argv.slice(0, 2), ["/trusted/pi", "--approve"]);
+    assert.ok(initial.argv.includes("rpc"));
+    assert.ok(initial.argv.includes("gpt-5.6-sol"));
+    assert.ok(initial.argv.includes("/state/sessions"));
+    assert.ok(!initial.argv.includes("--no-prompt-templates"));
+    assert.ok(!initial.argv.includes("--no-extensions"));
+    assert.ok(!initial.argv.includes("--no-session"));
+
+    const resumed = createRootPiLaunchSpec({
+      repoRoot: "/repo/workspace",
+      sessionDir: "/state/sessions",
+      sessionFile: "/state/sessions/controller.jsonl",
+      piPath: "/trusted/pi",
+    });
+    assert.ok(resumed.argv.includes("--session"));
+    assert.ok(resumed.argv.includes("/state/sessions/controller.jsonl"));
+  });
+
+  it("submits exact commands through one root RPC process and checkpoints its session", async () => {
+    const submitted: string[] = [];
+    const checkpoints: Array<[number, string]> = [];
+    const listeners: Record<string, Array<(chunk?: Buffer) => void>> = {};
+    const stream = (name: string) => ({
+      on(event: string, listener: (chunk?: Buffer) => void) {
+        (listeners[name + ":" + event] ??= []).push(listener);
+      },
+    });
+    const emit = (record: Record<string, unknown>) => {
+      const chunk = Buffer.from(JSON.stringify(record) + "\n");
+      for (const listener of listeners["stdout:data"] ?? []) listener(chunk);
+    };
+    const process = {
+      stdin: {
+        write(chunk: Buffer) {
+          const command = JSON.parse(chunk.toString("utf8")) as Record<string, unknown>;
+          queueMicrotask(() => {
+            if (command.type === "get_commands") {
+              emit({ type: "extension_ui_request", id: "status-1", method: "setStatus", statusKey: "away-run" });
+              emit({ type: "extension_ui_request", id: "status-2", method: "setStatus", statusKey: "xai-usage" });
+              emit({ type: "response", id: command.id, command: "get_commands", success: true, data: {
+                commands: ["workflow", "create", "research", "plan", "ship", "verify"].map((name) => ({
+                  name,
+                  source: "prompt",
+                  sourceInfo: {
+                    path: `/repo/.pi/prompts/${name}.md`,
+                    source: "auto",
+                    scope: "project",
+                    origin: "top-level",
+                    baseDir: "/repo/.pi",
+                  },
+                })),
+              } });
+            } else if (command.type === "prompt") {
+              submitted.push(String(command.message));
+              emit({ type: "response", id: command.id, command: "prompt", success: true });
+              emit({ type: "agent_settled" });
+            } else if (command.type === "get_last_assistant_text") {
+              emit({ type: "response", id: command.id, command: command.type, success: true, data: { text: "Result: VERIFIED" } });
+            } else if (command.type === "get_state") {
+              emit({ type: "response", id: command.id, command: command.type, success: true, data: { sessionFile: "/state/controller.jsonl" } });
+            }
+          });
+          return true;
+        },
+        end() {},
+      },
+      stdout: stream("stdout"),
+      stderr: stream("stderr"),
+      kill() { return true; },
+    };
+    const commands = ["/workflow retained-host", "/create retained-host", "/verify retained-host all --full"];
+    const result = await runRootPiWorkflow({
+      launch: { cwd: "/repo", argv: ["pi", "--mode", "rpc"] },
+      commands,
+      startIndex: 0,
+      timeoutMs: 100,
+      spawnProcess: () => process,
+      checkpoint(nextIndex, sessionFile) { checkpoints.push([nextIndex, sessionFile]); },
+    });
+    assert.equal(result.kind, "completed");
+    assert.deepEqual(submitted, commands);
+    assert.deepEqual(checkpoints, [[1, "/state/controller.jsonl"], [2, "/state/controller.jsonl"], [3, "/state/controller.jsonl"]]);
+  });
+
+  it("persists a phase cursor and resumes without replaying settled top-level prompts", async () => {
+    const calls: string[] = [];
+    const checkpoints: number[] = [];
+    const commands = ["/workflow retained-host", "/create retained-host", "/ship retained-host"];
+    const first = await runTopLevelWorkflow({
+      commands,
+      startIndex: 0,
+      async prompt(command) {
+        calls.push(command);
+        if (command === commands[2]) throw new Error("interrupted");
+        return { assistantText: "settled" };
+      },
+      checkpoint(nextIndex) { checkpoints.push(nextIndex); },
+    });
+    assert.equal(first.kind, "blocked");
+    assert.deepEqual(calls, commands);
+    assert.deepEqual(checkpoints, [1, 2]);
+
+    calls.length = 0;
+    const resumed = await runTopLevelWorkflow({
+      commands,
+      startIndex: checkpoints.at(-1)!,
+      async prompt(command) {
+        calls.push(command);
+        return { assistantText: "settled" };
+      },
+      checkpoint(nextIndex) { checkpoints.push(nextIndex); },
+    });
+    assert.equal(resumed.kind, "completed");
+    assert.deepEqual(calls, [commands[2]]);
+    assert.equal(checkpoints.at(-1), commands.length);
+  });
+});
+
+describe("senior extension adapter", () => {
+  it("treats interactive away text as the selected objective", async () => {
+    let selectedObjective: string | undefined;
+    const result = await runSeniorAwayController({ repoRoot: "/repo", objective: "improve routing" }, {
+      async runOnce(request) {
+        selectedObjective = request.objective;
+        return {
+          kind: "completed", runId: RUN_ID, changedPaths: ["src/change.ts"],
+          cardId: "MT-a1b2c3d4e5f6", slug: "maintenance-a1b2c3d4e5f6",
+          candidateOid: CANDIDATE_OID, fingerprint: HASH,
+        };
+      },
+    });
+    assert.equal(selectedObjective, "improve routing");
+    assert.equal(result.kind, "completed");
+  });
+
+  it("exposes only validated candidate and verifier evidence", async () => {
+    const completed = await runSeniorAwayController({ repoRoot: "/repo" }, {
+      async runOnce() {
+        return {
+          kind: "completed", runId: RUN_ID, changedPaths: ["src/change.ts"],
+          cardId: "RM-007", slug: "retained-host", candidateOid: CANDIDATE_OID,
+          fingerprint: HASH,
+        };
+      },
+    });
+    assert.deepEqual(completed, {
+      kind: "completed", cardId: "RM-007", slug: "retained-host",
+      candidateOid: CANDIDATE_OID, fingerprint: HASH,
+    });
+    const malformed = await runSeniorAwayController({ repoRoot: "/repo" }, {
+      async runOnce() { return { kind: "completed", runId: RUN_ID, changedPaths: [] }; },
+    });
+    assert.equal(malformed.kind, "blocked");
+  });
+});
+
+describe("roadmap-independent maintenance selection", () => {
+  it("binds maintenance identity to the exact HEAD and standing objective", () => {
+    const objective = "Continuously improve one bounded repository behavior with evidence";
+    const first = deriveMaintenanceWorkIdentity("a".repeat(40), objective);
+    assert.match(first.cardId, /^MT-[0-9a-f]{12}$/);
+    assert.equal(first.slug, first.cardId.toLowerCase().replace(/^mt-/, "maintenance-"));
+    assert.deepEqual(deriveMaintenanceWorkIdentity("a".repeat(40), objective), first);
+    assert.notDeepEqual(deriveMaintenanceWorkIdentity("b".repeat(40), objective), first);
+    assert.notDeepEqual(deriveMaintenanceWorkIdentity("a".repeat(40), objective + " now"), first);
+    assert.throws(() => deriveMaintenanceWorkIdentity("bad-head", objective), /HEAD/i);
+  });
+
+
+  it("idles a completed maintenance cycle while continuous polling stays available", async () => {
+    const result = await runAwayOnce(
+      { repoRoot: REPO, dryRun: false },
+      {
+        readRoadmap: () => "## Ready\n",
+        isCompleted: (_repoRoot, work) => work.cardId.startsWith("MT-"),
+        async execute() {
+          throw new Error("completed maintenance must not execute again");
+        },
+      },
+    );
+    assert.equal(result.kind, "no-work");
+    if (result.kind === "no-work") assert.match(result.message, /polling remains active/i);
+  });
+
+  it("starts a deterministic maintenance cycle when the roadmap has no eligible work", async () => {
+    let selected: { objective: string; cardId?: string; slug?: string } | undefined;
+    const result = await runAwayOnce(
+      { repoRoot: REPO, dryRun: false },
+      {
+        readRoadmap: () => "## Ready\n",
+        async execute(request) {
+          selected = request;
+          return {
+            kind: "completed", runId: RUN_ID, changedPaths: ["src/change.ts"],
+            cardId: request.cardId, slug: request.slug,
+            candidateOid: CANDIDATE_OID, fingerprint: HASH,
+          };
+        },
+      },
+    );
+    assert.equal(result.kind, "completed");
+    assert.match(selected?.cardId ?? "", /^MT-[0-9a-f]{12}$/);
+    assert.match(selected?.slug ?? "", /^maintenance-[0-9a-f]{12}$/);
+    assert.match(selected?.objective ?? "", /maintain|improve/i);
+  });
+});
+
+describe("continuous senior service", () => {
+  it("polls continuously with bounded blocked backoff and resets after progress", async () => {
+    const results = [
+      { kind: "blocked", message: "one" },
+      { kind: "blocked", message: "two" },
+      { kind: "completed", runId: RUN_ID, changedPaths: ["src/change.ts"] },
+    ] as const;
+    const delays: number[] = [];
+    const reported: string[] = [];
+    await runContinuousSeniorService({
+      repoRoot: "/repo",
+      maxCycles: 3,
+      blockedDelayMs: 10,
+      maximumBlockedDelayMs: 15,
+      completedDelayMs: 1,
+      async runOnce() { return results[reported.length]; },
+      async wait(milliseconds) { delays.push(milliseconds); },
+      report(result) { reported.push(result.kind); },
+    });
+    assert.deepEqual(reported, ["blocked", "blocked", "completed"]);
+    assert.deepEqual(delays, [10, 15]);
   });
 });
 

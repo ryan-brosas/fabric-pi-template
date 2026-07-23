@@ -1076,6 +1076,7 @@ export interface AwayLifecycleCompleted {
 
 export interface AwayControllerRequest {
   repoRoot: string;
+  objective?: string;
   supplementalObjective?: string;
 }
 

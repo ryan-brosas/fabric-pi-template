@@ -7,6 +7,9 @@ import {
   type GhCallResult,
   type GitHubBrokerDependencies,
 } from "./github-broker.ts";
+import { deriveAwayBranch } from "./git-broker.ts";
+
+const EXPECTED_HEAD_OID = "a".repeat(40);
 
 function response(status: number, body: unknown, headers: Record<string, string> = {}): GhCallResult {
   const lines = [`HTTP/2.0 ${status} Test`];
@@ -20,7 +23,11 @@ function pull(id: number, overrides: Record<string, unknown> = {}): Record<strin
     number: id,
     draft: true,
     html_url: `https://github.com/acme/widget/pull/${id}`,
-    head: { ref: "pi-away/rm-003-01234567", label: "acme:pi-away/rm-003-01234567" },
+    head: {
+      ref: "pi-away/rm-003-01234567",
+      label: "acme:pi-away/rm-003-01234567",
+      sha: EXPECTED_HEAD_OID,
+    },
     base: { ref: "main" },
     ...overrides,
   };
@@ -32,6 +39,7 @@ function request() {
     hostname: "github.com",
     base: "main",
     head: "pi-away/rm-003-01234567",
+    expectedHeadOid: EXPECTED_HEAD_OID,
     title: "RM-003 autonomous candidate",
     body: "Host-observed candidate evidence.",
     requestId: "request-01234567",
@@ -77,6 +85,19 @@ describe("A5 host GitHub draft-PR broker", () => {
     });
     assert.equal(existing.calls.length, 1);
     assert.ok(!existing.calls[0].includes("POST"));
+  });
+
+  it("accepts the deterministic maintenance branch namespace", async () => {
+    const maintenance = {
+      ...request(),
+      head: deriveAwayBranch("MT-89abcdef0123", "run-89abcdef"),
+      title: "Maintenance candidate",
+    };
+    const absent = scripted([response(200, [])]);
+    assert.deepEqual(await observeDraftPullRequest(maintenance, absent.dependencies), {
+      kind: "absent",
+    });
+    assert.equal(absent.calls.length, 1);
   });
 
   it("returns an exact existing draft without POST", async () => {
@@ -134,6 +155,19 @@ describe("A5 host GitHub draft-PR broker", () => {
     await assert.rejects(
       createOrGetDraftPullRequest(request(), mismatch.dependencies),
       /coordinates|draft/,
+    );
+    const wrongOid = scripted([
+      response(200, [pull(4, {
+        head: {
+          ref: "pi-away/rm-003-01234567",
+          label: "acme:pi-away/rm-003-01234567",
+          sha: "b".repeat(40),
+        },
+      })], { "X-GitHub-Request-Id": "list-wrong-oid" }),
+    ]);
+    await assert.rejects(
+      observeDraftPullRequest(request(), wrongOid.dependencies),
+      /coordinates|head OID/,
     );
   });
 

@@ -231,3 +231,120 @@ requires `/trust` + restart, deferred to milestone 6.
 - Not yet run: runtime child-spawn smoke (review-edit rejection, recursion rejection) —
   pending `/trust` + restart; structural checks (pending `.pi/tools/`); final no-write
   verification of milestone 3 (Task 4.3).
+
+### 2026-07-23 - `/supervise` persistence and liveness repair
+status: done
+
+Root cause:
+- The prompt still described pi-fabric 0.22.4 and supplied only a prose reconcile sketch;
+  its sample `agents.actors()` call was not awaited and did not prevent one-shot
+  `agents.run`/`agents.spawn` substitution.
+- Milestone 2's runtime verification remained unchecked in `TODO.md`; static prompt checks
+  had never proved actor creation, response, or exact-session restoration.
+- pi-fabric 0.24.3 resolves `agents.ask()` before drain finalization publishes `idle`
+  (`manager.js:840,884-887`), so a valid health reply can briefly coexist with
+  `status:"running"`. Treating that state as failure falsely reported a live actor as lost.
+
+Implementation:
+- `.pi/prompts/supervise.md` now contains one executable serial Fabric program using
+  awaited `agents.create`/`agents.actors`, current 0.24.3 mutable setters, immutable-drift
+  blocking, exact-session identity output, and no actor removal.
+- `/supervise` performs a correlated `health-check` → silent `health-ack` exchange and
+  reports the brief post-ask drain state as `settling` instead of fabricating failure.
+- `.opencode/tool/structural-check.sh` adds a regression contract requiring persistent
+  actor APIs, no one-shot substitution in the executable section, exact-session resume
+  guidance, and the liveness protocol.
+
+Evidence:
+- RED: the new check failed with `MISSING_HEADING`, missing 0.24.3/session guidance, and
+  missing health protocol. The first runtime attempt exposed the ask/idle race; a timer
+  workaround was rejected after `fabric.$timer` failed to resolve in the node-process
+  executor.
+- Current session: actor `dc185272fc50494ba78fc999d6e7b86e` returned a correlated silent
+  `health-ack`, settled idle, and a same-process reconcile reused the same ID.
+- Exact-session restart smoke: first headless run returned session
+  `019f8d52-4ef1-7813-8f99-f0008ec35847`, actor
+  `a82f94729e3c4bbf928f66ec8036f0f8`, createdAt `1784782465781`, actions
+  `created` + `health-acknowledged`. Reopening that session by ID in a second Pi process
+  returned the same actor ID and createdAt, with actions `instructions-reapplied` +
+  `health-acknowledged`.
+- `bash -n .opencode/tool/structural-check.sh` and scoped `git diff --check` passed.
+- The broad structural check's `/supervise` contract passed all three assertions. Its
+  overall exit remains 1 solely because `.opencode/command/ship.md` is 502 lines versus
+  the existing 500-line limit, the documented baseline in `.pi/tech-stack.md:98`; this
+  repair intentionally did not widen scope to that file.
+
+### 2026-07-24 - Direct away invocation repaired
+status: done
+
+Root cause:
+- ADR-018 made the advisory supervisor optional, but `.pi/extensions/away/index.ts` and
+  `.pi/prompts/supervise.md` still implemented ADR-017's nonce-gated mandatory supervisor
+  handoff. A deliberately stopped session actor therefore poisoned `/supervise --away` even
+  though `runSeniorAwayController` itself had no supervisor dependency.
+
+Implementation:
+- Exact trusted idle interactive/RPC `/supervise --away [objective]` input now invokes the
+  senior controller directly from the extension input boundary and returns `handled`; there
+  is no Main model turn, nonce, actor-registry inspection, or model-callable continuation tool.
+- Controller errors become sanitized retained `away-run` blocked evidence, one invocation is
+  admitted at a time, ordinary `/supervise` remains the advisory actor reconciler, and ADR-018,
+  PLAN.md, AGENTS.md, and the prompt now state the same authority boundary.
+
+Evidence:
+- RED reproduced the bug: expected `{action:"handled"}` but observed transform to
+  `/supervise --away-controller nonce-1`; controller failure also escaped as an extension error.
+- Focused extension suite: 10/10 pass, including a context containing a stopped supervisor.
+- Complete away/runtime suite: 304/304 pass, 0 failed or skipped.
+- Fresh trusted Pi RPC smoke loaded the real project extension, handled exact
+  `/supervise --away live-smoke`, retained `kind:"no-work"`, and returned prompt success;
+  no model turn, branch, commit, push, or PR occurred.
+- The path-instanced user service was started and observed `active/running` with one clean
+  `no-work` poll. The repository currently has no Ready card marked `away-ok` with no open
+  decisions.
+- Structural checks passed every relevant contract; overall exit remains 1 only for the
+  documented unrelated `.pi/prompts/ship.md` 502-versus-500-line limit.
+
+### 2026-07-24 - Roadmap-independent unattended maintenance repair
+status: active
+
+Root causes reproduced:
+- Pi RPC reports both blocking dialogs and harmless fire-and-forget status events as
+  `extension_ui_request`; the host rejected every event. The first live events were
+  `setStatus` for `away-run` and `xai-usage`, so no prompt could start.
+- Pi 0.81.1 returns project prompt provenance under nested `sourceInfo.scope/path`, while
+  the fake host test encoded a nonexistent flat `location` field. Live `/workflow` was
+  therefore present but rejected as missing.
+- A standing maintenance objective was sent directly to `/create` instead of first being
+  reduced to one bounded task, and `NO_CHANGE` had no durable idle representation.
+- Direct-root candidate intake reused ADR-014 confinement protection, preventing a
+  draft-only maintenance run from improving the away runtime it was explicitly asked to refine.
+
+Implementation:
+- Ignore only Pi-documented fire-and-forget UI methods; dialogs, legacy UI, missing methods,
+  and unknown methods still fail closed. Validate actual Pi 0.81.1 project prompt metadata
+  against the exact retained `.pi/prompts/<name>.md` path, with legacy flat-marker support.
+- Maintenance now runs one Sol Max policy turn before `/create`, validates exactly one bounded
+  `maintenance-selection/1` selected/acceptance or `no-change` record, fsyncs it outside the
+  repository, and resumes the same Pi session at command index 1. Policy turns must preserve
+  exact-base HEAD and a clean worktree. `no-change` writes validated idle evidence and suppresses
+  duplicate work until HEAD changes.
+- MT identity is recomputed against the retained base to close the pre-lease HEAD race.
+- Direct-root draft intake allows away implementation/prompt/test/docs while host-protecting
+  roadmap, authority/configuration, runtime state, and secret-shaped paths; confined lanes keep
+  manifest protection unchanged.
+
+Evidence so far:
+- RED/GREEN regressions cover status UI events, actual RPC command metadata, decoy paths, strict
+  selection parsing/bounds, exact-base identity, policy immutability, bounded continuation,
+  `NO_CHANGE` persistence/replay, direct candidate scope, and stopped-roadmap maintenance.
+- Focused direct-root suite: 35/35 pass. Full away/runtime suite before the final identity/metadata
+  hardening: 314/314 pass; final full rerun pending.
+- Live Pi 0.81.1 RPC now passes status filtering and exact project-command discovery. An extended
+  Sol Max policy smoke launched two bounded GPT-5.4-mini read-only scouts, returned one valid selected
+  task/acceptance record, and preserved an identical before/after repository fingerprint
+  (`b75cd802...`). The selected provenance-conflict regression was reproduced RED and fixed GREEN.
+- Extension result sanitization now accepts validated `MT-<12 hex>` completion instead of
+  downgrading successful maintenance to a roadmap-only blocked result.
+- Broken systemd poller remains paused to stop repeated warning spam. Activation still requires an
+  operator-approved commit so retained worktrees contain the new controller and `/workflow` prompt.

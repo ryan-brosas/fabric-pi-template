@@ -8,32 +8,52 @@ Stand up or reconcile the session-scoped advisory supervisor. This is the only
 create/reconcile entrypoint for the supervisor. There is no inspect-only mode — the
 default command always inspects first, then safely reconciles.
 
-## Away Controller Handoff
-
-Invocation mode: `${1:-normal}`
-Internal nonce: `${2:-none}`
+## Direct Away Controller
 
 The project extension intercepts only idle interactive/RPC input matching
-`^/supervise\s+--away(?:\s+.*)?$` before this template expands. It stores any
-objective as bounded supplemental data, then transforms the request to the internal
-`/supervise --away-controller <nonce>` form. The objective never selects work and
-never bypasses the canonical controller's roadmap reservation.
-
-`--away-controller` is extension-only. For that mode, run the same canonical actor
-reconciliation below in one serial `fabric_exec` call with `resultFormat: "json"`.
-Wait for that tool result. Only when the returned object itself has `outcome: "READY"`
-and a valid `health-acknowledged` trace, call
-`extensions.away_supervisor_ready({ token: "<exact expanded nonce>" })` on a later model
-turn. The property name is exactly `token`, never `nonce`. Never call it after `BLOCKED`,
-a tool error, an
-invalid health acknowledgement, or from assistant prose. The nonce-gated extension tool
-independently rechecks the host `fabric_exec` result, the session-local actor registry's
-exact canonical read-only fields, and the nonce-bound actor transcript before starting the
-trusted controller.
+`^/supervise\s+--away(?:\s+.*)?$` before this template expands. That exact operator input
+is the bounded authorization boundary: the extension invokes the ADR-018 senior controller
+directly, retains its sanitized terminal result, and handles the input without a Main model
+turn. It does not reconcile the advisory supervisor, create a nonce, or expose a
+model-callable continuation tool. A missing or stopped supervisor therefore cannot block
+away work. Any following text is the bounded standing objective for a roadmap-independent
+maintenance cycle. Without following text, eligible roadmap work is preferred; when none exists,
+the controller derives a maintenance cycle from the repository HEAD and its default senior-engineering objective.
 
 Ordinary `/supervise` remains this advisory actor-only reconciliation. No extension
-command named `supervise` is registered. Malformed supervise forms do not start away
-mode, and neither path gives the read-only supervisor dispatch or write authority.
+command named `supervise` is registered, and malformed supervise forms do not start away
+mode. The direct away controller gives no authority to the read-only advisory actor.
+
+Away mode runs one ordinary persistent root Pi session in a retained detached worktree.
+The host submits the real `/workflow`, `/create`, `/research`, `/plan`, `/ship`, and
+`/verify --full` prompts sequentially, checkpoints the session after each settled command,
+requires transcript `VERIFIED`, creates an exact-path candidate commit, reruns the strict
+exact-OID verifier, pushes only a dedicated `pi-away/*` branch, and creates or observes one
+draft pull request. It never merges. Before maintenance `/create`, Sol Max returns one strict bounded
+task plus acceptance check or `no-change`; the host validates and fsyncs that decision, then resumes
+the same session. Completed roadmap cards and objective-plus-HEAD maintenance completion/idle evidence
+suppress duplicate publication while continuous polling remains active. The headless RPC host ignores
+only documented fire-and-forget UI status/notification events and still blocks dialogs or unknown UI
+methods. Direct-root drafts may refine away implementation, prompts, tests, and docs, but the host
+protects roadmap intent, authority/configuration, runtime state, and secret-shaped paths.
+
+### Continuous user service
+
+The tracked `pi-away-senior@.service` unit runs this same controller continuously with
+bounded backoff. Install one instance per trusted clone (the instance is the
+`systemd-escape --path` form of its absolute repository path):
+
+```bash
+systemctl --user link "$PWD/.pi/away-runtime/pi-away-senior@.service"
+INSTANCE=$(systemd-escape --path "$PWD")
+systemctl --user enable --now "pi-away-senior@${INSTANCE}.service"
+journalctl --user -u "pi-away-senior@${INSTANCE}.service" -f
+```
+
+Only do this after `/trust` plus Pi restart. Ready roadmap cards still require explicit
+`Autonomy: away-ok` and `Open decisions: none`, but roadmap exhaustion is not a stop condition:
+the service performs a bounded maintenance cycle instead. It pauses with backoff on real operator
+gates, including an uninitialized project `/init` preview.
 
 Run supervisor reconciliation through one `fabric_exec` program. The program is serial;
 never fan out creation or mutation across parallel children.
@@ -479,15 +499,12 @@ try {
 }
 ```
 
-Report the returned object. `READY` requires a persistent actor with canonical immutable
-fields and a valid `health-ack`; creation alone is not success. In the internal
-`--away-controller` mode only, wait until this JSON result is present in session history,
-then call `extensions.away_supervisor_ready({ token: "<exact expanded nonce>" })` once,
-substituting the exact expanded nonce above as the `token` value. Do not use a `nonce`
-property. Do not call that tool in ordinary mode or before the result is known. Fabric resolves
-`agents.ask()` before its drain-finalization step publishes `idle`, so `settling: true`
-immediately after a valid acknowledgement is normal and must not be reported as lost or
-non-persistent. On a later process restart, reopen the exact session with
+Report the returned object for ordinary `/supervise`. `READY` requires a persistent actor
+with canonical immutable fields and a valid `health-ack`; creation alone is not success.
+`/supervise --away` never expands this template and never calls an actor-continuation tool.
+Fabric resolves `agents.ask()` before its drain-finalization step publishes `idle`, so
+`settling: true` immediately after a valid acknowledgement is normal and must not be
+reported as lost or non-persistent. On a later process restart, reopen the exact session with
 `pi --session <sessionId>` (or choose it through `/resume`) to restore this actor and ID.
 Running plain `pi` without continuing the session may create a new Pi session, which
 intentionally has no session-scoped supervisor yet.

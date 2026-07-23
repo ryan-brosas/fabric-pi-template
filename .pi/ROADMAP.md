@@ -17,7 +17,7 @@ Provenance source: `.pi/memory.md` section
 
 ## Ready
 
-### RM-001 — Pi-native initialization lifecycle
+### ~~RM-001 — Pi-native initialization lifecycle~~
 - Outcome: Mandatory first-touch `/init` compiles the full Pi-native context packet
   (`AGENTS.md` managed boilerplate + `.pi/{tech-stack,ROADMAP,state,user,memory}.md`)
   with source-backed `/create` and crash-safe `--refresh`; state schema v1 gates
@@ -48,21 +48,23 @@ Provenance source: `.pi/memory.md` section
 - Open decisions: none
 - Source: `.pi/memory.md` `## Initialization Intent - gen-2026-07-23-01` @ sha256: 74f3cf4e1bb528dc8668d612470434ebf6c4a996523d1aa3e75ce644d16727b4
 
-## Next
-
 ### RM-003 — Autonomous away loop
 - Outcome: Ledger/Git/GitHub crash-replay full loop on the sandbox foundation:
   unattended ideation (roadmap-first), execution, and crash recovery.
-- Why now: closes the unattended automation loop once the sandbox and init packet are
-  stable.
+- Why now: closes the unattended automation loop now that the sandbox and init packet
+  prerequisites are settled.
 - Acceptance evidence: full crash-replay loop runs end-to-end under confinement;
   roadmap selection uses stable RM-NNN IDs; ledger reservations/completion are
   host-derived.
-- Dependencies: RM-001 (pi-native-init P8.3) — Gate 0.4; RM-002 (sandbox settlement).
-- Candidate slug: `autonomous-away-loop`.
+- Dependencies: RM-001 (pi-native-init P8.3) — satisfied; RM-002 (sandbox settlement) — satisfied.
+- Candidate slug: `autonomous-away-loop`
 - Autonomy: manual-only
-- Open decisions: none (gated behind RM-001 P8.3; not yet eligible)
+- Open decisions: none
 - Source: `.pi/memory.md` `## Initialization Intent - gen-2026-07-23-01` @ sha256: 74f3cf4e1bb528dc8668d612470434ebf6c4a996523d1aa3e75ce644d16727b4
+
+## Next
+
+- No additional outcomes are queued.
 
 ## Later
 
