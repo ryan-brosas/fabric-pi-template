@@ -268,6 +268,11 @@ describe("launcher.ts — launch() construction", () => {
     assert.equal(env.PI_PROJECT, undefined);
   });
 
+  test("launch() pins the real host Node binary into the lane closure context", () => {
+    const l = launch({ manifestPath: MANIFEST_PATH, profileId: "writer" });
+    assert.equal(l.env.PI_AWAY_NODE_BINARY, process.execPath);
+  });
+
   test("launch() pins process.execPath to the wrapper via NODE_OPTIONS --import preload", () => {
     const l = launch({ manifestPath: MANIFEST_PATH, profileId: "writer" });
     const env = l.env;
@@ -574,8 +579,16 @@ describe("launcher.ts — real prompt/event settlement with a fake provider", ()
       });
 
       const events: RpcEvent[] = [];
-      const settled = l.run(async (send) => {
-        send({ type: "prompt", id: "req_1", message: "Reply with exactly: A3_OK" });
+      const settled = l.run(async () => {
+        const response = await l.request({
+          type: "prompt",
+          id: "req_1",
+          message: "Reply with exactly: A3_OK",
+        });
+        assert.deepEqual(
+          { type: response.type, id: response.id, command: response.command, success: response.success },
+          { type: "response", id: "req_1", command: "prompt", success: true },
+        );
         for await (const ev of l.events()) {
           events.push(ev);
           if (ev.type === "agent_settled") break;
