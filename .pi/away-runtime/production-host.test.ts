@@ -1,5 +1,10 @@
 import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
+import { dirname, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 import { describe, it } from "node:test";
+
+const REPO = resolve(dirname(fileURLToPath(import.meta.url)), "..", "..");
 
 import {
   buildLifecyclePrompt,
@@ -7,6 +12,7 @@ import {
   deriveRetainedPaths,
   ensureRetainedWorkspace,
   runLifecycleRpc,
+  runProductionAwayController,
   validatePhaseEvidence,
   type LifecycleLauncher,
   type PhaseEvidence,
@@ -286,7 +292,11 @@ describe("production host phase adapters", () => {
         assert.equal(oid, CANDIDATE_OID);
         return {
           receiptPath: "/state/verifier.json",
-          receiptBytes: Buffer.from(JSON.stringify({ oid, outcome: "completed", manifestMatch: true, exitStatus: 0 })),
+          receiptBytes: Buffer.from(JSON.stringify({
+            schema: "away-verifier-receipt/1", oid, commandId: "test", catalogHash: HASH,
+            depsHash: null, preManifest: HASH, postManifest: HASH, manifestMatch: true,
+            limits: {}, exitStatus: 0, exitSignal: null, outcome: "completed", timestamp: 1,
+          })),
         };
       },
     } as never);
@@ -314,9 +324,150 @@ describe("production host phase adapters", () => {
     const verified = await host.invoke({ phase: "verify", command: "/verify retained-host", slug: "retained-host", expectedOid: CANDIDATE_OID, answerPolicy });
     assert.equal(verified.terminalClaim, "verified");
     assert.equal(verified.verifiedOid, CANDIDATE_OID);
+    assert.equal(verified.fingerprint, HASH);
     assert.equal(verified.repositoryWritesAfterFingerprint, 0);
-    assert.deepEqual(promptProfiles, ["writer", "writer", "verifier"]);
+    assert.deepEqual(promptProfiles, ["writer", "writer"], "verify must not launch against the dirty retained workspace");
     assert.equal(written.length, 3);
+  });
+});
+
+describe("production host restart replay", () => {
+  it("reuses an exact durable create receipt without launching a second lane", async () => {
+    const paths = deriveRetainedPaths("/state", REPOSITORY_ID, RUN_ID);
+    const command = "/create retained-host --from .pi/ROADMAP.md#RM-007";
+    const template = Buffer.from("# Create $ARGUMENTS\n");
+    const prompt = buildLifecyclePrompt({ phase: "create", command, canonicalTemplate: template, identity: identity() });
+    const settlementPath = paths.attestations + "/extension-receipt-create.json";
+    const settlementBytes = Buffer.from(JSON.stringify({
+      schema: "away-extension-receipt/1", profileId: "writer", laneId: "writer",
+      manifestHash: HASH, closureHash: HASH, childSourceDigest: HASH, limits: {},
+      outcome: "completed", wrapperReceiptPath: "/wrapper.json", wrapperFsynced: true, timestamp: 1,
+    }));
+    const receipt: PhaseEvidence = {
+      schema: "away-phase-evidence/1", phase: "create", profileId: "writer", command,
+      promptDigest: prompt.digest, repositoryId: REPOSITORY_ID, runId: RUN_ID, cardId: "RM-007",
+      slug: "retained-host", baseOid: BASE_OID,
+      settlementReceipt: {
+        path: settlementPath,
+        hash: createHash("sha256").update(settlementBytes).digest("hex"),
+        outcome: "completed",
+        wrapperFsynced: true,
+      },
+      namespaceState: "established",
+      candidates: [
+        { path: ".pi/artifacts/retained-host/PLAN.md", hash: HASH },
+        { path: ".pi/artifacts/retained-host/TODO.md", hash: HASH },
+      ],
+    };
+    let launches = 0;
+    const host = createProductionHost(identity(), {
+      pathKind(path: string) {
+        if (path === paths.workspace) return "directory";
+        if (path === paths.receipts + "/create.json") return "file";
+        if (path.endsWith("/PLAN.md") || path.endsWith("/TODO.md")) return "file";
+        return "missing";
+      },
+      realpath: (path: string) => path,
+      mkdir: () => {},
+      symbolicHead: () => null,
+      git(cwd: string, args: string[]) {
+        if (args[0] === "rev-parse" && args[1] === "--show-toplevel") return cwd;
+        if (args[0] === "rev-parse" && args[1] === "HEAD") return BASE_OID;
+        if (args[0] === "status") return [
+          "?? .pi/artifacts/retained-host/PLAN.md\0",
+          "?? .pi/artifacts/retained-host/TODO.md\0",
+        ].join("");
+        throw new Error("unexpected git");
+      },
+      readFile(path: string) {
+        if (path === paths.receipts + "/create.json") return Buffer.from(JSON.stringify(receipt));
+        if (path === settlementPath) return settlementBytes;
+        if (path.endsWith("/.pi/prompts/create.md")) return template;
+        throw new Error("unexpected read: " + path);
+      },
+      launch() { launches += 1; throw new Error("restart must not launch create"); },
+    });
+    assert.equal(await host.namespaceState("retained-host"), "established");
+    const observation = await host.invoke({
+      phase: "create", command, slug: "retained-host",
+      answerPolicy(question) {
+        if (question === "discovery-level") return "deep";
+        if (question === "clean-isolated-workspace") return "proceed";
+        return "deny";
+      },
+    });
+    assert.equal(observation.status, "completed");
+    assert.equal(launches, 0);
+  });
+});
+
+describe("production terminal composition", () => {
+  it("uses the shipped selector by default and returns live no-work", async () => {
+    const result = await runProductionAwayController({ repoRoot: REPO });
+    assert.equal(result.kind, "no-work");
+  });
+
+  it("returns no-work before constructing lifecycle or effect hosts", async () => {
+    const calls: string[] = [];
+    const result = await runProductionAwayController({ repoRoot: "/repo" }, {
+      async select() { calls.push("select"); return { kind: "no-work", reason: "none eligible" }; },
+      hostFactory() { calls.push("host"); throw new Error("unreachable"); },
+      effectHostFactory() { calls.push("effects"); throw new Error("unreachable"); },
+      now: () => 1,
+    } as never);
+    assert.deepEqual(result, { kind: "no-work", reason: "none eligible" });
+    assert.deepEqual(calls, ["select"]);
+  });
+
+  it("maps completed only after durable effect reconciliation converges", async () => {
+    const calls: string[] = [];
+    let namespaceChecks = 0;
+    const reservation = {
+      kind: "reserved",
+      card: { id: "RM-007", candidateSlug: "retained-host" },
+      record: { runId: RUN_ID, cardId: "RM-007", baseOid: BASE_OID, repositoryId: REPOSITORY_ID, slug: "retained-host", status: "reserved" },
+    } as never;
+    const result = await runProductionAwayController({ repoRoot: "/repo" }, {
+      async select() { calls.push("select"); return { kind: "reserved", reservation, ledger: {} }; },
+      hostFactory() {
+        calls.push("host");
+        return {
+          namespaceState() { namespaceChecks += 1; return namespaceChecks === 1 ? "absent" : "established"; },
+          invoke(request: { phase: string; command: string }) {
+            calls.push("phase:" + request.phase);
+            if (request.phase === "verify") return {
+              phase: "verify", command: request.command, status: "completed", terminalClaim: "verified",
+              verifiedOid: CANDIDATE_OID, fingerprint: HASH, repositoryWritesAfterFingerprint: 0,
+            };
+            return { phase: request.phase, command: request.command, status: "completed", terminalClaim: "none" };
+          },
+          createOrObserveCandidate() {
+            calls.push("candidate");
+            return {
+              oid: CANDIDATE_OID, baseOid: BASE_OID, clean: true, hostObserved: true,
+              paths: ["src/change.ts"], hashes: { "src/change.ts": HASH },
+            };
+          },
+        };
+      },
+      effectHostFactory(_selection: unknown, lifecycle: { candidateOid: string }) {
+        calls.push("effects");
+        assert.equal(lifecycle.candidateOid, CANDIDATE_OID);
+        return {} as never;
+      },
+      async reconcile() {
+        calls.push("reconcile");
+        return { kind: "completed", commitOid: CANDIDATE_OID, remoteOid: CANDIDATE_OID, pullRequestId: 77 };
+      },
+      now: () => 1,
+    } as never);
+    assert.deepEqual(result, {
+      kind: "completed", slug: "retained-host", cardId: "RM-007",
+      candidateOid: CANDIDATE_OID, fingerprint: HASH,
+    });
+    assert.deepEqual(calls, [
+      "select", "host", "phase:create", "phase:ship", "candidate", "phase:verify", "effects", "reconcile",
+    ]);
   });
 });
 
@@ -361,7 +512,11 @@ describe("phase evidence", () => {
 
   it("rejects profile selection, identity drift, completion prose, protected paths, stale verify, and recursive parent entry", () => {
     const command = "/verify retained-host";
-    const built = buildLifecyclePrompt({ phase: "verify", command, canonicalTemplate: Buffer.from("verify $ARGUMENTS"), identity: identity() });
+    const built = buildLifecyclePrompt({
+      phase: "verify", command, canonicalTemplate: Buffer.from("verify $ARGUMENTS"),
+      identity: identity(), expectedOid: CANDIDATE_OID,
+    });
+    assert.ok(built.prompt.includes('"expectedOid":"' + CANDIDATE_OID + '"'));
     const valid: PhaseEvidence = {
       schema: "away-phase-evidence/1", phase: "verify", profileId: "verifier", command,
       promptDigest: built.digest, repositoryId: REPOSITORY_ID, runId: RUN_ID, cardId: "RM-007",

@@ -1,7 +1,8 @@
-import { createHash } from "node:crypto";
+import { createHash, randomBytes } from "node:crypto";
 import { execFileSync, spawnSync } from "node:child_process";
 import {
   closeSync,
+  existsSync,
   fsyncSync,
   lstatSync,
   mkdirSync,
@@ -10,21 +11,39 @@ import {
   realpathSync,
   writeSync,
 } from "node:fs";
+import { homedir } from "node:os";
 import { isAbsolute, join, resolve, sep } from "node:path";
 
-import type {
-  AwayCandidateObservation,
-  AwayCandidateRequest,
-  AwayLifecycleHost,
-  AwayLifecycleInvocation,
-  AwayLifecycleObservation,
-  AwayLifecyclePhase,
-  AwayNamespaceState,
+import {
+  deriveGitFacts,
+  driveReservedLifecycle,
+  parseRoadmap,
+  reconcileAwayRun,
+  reserveNext,
+  selectAwayRoadmapCard,
+  validateReadyPacket,
+  validateRuntimeClosures,
+  withRepositoryLease,
+  type AwayCandidateObservation,
+  type AwayCandidateRequest,
+  type AwayControllerRequest,
+  type AwayControllerResult,
+  type AwayEffectHost,
+  type AwayLifecycleCompleted,
+  type AwayLifecycleHost,
+  type AwayLifecycleInvocation,
+  type AwayLifecycleObservation,
+  type AwayLifecyclePhase,
+  type AwayNamespaceState,
+  type ReconciledAwayRun,
+  type ReserveResult,
 } from "./controller.ts";
+import { openLedger, type Ledger, type LedgerRecord } from "./ledger.ts";
 import { listExtensionReceipts } from "./attestation.ts";
 import { createOrObserveCandidateCommit, deriveAwayBranch } from "./git-broker.ts";
 import { launch as launchLane } from "./launcher.ts";
 import type { RpcEvent, RpcRecord } from "./rpc.ts";
+import { assertVerifierReceiptSafe, type VerifierReceipt } from "./verifier.ts";
 
 const REPOSITORY_ID = /^repo-[0-9a-f]{64}$/;
 const RUN_ID = /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/;
@@ -140,6 +159,7 @@ export interface BuildLifecyclePromptOptions {
   command: string;
   canonicalTemplate: Buffer;
   identity: ProductionHostIdentity;
+  expectedOid?: string;
   parentAwayDepth?: number;
 }
 
@@ -386,6 +406,13 @@ export function buildLifecyclePrompt(options: BuildLifecyclePromptOptions): {
     throw new Error("production host: canonical prompt size invalid");
   }
   const args = commandArguments(options.phase, options.command);
+  if (options.phase === "verify") {
+    if (!options.expectedOid || !OID.test(options.expectedOid)) {
+      throw new Error("production host: verify prompt requires an exact candidate OID");
+    }
+  } else if (options.expectedOid !== undefined) {
+    throw new Error("production host: only verify may bind an expected OID");
+  }
   const canonical = options.canonicalTemplate.toString("utf8").replaceAll("$ARGUMENTS", args);
   const control = JSON.stringify({
     schema: "away-lifecycle-control/1",
@@ -397,6 +424,7 @@ export function buildLifecyclePrompt(options: BuildLifecyclePromptOptions): {
     cardId: options.identity.cardId,
     slug: options.identity.slug,
     baseOid: options.identity.baseOid,
+    expectedOid: options.expectedOid ?? null,
     policy: {
       discoveryLevel: "deep", cleanIsolatedWorkspace: "proceed", commit: "deny",
       push: "deny", publication: "deny", merge: "deny", unexpectedDialogue: "block",
@@ -541,23 +569,28 @@ function writerSettlement(
 function verifierSettlement(
   expectedOid: string,
   result: { receiptPath: string; receiptBytes: Buffer },
-): PhaseEvidence["settlementReceipt"] {
+): { receipt: PhaseEvidence["settlementReceipt"]; fingerprint: string } {
   if (!isAbsolute(result.receiptPath) || result.receiptBytes.length === 0 || result.receiptBytes.length > 1024 * 1024) {
     throw new Error("production host: verifier receipt path or size invalid");
   }
   let value: unknown;
   try { value = JSON.parse(result.receiptBytes.toString("utf8")); } catch { throw new Error("production host: malformed verifier receipt"); }
   if (!value || typeof value !== "object" || Array.isArray(value)) throw new Error("production host: malformed verifier receipt");
-  const receipt = value as Record<string, unknown>;
+  const receipt = value as VerifierReceipt;
+  assertVerifierReceiptSafe(receipt);
   if (
     receipt.oid !== expectedOid || receipt.outcome !== "completed" ||
-    receipt.manifestMatch !== true || receipt.exitStatus !== 0
+    receipt.manifestMatch !== true || receipt.exitStatus !== 0 || receipt.exitSignal !== null ||
+    !HASH.test(receipt.preManifest) || receipt.preManifest !== receipt.postManifest
   ) throw new Error("production host: verifier receipt evidence mismatch");
   return {
-    path: result.receiptPath,
-    hash: sha256(result.receiptBytes),
-    outcome: "completed",
-    wrapperFsynced: true,
+    receipt: {
+      path: result.receiptPath,
+      hash: sha256(result.receiptBytes),
+      outcome: "completed",
+      wrapperFsynced: true,
+    },
+    fingerprint: receipt.preManifest,
   };
 }
 
@@ -571,6 +604,64 @@ function writeDurablePhaseReceipt(path: string, evidence: PhaseEvidence): void {
   } finally {
     closeSync(fd);
   }
+}
+
+const PHASE_EVIDENCE_KEYS = new Set([
+  "schema", "phase", "profileId", "command", "promptDigest", "repositoryId", "runId",
+  "cardId", "slug", "baseOid", "settlementReceipt", "namespaceState", "candidates",
+  "verifiedOid", "fingerprint", "repositoryWritesAfterFingerprint", "claims",
+]);
+
+function parseStoredPhaseEvidence(bytes: Buffer): PhaseEvidence {
+  if (bytes.length === 0 || bytes.length > 1024 * 1024) {
+    throw new Error("production host: stored phase receipt size invalid");
+  }
+  let value: unknown;
+  try { value = JSON.parse(bytes.toString("utf8")); } catch { throw new Error("production host: malformed stored phase receipt"); }
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    throw new Error("production host: malformed stored phase receipt");
+  }
+  for (const key of Object.keys(value)) {
+    if (!PHASE_EVIDENCE_KEYS.has(key)) throw new Error("production host: unexpected stored phase receipt key");
+  }
+  return value as PhaseEvidence;
+}
+
+function canonicalPhaseCommand(phase: AwayLifecyclePhase, identity: ProductionHostIdentity): string {
+  if (phase === "create") return "/create " + identity.slug + " --from .pi/ROADMAP.md#" + identity.cardId;
+  return "/" + phase + " " + identity.slug;
+}
+
+function revalidateStoredSettlement(
+  phase: AwayLifecyclePhase,
+  stored: PhaseEvidence,
+  readFile: (path: string) => Buffer,
+): void {
+  const bytes = readFile(stored.settlementReceipt.path);
+  if (sha256(bytes) !== stored.settlementReceipt.hash) {
+    throw new Error("production host: stored settlement receipt hash drift");
+  }
+  if (phase === "verify") {
+    if (!stored.verifiedOid) throw new Error("production host: stored verify OID missing");
+    const verified = verifierSettlement(stored.verifiedOid, {
+      receiptPath: stored.settlementReceipt.path,
+      receiptBytes: bytes,
+    });
+    if (verified.fingerprint !== stored.fingerprint) {
+      throw new Error("production host: stored verifier fingerprint drift");
+    }
+    return;
+  }
+  let value: unknown;
+  try { value = JSON.parse(bytes.toString("utf8")); } catch { throw new Error("production host: malformed stored settlement receipt"); }
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    throw new Error("production host: malformed stored settlement receipt");
+  }
+  const closureHash = (value as Record<string, unknown>).closureHash;
+  if (typeof closureHash !== "string" || !HASH.test(closureHash)) {
+    throw new Error("production host: stored settlement closure hash invalid");
+  }
+  writerSettlement(stored.settlementReceipt.path, "writer", closureHash, readFile);
 }
 
 function validateFixedPolicy(request: AwayLifecycleInvocation): void {
@@ -647,6 +738,7 @@ export function createProductionHost(
   const writeReceipt = dependencies.writeReceipt ?? writeDurablePhaseReceipt;
   const createCandidate = dependencies.createCandidate ?? createOrObserveCandidateCommit;
   const evidence = new Map<AwayLifecyclePhase, PhaseEvidence>();
+  let evidenceLoaded = false;
   let workspaceInitialized = false;
 
   const allCandidates = (): PhaseCandidate[] => {
@@ -655,6 +747,45 @@ export function createProductionHost(
       for (const candidate of evidence.get(phase)?.candidates ?? []) current.set(candidate.path, candidate);
     }
     return [...current.values()].sort((left, right) => left.path.localeCompare(right.path));
+  };
+
+const loadEvidence = (): void => {
+    if (evidenceLoaded) return;
+    let gap = false;
+    for (const phase of ["create", "ship", "verify"] as const) {
+      const path = join(paths.receipts, phase + ".json");
+      const kind = deps.pathKind(path);
+      if (kind === "missing") {
+        gap = true;
+        continue;
+      }
+      if (kind !== "file") throw new Error("production host: stored phase receipt is not a regular file");
+      if (gap) throw new Error("production host: stored phase receipt ordering gap");
+      const stored = parseStoredPhaseEvidence(readFile(path));
+      const command = canonicalPhaseCommand(phase, identity);
+      if (stored.command !== command) throw new Error("production host: stored phase command mismatch");
+      const built = buildLifecyclePrompt({
+        phase,
+        command,
+        canonicalTemplate: readFile(join(identity.repoRoot, ".pi", "prompts", phase + ".md")),
+        identity,
+        expectedOid: phase === "verify" ? stored.verifiedOid : undefined,
+      });
+      validatePhaseEvidence(stored, {
+        phase,
+        command,
+        promptDigest: built.digest,
+        identity,
+        expectedOid: phase === "verify" ? stored.verifiedOid : undefined,
+      });
+      revalidateStoredSettlement(phase, stored, readFile);
+      evidence.set(phase, stored);
+    }
+    if (evidence.size > 0) {
+      observeRetainedWorkspace(identity, paths, deps, allCandidates());
+      workspaceInitialized = true;
+    }
+    evidenceLoaded = true;
   };
 
   const observeWorkspace = (): void => {
@@ -667,6 +798,7 @@ export function createProductionHost(
   };
 
   const namespaceState = (slug: string): AwayNamespaceState => {
+    loadEvidence();
     if (slug !== identity.slug) throw new Error("production host: namespace slug identity mismatch");
     const root = join(paths.workspace, ".pi", "artifacts", slug);
     const planKind = deps.pathKind(join(root, "PLAN.md"));
@@ -687,70 +819,93 @@ export function createProductionHost(
     async invoke(request: AwayLifecycleInvocation): Promise<AwayLifecycleObservation> {
       if (request.slug !== identity.slug) throw new Error("production host: lifecycle slug identity mismatch");
       validateFixedPolicy(request);
+      loadEvidence();
+      const stored = evidence.get(request.phase);
+      if (stored) {
+        if (stored.command !== request.command || (request.phase === "verify" && stored.verifiedOid !== request.expectedOid)) {
+          throw new Error("production host: stored phase invocation mismatch");
+        }
+        observeWorkspace();
+        return {
+          phase: stored.phase,
+          command: stored.command,
+          status: "completed",
+          terminalClaim: stored.phase === "verify" ? "verified" : "none",
+          verifiedOid: stored.verifiedOid,
+          fingerprint: stored.fingerprint,
+          repositoryWritesAfterFingerprint: stored.repositoryWritesAfterFingerprint,
+        };
+      }
       observeWorkspace();
       const built = buildLifecyclePrompt({
         phase: request.phase,
         command: request.command,
         canonicalTemplate: readFile(join(identity.repoRoot, ".pi", "prompts", request.phase + ".md")),
         identity,
+        expectedOid: request.expectedOid,
       });
       for (const directory of [paths.control, paths.staging, paths.attestations, paths.receipts]) {
         deps.mkdir(directory);
       }
       const profileId = built.profileId;
-      const before = new Set(listReceipts(paths.attestations));
-      const launcher = launch({
-        manifestPath: identity.manifestPath,
-        profileId,
-        controlCwd: paths.control,
-        processEnv: {
-          ...process.env,
-          PI_AWAY_LANE: profileId,
-          PI_AWAY_MANIFEST: identity.manifestPath,
-          PI_AWAY_STAGING_ROOT: paths.staging,
-          PI_AWAY_ATTEST_DIR: paths.attestations,
-          PI_AWAY_REPO_ROOT: paths.workspace,
-        },
-      });
-      let proposal: PhaseProposal | undefined;
-      await runLifecycleRpc({
-        launcher,
-        requestId: "phase-" + request.phase,
-        prompt: built.prompt,
-        timeoutMs: 600_000,
-        afterSettlement: async (assistantText, correlatedRequest) => {
-          proposal = parsePhaseProposal(assistantText, request.phase, identity.slug);
-          if (request.phase === "verify") return;
-          const payload = Buffer.from(JSON.stringify({
-            schema: "away-settlement/1",
-            candidates: proposal.candidates,
-          }), "utf8").toString("base64url");
-          const settlementId = "settle-" + request.phase;
-          const response = await correlatedRequest({
-            type: "prompt",
-            id: settlementId,
-            message: "/away-settle " + payload,
-          });
-          requirePromptResponse(response, settlementId);
-        },
-      });
-      if (!proposal) throw new Error("production host: phase proposal missing after settlement");
-
+      let proposal: PhaseProposal;
       let settlementReceipt: PhaseEvidence["settlementReceipt"];
       let verifiedOid: string | undefined;
       let fingerprint: string | undefined;
       let repositoryWritesAfterFingerprint: number | undefined;
+
       if (request.phase === "verify") {
         if (!request.expectedOid || !OID.test(request.expectedOid)) {
           throw new Error("production host: verify expected OID missing or invalid");
         }
         if (!dependencies.verifyCandidate) throw new Error("production host: verifier adapter is not configured");
-        const verification = dependencies.verifyCandidate(request.expectedOid);
-        settlementReceipt = verifierSettlement(request.expectedOid, verification);
+        proposal = { schema: "away-phase-proposal/1", phase: "verify", candidates: [] };
+        const verification = verifierSettlement(
+          request.expectedOid,
+          dependencies.verifyCandidate(request.expectedOid),
+        );
+        settlementReceipt = verification.receipt;
         verifiedOid = request.expectedOid;
-        fingerprint = settlementReceipt.hash;
+        fingerprint = verification.fingerprint;
         repositoryWritesAfterFingerprint = 0;
       } else {
+        const before = new Set(listReceipts(paths.attestations));
+        const launcher = launch({
+          manifestPath: identity.manifestPath,
+          profileId,
+          controlCwd: paths.control,
+          processEnv: {
+            ...process.env,
+            PI_AWAY_LANE: profileId,
+            PI_AWAY_MANIFEST: identity.manifestPath,
+            PI_AWAY_STAGING_ROOT: paths.staging,
+            PI_AWAY_ATTEST_DIR: paths.attestations,
+            PI_AWAY_REPO_ROOT: paths.workspace,
+          },
+        });
+        let writerProposal: PhaseProposal | undefined;
+        await runLifecycleRpc({
+          launcher,
+          requestId: "phase-" + request.phase,
+          prompt: built.prompt,
+          timeoutMs: 600_000,
+          afterSettlement: async (assistantText, correlatedRequest) => {
+            writerProposal = parsePhaseProposal(assistantText, request.phase, identity.slug);
+            const payload = Buffer.from(JSON.stringify({
+              schema: "away-settlement/1",
+              candidates: writerProposal.candidates,
+            }), "utf8").toString("base64url");
+            const settlementId = "settle-" + request.phase;
+            const response = await correlatedRequest({
+              type: "prompt",
+              id: settlementId,
+              message: "/away-settle " + payload,
+            });
+            requirePromptResponse(response, settlementId);
+          },
+        });
+        if (!writerProposal) throw new Error("production host: phase proposal missing after settlement");
+        proposal = writerProposal;
         const added = listReceipts(paths.attestations).filter((path) => !before.has(path));
         if (added.length !== 1) throw new Error("production host: expected one exact new settlement receipt");
         settlementReceipt = writerSettlement(added[0], "writer", launcher.closureHash, readFile);
@@ -795,6 +950,7 @@ export function createProductionHost(
     },
 
     async createOrObserveCandidate(request: AwayCandidateRequest): Promise<AwayCandidateObservation> {
+      loadEvidence();
       if (
         request.runId !== identity.runId || request.cardId !== identity.cardId ||
         request.slug !== identity.slug || request.baseOid !== identity.baseOid
@@ -827,4 +983,174 @@ export function createProductionHost(
       };
     },
   };
+}
+
+export type ProductionSelection =
+  | { kind: "no-work"; reason: string }
+  | {
+      kind: "reserved";
+      reservation: Extract<ReserveResult, { kind: "reserved" }>;
+      ledger: Ledger;
+    };
+
+export interface ProductionControllerDependencies {
+  select(request: AwayControllerRequest): Promise<ProductionSelection>;
+  hostFactory(selection: Extract<ProductionSelection, { kind: "reserved" }>): AwayLifecycleHost;
+  effectHostFactory(
+    selection: Extract<ProductionSelection, { kind: "reserved" }>,
+    lifecycle: AwayLifecycleCompleted,
+  ): AwayEffectHost;
+  reconcile?(options: {
+    ledger: Ledger;
+    reservation: Extract<ReserveResult, { kind: "reserved" }>["record"];
+    host: AwayEffectHost;
+    now(): number;
+  }): Promise<ReconciledAwayRun>;
+  now(): number;
+}
+
+function defaultStateRoot(): string {
+  const xdg = process.env.XDG_STATE_HOME;
+  const parent = xdg && xdg.length > 0 ? requireAbsolute(xdg, "XDG state root") : join(homedir(), ".local", "state");
+  return join(parent, "pi-away");
+}
+
+function latestUnfinished(records: LedgerRecord[], repositoryId: string): LedgerRecord[] {
+  const latest = new Map<string, LedgerRecord>();
+  for (const record of records) {
+    if (record.repositoryId === repositoryId) latest.set(record.runId, record);
+  }
+  return [...latest.values()].filter((record) =>
+    record.status !== "completed" && record.status !== "blocked" && record.status !== "aborted"
+  );
+}
+
+async function defaultSelect(request: AwayControllerRequest): Promise<ProductionSelection> {
+  const repoRoot = requireAbsolute(request.repoRoot, "repo root");
+  const manifestPath = join(repoRoot, ".pi", "away-sandbox.json");
+  validateReadyPacket(repoRoot);
+  const closureHashes = validateRuntimeClosures(manifestPath);
+  const git = deriveGitFacts(repoRoot);
+  const stateRoot = defaultStateRoot();
+  const repositoryRoot = join(stateRoot, "repositories", git.repositoryId);
+  const ledgerRoot = join(repositoryRoot, "ledger");
+  const readRecords = (): LedgerRecord[] => openLedger(ledgerRoot).replay().records;
+  const records = existsSync(ledgerRoot)
+    ? await withRepositoryLease(ledgerRoot + ".lock", readRecords)
+    : [];
+  const unfinished = latestUnfinished(records, git.repositoryId);
+  if (unfinished.length > 1) throw new Error("production host: multiple unfinished reservations");
+
+  const roadmapPath = join(repoRoot, ".pi", "ROADMAP.md");
+  const roadmapBytes = readFileSync(roadmapPath);
+  const roadmapHash = sha256(roadmapBytes);
+  const roadmap = parseRoadmap(roadmapBytes.toString("utf8"));
+  if (unfinished.length === 1) {
+    const latest = unfinished[0];
+    const runRecords = records.filter((record) => record.runId === latest.runId);
+    const reservation = runRecords[0];
+    if (!reservation || reservation.status !== "reserved") {
+      throw new Error("production host: unfinished run lacks its reservation record");
+    }
+    if (
+      reservation.repositoryId !== git.repositoryId || reservation.baseOid !== git.baseOid ||
+      reservation.sourceHash !== roadmapHash
+    ) throw new Error("production host: unfinished reservation identity drift");
+    const card = roadmap.cards.find((candidate) => candidate.id === reservation.cardId);
+    if (!card || card.candidateSlug !== reservation.slug) {
+      throw new Error("production host: unfinished reservation card drift");
+    }
+    return {
+      kind: "reserved",
+      reservation: { kind: "reserved", card, record: reservation, roadmapHash, closureHashes },
+      ledger: openLedger(ledgerRoot),
+    };
+  }
+
+  const priorReservations = records
+    .filter((record) => record.status === "reserved")
+    .map((record) => ({
+      repositoryId: record.repositoryId,
+      cardId: record.cardId,
+      sourceHash: record.sourceHash,
+    }));
+  const card = selectAwayRoadmapCard(roadmapBytes.toString("utf8"), {
+    repositoryId: git.repositoryId,
+    namespaceRoot: join(repoRoot, ".pi", "artifacts"),
+    exists: existsSync,
+    ledgerReservations: priorReservations,
+  });
+  if (!card) {
+    if (sha256(readFileSync(roadmapPath)) !== roadmapHash) {
+      throw new Error("production host: roadmap drift before no-work");
+    }
+    return { kind: "no-work", reason: "no eligible away roadmap card" };
+  }
+
+  const reserved = await reserveNext({
+    repoRoot,
+    ledgerRoot,
+    manifestPath,
+    runId: "run-" + randomBytes(16).toString("hex"),
+    timestamp: Date.now(),
+  });
+  if (reserved.kind === "no-work") return { kind: "no-work", reason: reserved.reason };
+  return { kind: "reserved", reservation: reserved, ledger: openLedger(ledgerRoot) };
+}
+
+function defaultProductionDependencies(request: AwayControllerRequest): ProductionControllerDependencies {
+  return {
+    select: defaultSelect,
+    hostFactory(selection) {
+      const record = selection.reservation.record;
+      return createProductionHost({
+        repoRoot: request.repoRoot,
+        stateRoot: defaultStateRoot(),
+        manifestPath: join(request.repoRoot, ".pi", "away-sandbox.json"),
+        repositoryId: record.repositoryId,
+        runId: record.runId,
+        cardId: record.cardId,
+        slug: selection.reservation.card.candidateSlug,
+        baseOid: record.baseOid,
+      });
+    },
+    effectHostFactory() {
+      throw new Error("production host: external effect host is not configured");
+    },
+    now: Date.now,
+  };
+}
+
+/** Public production mapping: lifecycle success is never terminal by itself. */
+export async function runProductionAwayController(
+  request: AwayControllerRequest,
+  dependencies?: ProductionControllerDependencies,
+): Promise<AwayControllerResult> {
+  try {
+    const activeDependencies = dependencies ?? defaultProductionDependencies(request);
+    const selection = await activeDependencies.select(request);
+    if (selection.kind === "no-work") return selection;
+    const host = activeDependencies.hostFactory(selection);
+    const lifecycle = await driveReservedLifecycle(
+      selection.reservation,
+      { supplementalObjective: request.supplementalObjective },
+      host,
+    );
+    const effectHost = activeDependencies.effectHostFactory(selection, lifecycle);
+    const terminal = await (activeDependencies.reconcile ?? reconcileAwayRun)({
+      ledger: selection.ledger,
+      reservation: selection.reservation.record,
+      host: effectHost,
+      now: activeDependencies.now,
+    });
+    if (terminal.commitOid !== lifecycle.candidateOid || terminal.remoteOid !== lifecycle.candidateOid) {
+      throw new Error("production host: terminal effect evidence does not match lifecycle candidate");
+    }
+    return lifecycle;
+  } catch (error) {
+    return {
+      kind: "blocked",
+      message: error instanceof Error ? error.message : String(error),
+    };
+  }
 }
