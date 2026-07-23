@@ -13,7 +13,7 @@ import { createHash } from "node:crypto";
 import { existsSync, readFileSync, mkdirSync, realpathSync, lstatSync } from "node:fs";
 import { join, isAbsolute, dirname, resolve } from "node:path";
 import { execFileSync, spawn, type ChildProcess } from "node:child_process";
-import { openLedger, type LedgerRecord, type LedgerInput } from "./ledger.ts";
+import { openLedger, type Ledger, type LedgerRecord, type LedgerInput } from "./ledger.ts";
 import { resolveClosure } from "./closure.ts";
 import { loadManifest } from "./bootstrap.ts";
 
@@ -1303,4 +1303,270 @@ export async function runAwayController(
       message: error instanceof Error ? error.message : String(error),
     };
   }
+}
+
+// ---------------------------------------------------------------------------
+// A6 durable external-effect reconciliation
+// ---------------------------------------------------------------------------
+
+export interface AwayVerificationObservation {
+  oid: string;
+  receiptHash: string;
+  fingerprint: string;
+  fresh: boolean;
+}
+
+export type AwayRemoteObservation =
+  | { kind: "absent" }
+  | { kind: "match"; oid: string }
+  | { kind: "divergent"; oid: string };
+
+export type AwayPullObservation =
+  | { kind: "absent" }
+  | { kind: "ambiguous" }
+  | { kind: "match"; pullRequestId: number; requestId: string };
+
+export interface AwayEffectHost {
+  ensureWorkspace(): Promise<void>;
+  ensureCandidate(): Promise<{ oid: string }>;
+  ensureCommit(candidateOid: string): Promise<{ oid: string }>;
+  ensureVerification(commitOid: string): Promise<AwayVerificationObservation>;
+  observeRemote(commitOid: string): Promise<AwayRemoteObservation>;
+  publish(commitOid: string): Promise<void>;
+  observePullRequest(): Promise<AwayPullObservation>;
+  createOrGetDraftPullRequest(requestId: string): Promise<AwayPullObservation>;
+}
+
+export interface ReconcileAwayRunOptions {
+  ledger: Ledger;
+  reservation: LedgerRecord;
+  host: AwayEffectHost;
+  now(): number;
+}
+
+export interface ReconciledAwayRun {
+  kind: "completed";
+  commitOid: string;
+  remoteOid: string;
+  pullRequestId: number;
+}
+
+interface RunEvidence {
+  candidateOid?: string;
+  commitOid?: string;
+  verificationReceiptHash?: string;
+  remoteOid?: string;
+  requestId?: string;
+  pullRequestId?: number;
+}
+
+function requireUniqueEvidence<T extends keyof RunEvidence>(
+  records: LedgerRecord[],
+  field: T,
+): RunEvidence[T] {
+  const values = records
+    .map((record) => record[field] as RunEvidence[T])
+    .filter((value) => value !== undefined);
+  const unique = new Set(values);
+  if (unique.size > 1) throw block("replay", `${field} drift across ledger evidence`);
+  return values.at(-1);
+}
+
+function collectRunEvidence(records: LedgerRecord[]): RunEvidence {
+  return {
+    candidateOid: requireUniqueEvidence(records, "candidateOid"),
+    commitOid: requireUniqueEvidence(records, "commitOid"),
+    verificationReceiptHash: requireUniqueEvidence(records, "verificationReceiptHash"),
+    remoteOid: requireUniqueEvidence(records, "remoteOid"),
+    requestId: requireUniqueEvidence(records, "requestId"),
+    pullRequestId: requireUniqueEvidence(records, "pullRequestId"),
+  };
+}
+
+function requireObservedOid(value: string, label: string): string {
+  if (!HEX_OID.test(value)) throw block("replay", `${label} OID is invalid`);
+  return value;
+}
+
+function requireReceipt(value: string): string {
+  if (!HEX64.test(value)) throw block("replay", "verification receipt hash is invalid");
+  return value;
+}
+
+/** Replay a reserved run from durable evidence, observing before mutation. */
+export async function reconcileAwayRun(
+  options: ReconcileAwayRunOptions,
+): Promise<ReconciledAwayRun> {
+  const { ledger, reservation, host, now } = options;
+  if (reservation.status !== "reserved") throw block("replay", "reservation record is required");
+  const identity = {
+    runId: reservation.runId,
+    repositoryId: reservation.repositoryId,
+    cardId: reservation.cardId,
+    sourceHash: reservation.sourceHash,
+    baseOid: reservation.baseOid,
+  };
+  if (!reservation.slug || !SLUG.test(reservation.slug)) {
+    throw block("replay", "reservation slug is missing or invalid");
+  }
+
+  const runRecords = (): LedgerRecord[] => {
+    const records = ledger.replay().records.filter((record) => record.runId === reservation.runId);
+    if (
+      records.length === 0 ||
+      records[0].sequence !== reservation.sequence ||
+      records[0].effectKey !== reservation.effectKey
+    ) {
+      throw block("replay", "reservation does not match durable ledger evidence");
+    }
+    return records;
+  };
+
+  const append = (status: LedgerInput["status"], extras: Partial<LedgerInput> = {}): void => {
+    ledger.append({
+      ...identity,
+      effectKey: `${reservation.runId}:${status}`,
+      status,
+      timestamp: now(),
+      slug: reservation.slug,
+      ...extras,
+    });
+  };
+
+  for (let step = 0; step < 16; step += 1) {
+    const records = runRecords();
+    const latest = records.at(-1)!;
+    const evidence = collectRunEvidence(records);
+    if (latest.status === "blocked" || latest.status === "aborted") {
+      throw block("replay", `run is terminal (${latest.status})`);
+    }
+    if (latest.status === "completed") {
+      if (!evidence.commitOid || !evidence.remoteOid || !evidence.pullRequestId) {
+        throw block("replay", "completed evidence is incomplete");
+      }
+      return {
+        kind: "completed",
+        commitOid: evidence.commitOid,
+        remoteOid: evidence.remoteOid,
+        pullRequestId: evidence.pullRequestId,
+      };
+    }
+
+    switch (latest.status) {
+      case "reserved": {
+        await host.ensureWorkspace();
+        append("workspace_observed");
+        break;
+      }
+      case "workspace_observed": {
+        const candidate = await host.ensureCandidate();
+        append("candidate_observed", {
+          candidateOid: requireObservedOid(candidate.oid, "candidate"),
+        });
+        break;
+      }
+      case "candidate_observed": {
+        if (!evidence.candidateOid) throw block("replay", "candidate evidence is missing");
+        const commit = await host.ensureCommit(evidence.candidateOid);
+        append("commit_observed", {
+          candidateOid: evidence.candidateOid,
+          commitOid: requireObservedOid(commit.oid, "commit"),
+        });
+        break;
+      }
+      case "commit_observed": {
+        if (!evidence.commitOid) throw block("replay", "commit evidence is missing");
+        const verification = await host.ensureVerification(evidence.commitOid);
+        if (verification.oid !== evidence.commitOid || !verification.fresh) {
+          throw block("replay", "verification is not fresh for the observed commit");
+        }
+        if (!HEX64.test(verification.fingerprint)) {
+          throw block("replay", "verification fingerprint is invalid");
+        }
+        append("verified", {
+          commitOid: evidence.commitOid,
+          verificationReceiptHash: requireReceipt(verification.receiptHash),
+        });
+        break;
+      }
+      case "verified": {
+        if (!evidence.commitOid || !evidence.verificationReceiptHash) {
+          throw block("replay", "verified evidence is incomplete");
+        }
+        append("push_intent", {
+          commitOid: evidence.commitOid,
+          verificationReceiptHash: evidence.verificationReceiptHash,
+        });
+        break;
+      }
+      case "push_intent": {
+        if (!evidence.commitOid) throw block("replay", "push intent lacks a commit");
+        let remote = await host.observeRemote(evidence.commitOid);
+        if (remote.kind === "divergent") throw block("replay", "remote ref is divergent");
+        if (remote.kind === "absent") {
+          await host.publish(evidence.commitOid);
+          remote = await host.observeRemote(evidence.commitOid);
+        }
+        if (remote.kind !== "match" || remote.oid !== evidence.commitOid) {
+          throw block("replay", "remote ref did not converge to the verified commit");
+        }
+        append("push_observed", { commitOid: evidence.commitOid, remoteOid: remote.oid });
+        break;
+      }
+      case "push_observed": {
+        append("pr_intent", { requestId: `${reservation.runId}:pr` });
+        break;
+      }
+      case "pr_intent": {
+        if (!evidence.requestId) throw block("replay", "PR intent lacks a request id");
+        let pull = await host.observePullRequest();
+        if (pull.kind === "ambiguous") throw block("replay", "pull request state is ambiguous");
+        if (pull.kind === "absent") {
+          pull = await host.createOrGetDraftPullRequest(evidence.requestId);
+        }
+        if (pull.kind !== "match" || !Number.isSafeInteger(pull.pullRequestId) || pull.pullRequestId <= 0) {
+          throw block("replay", "pull request did not reconcile to one exact draft");
+        }
+        append("pr_observed", { requestId: evidence.requestId, pullRequestId: pull.pullRequestId });
+        break;
+      }
+      case "pr_observed": {
+        if (
+          !evidence.commitOid ||
+          !evidence.verificationReceiptHash ||
+          !evidence.remoteOid ||
+          !evidence.pullRequestId
+        ) {
+          throw block("replay", "completion evidence is incomplete");
+        }
+        const verification = await host.ensureVerification(evidence.commitOid);
+        const remote = await host.observeRemote(evidence.commitOid);
+        const pull = await host.observePullRequest();
+        if (
+          verification.oid !== evidence.commitOid ||
+          verification.receiptHash !== evidence.verificationReceiptHash ||
+          !verification.fresh
+        ) {
+          throw block("replay", "completion verification evidence is stale or mismatched");
+        }
+        if (remote.kind !== "match" || remote.oid !== evidence.remoteOid) {
+          throw block("replay", "completion remote OID is mismatched");
+        }
+        if (pull.kind !== "match" || pull.pullRequestId !== evidence.pullRequestId) {
+          throw block("replay", "completion pull request is missing or ambiguous");
+        }
+        append("completed", {
+          commitOid: evidence.commitOid,
+          verificationReceiptHash: evidence.verificationReceiptHash,
+          remoteOid: evidence.remoteOid,
+          requestId: evidence.requestId,
+          pullRequestId: evidence.pullRequestId,
+        });
+        break;
+      }
+      default:
+        throw block("replay", `unsupported ledger state: ${latest.status}`);
+    }
+  }
+  throw block("replay", "transition budget exhausted");
 }
